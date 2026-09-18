@@ -15,6 +15,7 @@ from .boundary import (
     TenantBoundary,
 )
 from .routes import ProtectedRouteChecks, require_admin_access, require_authenticated, require_tenant_access
+from .google_provider import GoogleAuthorization, GoogleOAuthProvider
 
 __all__ = [
     "AccountCollision",
@@ -33,4 +34,6 @@ __all__ = [
     "require_admin_access",
     "require_authenticated",
     "require_tenant_access",
+    "GoogleAuthorization",
+    "GoogleOAuthProvider",
 ]

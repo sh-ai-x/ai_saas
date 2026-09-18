@@ -57,4 +57,58 @@ The authoritative step state is `phases/ai-saas-foundation/index.json`.
 
 ## 6. Handoff to build
 
-The plan is ready for `/dev-kit:build` in dependency order. Build must preserve the copied SOT under `docs/sot/` as ignored local context, avoid secrets, and keep every step within its declared ownership and acceptance contract. After build, run `/dev-kit:babysit-pr` with the Ralph unattended flags and finish at the human merge boundary.
+The plan is ready for `/dev-kit:build` in dependency order. Build must preserve
+the copied SOT under `docs/sot/` as tracked project documentation, avoid
+secrets, and keep every step within its declared ownership and acceptance
+contract. After build, run `/dev-kit:babysit-pr` with the Ralph unattended flags
+and finish at the human merge boundary.
+
+## 7. Real integration extension — Ralph plan
+
+The local vertical slice remains the default no-credential mode, but the
+foundation now also defines a real integration path. Credentials are injected
+only at runtime; no provider secret or authorization code is committed. A
+provider is enabled only after its configuration validator passes.
+
+| Step | Name | Dependency | Outcome |
+|---:|---|---|---|
+| 7 | integration-contracts-and-validators | 6 | Versioned auth/payment/agent API contracts, fail-closed environment validation, and deterministic provider fixtures |
+| 8 | google-oauth-provider | 7 | Server-side Google authorization URL, code exchange, token/userinfo verification, session cookie, and callback route |
+| 9 | sandbox-payment-provider | 7 | Toss or Lemon Squeezy sandbox checkout/confirmation/webhook routes, one-provider selection, and exactly-once ledger effects |
+| 10 | agent-provider-runtime | 7 | Provider-neutral model port with OpenAI, Anthropic, and Gemini HTTP adapters, bounded usage, redaction, and run integration |
+| 11 | setup-guide-console | 8–10 | Detailed category guides in the web app, left sidebar navigation, environment examples, and existing console integration |
+| 12 | integration-e2e-verification | 8–11 | Contract, config, adapter, API, browser, and sandbox fixture verification with step output evidence |
+
+### Real integration constraints
+
+- Google OAuth uses the authorization-code web-server flow. The browser sees
+  only the authorization URL and session result; client secrets, access tokens,
+  ID tokens, and codes stay server-side.
+- `PAYMENT_PROVIDER` selects exactly one provider. `APP_ENV=local|staging`
+  forces sandbox/test mode; production requires an explicit live deployment
+  approval. Toss and Lemon Squeezy remain adapter-compatible but are never
+  enabled simultaneously.
+- `AGENT_PROVIDER=local` is the deterministic default. `openai`, `anthropic`,
+  and `gemini` require a runtime-injected API key and bounded model settings.
+  Provider errors fail the run without retry storms or silent paid fallback.
+- Every externally reachable callback/webhook has a versioned API contract,
+  raw-body verification, idempotency, and a replayable test fixture.
+- The web GUIDE is a presentation layer over these contracts. It does not
+  store secrets, call providers directly, or bypass the existing console API.
+
+### New acceptance criteria
+
+- **REQ-6:** Invalid/missing integration settings fail before the server binds;
+  no mixed live providers, production mock payments, or unbounded agent model
+  calls are accepted.
+- **REQ-7:** A configured Google client can complete authorization-code exchange
+  and create a server-owned session; invalid state, issuer, audience, expiry,
+  or unverified email is rejected.
+- **REQ-8:** A configured Toss or Lemon Squeezy sandbox can create a pending
+  order, confirm/reconcile it, verify a webhook, and apply credit exactly once.
+- **REQ-9:** A configured Agent provider can execute a bounded run through the
+  same metering/checkpoint/SSE path; provider credentials never enter output or
+  telemetry.
+- **REQ-10:** The browser contains category-based setup guides for local,
+  Google, payment, Agent, verification, and operations; the sidebar links the
+  guides to the existing console without breaking the local profile.

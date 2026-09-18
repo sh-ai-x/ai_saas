@@ -97,6 +97,8 @@ def build_registry_from_environment(values: Mapping[str, str]) -> ProviderRegist
             toss=TossPaymentsAdapter(
                 secret_key=values.get("TOSS_SECRET_KEY"),
                 webhook_secret=values.get("TOSS_WEBHOOK_SECRET"),
+                client_key=values.get("TOSS_CLIENT_KEY"),
+                checkout_url=values.get("TOSS_CHECKOUT_URL", "https://js.tosspayments.com/v2/standard"),
                 test_mode=environment != "production",
             ),
         )

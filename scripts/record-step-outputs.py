@@ -34,6 +34,12 @@ COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
         ("npm", "--prefix", "apps/web", "audit", "--omit=dev", "--audit-level=high"),
         ("npm", "--prefix", "apps/web", "run", "build"),
     ),
+    7: ((sys.executable, "-m", "foundation.contract_check"), (sys.executable, "-m", "unittest", "tests/test_integration_contracts.py")),
+    8: ((sys.executable, "-m", "unittest", "tests/test_google_oauth_provider.py"),),
+    9: ((sys.executable, "-m", "unittest", "tests/test_payment_sandbox_api.py"),),
+    10: ((sys.executable, "-m", "unittest", "tests/test_agent_provider_runtime.py"),),
+    11: (("npm", "--prefix", "apps/web", "run", "lint"), ("npm", "--prefix", "apps/web", "run", "build")),
+    12: (("bash", "scripts/verify-local.sh"),),
 }
 
 
@@ -100,6 +106,12 @@ def record(step: int) -> int:
             "Browser verification covers mock Google login, SSE run replay, admin mutation, "
             "and mock payment ledger application."
         )
+    if step >= 7:
+        document["environment_note"] = (
+            "Provider integration evidence uses deterministic HTTP fixtures. "
+            "Sandbox credentials are required only for the documented external smoke step; "
+            "no credential value is recorded in this output."
+        )
     write_atomic(OUTPUT_DIR / f"step{step}-output.json", document)
     print(f"step{step}: exit={exit_code} duration={document['duration_seconds']}s")
     return exit_code
@@ -107,12 +119,12 @@ def record(step: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Record valid local phase step output JSON")
-    parser.add_argument("--step", type=int, choices=range(7))
+    parser.add_argument("--step", type=int, choices=range(13))
     parser.add_argument("--all", action="store_true")
     args = parser.parse_args()
     if not args.all and args.step is None:
         parser.error("provide --step N or --all")
-    steps = range(7) if args.all else (args.step,)
+    steps = range(13) if args.all else (args.step,)
     exit_code = 0
     for step in steps:
         exit_code = record(int(step)) or exit_code

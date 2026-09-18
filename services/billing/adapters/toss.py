@@ -31,6 +31,8 @@ class TossPaymentsAdapter:
         secret_key: str | None = None,
         webhook_secret: str | None = None,
         base_url: str = "https://api.tosspayments.com",
+        client_key: str | None = None,
+        checkout_url: str = "https://js.tosspayments.com/v2/standard",
         test_mode: bool = False,
         request_json: Callable[..., dict[str, Any]] = json_request,
         status_verifier: Callable[[Mapping[str, Any]], bool] | None = None,
@@ -38,6 +40,8 @@ class TossPaymentsAdapter:
         self._secret_key = secret_key or ""
         self._webhook_secret = webhook_secret or secret_key or ""
         self._base_url = base_url.rstrip("/")
+        self._client_key = client_key or ""
+        self._checkout_url = checkout_url
         self._test_mode = test_mode
         self._request_json = request_json
         self._status_verifier = status_verifier
@@ -45,17 +49,49 @@ class TossPaymentsAdapter:
     def create_checkout(self, request: CheckoutRequest) -> CheckoutResponse:
         if not self._secret_key:
             raise RuntimeError("Toss secret key is not configured")
+        # Toss Payment Widgets/SDKs collect customer payment details in the
+        # browser. The server creates the durable order and returns the
+        # provider-neutral handoff; confirmation is always server-side.
+        return CheckoutResponse(
+            self.provider_id,
+            request.order_id,
+            self._checkout_url,
+            self._test_mode,
+        )
+
+    def confirm_payment_event(
+        self,
+        provider_reference: str,
+        order_id: str,
+        amount_minor: int,
+        idempotency_key: str,
+    ) -> NormalizedEvent:
+        if not self._secret_key:
+            raise RuntimeError("Toss secret key is not configured")
         value = self._request_json(
             "POST",
-            f"{self._base_url}/v1/payments",
+            f"{self._base_url}/v1/payments/confirm",
             {
                 "Authorization": "Basic " + base64.b64encode(f"{self._secret_key}:".encode()).decode(),
                 "Content-Type": "application/json",
-                "Idempotency-Key": request.idempotency_key,
+                "Idempotency-Key": idempotency_key,
             },
-            {"orderId": request.order_id, "amount": request.amount_minor, "currency": request.currency, "planId": request.plan_id},
+            {"paymentKey": provider_reference, "orderId": order_id, "amount": amount_minor},
         )
-        return generic_checkout_response(self.provider_id, value, test_mode=self._test_mode)
+        if str(value.get("orderId") or "") != order_id or int(value.get("totalAmount", -1)) != amount_minor:
+            raise InvalidWebhook("Toss confirmation does not match the pending order")
+        return normalized(
+            provider=self.provider_id,
+            event_id=f"confirm-{provider_reference}",
+            event_type="payment.confirmed",
+            status=_status(str(value.get("status") or "unknown")),
+            order_id=order_id,
+            occurred_at=parse_time(value.get("approvedAt") or value.get("requestedAt")),
+            test_mode=self._test_mode,
+            idempotency_key=idempotency_key,
+            amount_minor=amount_minor,
+            metadata={"payment_key": provider_reference},
+        )
 
     def verify_and_normalize_event(self, raw_body: bytes, headers: Mapping[str, str]) -> NormalizedEvent:
         value = parse_json(raw_body)

@@ -15,10 +15,12 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const tenantId = request.headers.get("x-tenant-id");
   const sessionId = request.headers.get("x-session-id");
   const lastEventId = request.headers.get("last-event-id");
+  const cookie = request.headers.get("cookie");
   if (contentType) headers.set("content-type", contentType);
   if (tenantId) headers.set("x-tenant-id", tenantId);
   if (sessionId) headers.set("x-session-id", sessionId);
   if (lastEventId) headers.set("last-event-id", lastEventId);
+  if (cookie) headers.set("cookie", cookie);
 
   // Materialize the incoming body before forwarding it. Passing the
   // NextRequest stream directly can result in an empty upstream body when
@@ -37,7 +39,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const responseHeaders = new Headers();
   const responseType = upstream.headers.get("content-type");
+  const setCookie = upstream.headers.get("set-cookie");
   if (responseType) responseHeaders.set("content-type", responseType);
+  if (setCookie) responseHeaders.set("set-cookie", setCookie);
   responseHeaders.set("cache-control", "no-store");
   return new Response(upstream.body, {
     status: upstream.status,

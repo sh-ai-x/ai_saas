@@ -31,6 +31,7 @@ from services.identity_tenant import (
     Role,
     TenantBoundary,
 )
+from services.identity_tenant.google_provider import GoogleOAuthProvider
 from services.metering_billing import (
     QuotaPolicy,
     SQLiteCreditLedger,
@@ -39,6 +40,7 @@ from services.metering_billing import (
 from services.run_service import RunCreate, RunService, SQLiteRunStore
 
 from .config import FoundationConfig
+from services.agent_worker import build_agent_model
 
 
 DEMO_USER_ID = "demo-user"
@@ -115,7 +117,17 @@ class LocalRuntime:
             workflow=self.dispatcher,
             quota=self.quota,
         )
-        self.worker = BoundedWorker(self.run_store, self.credit_ledger, LocalEchoModel())
+        self.worker = BoundedWorker(
+            self.run_store,
+            self.credit_ledger,
+            build_agent_model(
+                provider=config.agent_provider,
+                model=config.agent_model,
+                api_key=values.get("AGENT_API_KEY", ""),
+                base_url=config.agent_base_url,
+                max_output_tokens=config.agent_max_output_tokens,
+            ),
+        )
 
         self.billing_store = SQLiteBillingStore(state_path)
         self.billing_registry = build_registry_from_environment(values)
@@ -134,7 +146,19 @@ class LocalRuntime:
         self.oauth_transactions = OAuthTransactionStore()
         self.oauth = GoogleOAuthCallbackValidator(
             self.oauth_transactions,
-            allowed_redirect_uris={f"{config.app_base_url.rstrip('/')}/auth/callback"},
+            allowed_redirect_uris={
+                values.get("GOOGLE_REDIRECT_URI", "").strip()
+                or f"{config.app_base_url.rstrip('/')}/auth/callback"
+            },
+        )
+        self.google_provider = (
+            GoogleOAuthProvider(
+                client_id=values.get("GOOGLE_CLIENT_ID", ""),
+                client_secret=values.get("GOOGLE_CLIENT_SECRET", ""),
+                redirect_uri=values.get("GOOGLE_REDIRECT_URI", ""),
+            )
+            if config.auth_provider == "google"
+            else None
         )
         self.admin_audit = AuditLog()
         self.admin_entitlements = InMemoryEntitlements({DEMO_USER_ID: "free", "demo-member": "free"})
@@ -160,8 +184,12 @@ class LocalRuntime:
             store.close()
 
     def authenticate_demo(self, tenant_id: str | None = None) -> None:
-        if tenant_id is not None and tenant_id != DEMO_TENANT_ID:
+        if tenant_id is None or tenant_id == DEMO_TENANT_ID:
+            return
+        if self.session.active_tenant_id != tenant_id:
             raise AuthorizationDenied("tenant access denied")
+        context = self.identity.authenticate(self.session)
+        self.identity.require_tenant(context, tenant_id)
 
     def create_run(self, payload: Mapping[str, Any]) -> Mapping[str, object]:
         tenant_id = str(payload.get("tenant_id") or DEMO_TENANT_ID)
@@ -185,6 +213,10 @@ class LocalRuntime:
         return self.run_payload(run)
 
     def run_payload(self, run: Any) -> dict[str, object]:
+        result = dict(run.result)
+        checkpoint = self.run_store.checkpoint(run.run_id)
+        if "output" not in result and checkpoint is not None and checkpoint.state.get("last_output"):
+            result["output"] = checkpoint.state["last_output"]
         return {
             "contract_version": "v1",
             "run_id": run.run_id,
@@ -194,7 +226,7 @@ class LocalRuntime:
             "sequence": run.sequence,
             "trace_id": run.trace_id,
             "reservation_id": run.reservation_id,
-            "result": dict(run.result),
+            "result": result,
         }
 
     def auth_payload(self) -> dict[str, object]:
@@ -204,17 +236,29 @@ class LocalRuntime:
             "session_id": self.session.session_id,
             "tenant_id": self.session.active_tenant_id,
             "expires_at": self.session.expires_at.isoformat(),
-            "provider": "local-demo",
+            "provider": self.config.auth_provider,
         }
 
     def start_google(self) -> dict[str, object]:
         state = f"local-state-{uuid.uuid4().hex}"
-        redirect_uri = f"{self.config.app_base_url.rstrip('/')}/auth/callback"
+        redirect_uri = (
+            self.config.values.get("GOOGLE_REDIRECT_URI")
+            or f"{self.config.app_base_url.rstrip('/')}/auth/callback"
+        )
         self.oauth_transactions.begin(
             state,
             redirect_uri,
             datetime.now(timezone.utc) + timedelta(minutes=5),
         )
+        if self.google_provider is not None:
+            authorization = self.google_provider.authorization_url(state)
+            return {
+                "provider": "google",
+                "mode": "authorization-code",
+                "state": state,
+                "redirect_uri": authorization.redirect_uri,
+                "authorization_url": authorization.authorization_url,
+            }
         return {
             "provider": "google",
             "mode": "local-mock",
@@ -224,19 +268,43 @@ class LocalRuntime:
         }
 
     def complete_google(self, payload: Mapping[str, Any]) -> dict[str, object]:
-        redirect_uri = str(payload.get("redirect_uri") or f"{self.config.app_base_url.rstrip('/')}/auth/callback")
+        redirect_uri = str(
+            payload.get("redirect_uri")
+            or self.config.values.get("GOOGLE_REDIRECT_URI")
+            or f"{self.config.app_base_url.rstrip('/')}/auth/callback"
+        )
         callback = GoogleOAuthCallback(
             state=str(payload.get("state") or ""),
             code=str(payload.get("code") or ""),
             redirect_uri=redirect_uri,
         )
-        identity = self.oauth.validate_and_exchange(
-            callback,
-            lambda _code, _redirect: GoogleIdentity(
-                provider_subject="local-google-subject",
-                email="demo@example.test",
-                email_verified=True,
-                display_name="Local Demo",
-            ),
+        if self.google_provider is None:
+            identity = self.oauth.validate_and_exchange(
+                callback,
+                lambda _code, _redirect: GoogleIdentity(
+                    provider_subject="local-google-subject",
+                    email="demo@example.test",
+                    email_verified=True,
+                    display_name="Local Demo",
+                ),
+            )
+            user_id = DEMO_USER_ID
+            tenant_id = DEMO_TENANT_ID
+        else:
+            identity = self.oauth.validate_and_exchange(callback, self.google_provider.exchange_code)
+            user_id = self.identity.link_google_identity(identity)
+            tenant_id = f"tenant-{user_id}"
+            try:
+                has_membership = bool(self.identity.memberships_for_tenant(tenant_id))
+            except AuthorizationDenied:
+                has_membership = False
+            if not has_membership:
+                self.identity.add_tenant(tenant_id, f"{identity.display_name or identity.email}'s workspace")
+                self.identity.add_membership(user_id, tenant_id, Role.OWNER)
+        self.session = BetterAuthSession(
+            session_id=DEMO_SESSION_ID if self.google_provider is None else f"session-{uuid.uuid4().hex}",
+            user_id=user_id,
+            active_tenant_id=tenant_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=1),
         )
         return {**self.auth_payload(), "email": identity.email, "display_name": identity.display_name}

@@ -38,3 +38,11 @@ Toss, Lemon Squeezy, or a running Docker daemon:
 npm run build
 npm run start
 ```
+
+The left sidebar contains category guides for local startup, Google OAuth,
+Toss/Lemon Squeezy sandbox payments, OpenAI/Anthropic/Gemini Agent providers,
+verification, and operations. Each guide is imported at build time from the
+Markdown files in `apps/web/content/guides/*.md`, displayed as a read-only
+Markdown editor with line numbers, and connected to the live console actions.
+The same source is mirrored as canonical documentation under
+`docs/setup-guides/`.

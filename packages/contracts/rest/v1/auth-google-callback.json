@@ -1,0 +1,17 @@
+{
+  "$id": "https://ai-saas.foundation/contracts/rest/v1/auth-google-callback.json",
+  "version": "v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "code"],
+  "properties": {
+    "state": {"type": "string", "minLength": 8},
+    "code": {"type": "string", "minLength": 1},
+    "redirect_uri": {"type": "string", "minLength": 8}
+  },
+  "x-example": {
+    "state": "local-state-12345678",
+    "code": "server-only-code",
+    "redirect_uri": "http://127.0.0.1:3000/auth/callback"
+  }
+}

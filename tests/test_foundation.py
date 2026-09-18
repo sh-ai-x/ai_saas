@@ -48,7 +48,7 @@ class ContractTests(unittest.TestCase):
     def test_contract_inventory_is_deterministic(self) -> None:
         self.assertEqual(
             check_contracts(),
-            ["validated 13 versioned JSON contracts", "validated provider registry"],
+            ["validated 17 versioned JSON contracts", "validated provider registry"],
         )
 
     def test_schema_rejects_unknown_fields(self) -> None:

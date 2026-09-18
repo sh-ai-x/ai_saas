@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AI SaaS Real Integrations and Setup Guides</title>
+</head>
+<body>
+  <main>
+    <h1>AI SaaS Real Integrations and Setup Guides</h1>
+    <p>Status: Approved build extension for the existing local foundation.</p>
+    <h2>Outcome</h2>
+    <p>Connect server-side Google OAuth, one sandbox payment provider, and a real
+    model provider while preserving the no-credential local demo and the
+    modular-monolith ownership boundaries.</p>
+    <h2>Implementation order</h2>
+    <ol>
+      <li>Versioned API contracts and fail-closed configuration validators.</li>
+      <li>Google authorization-code exchange and server-owned session.</li>
+      <li>Toss or Lemon Squeezy sandbox checkout, confirmation, and webhook.</li>
+      <li>OpenAI, Anthropic, and Gemini provider-neutral Agent adapters.</li>
+      <li>Detailed web setup guides with a category sidebar.</li>
+      <li>Contract, fixture, API, browser, and integration verification.</li>
+    </ol>
+    <h2>Trade-offs</h2>
+    <p>The first deployment remains one process. Real providers are selected by
+    environment and one payment provider is enabled at a time. This keeps the
+    portfolio path almost free while making the external boundaries real and
+    independently testable.</p>
+    <h2>Safety gates</h2>
+    <ul>
+      <li>No secrets, access tokens, payment payloads, or model prompts in Git or logs.</li>
+      <li>Sandbox/test mode is mandatory outside explicitly approved production.</li>
+      <li>All effects use stable idempotency keys and server-side verification.</li>
+      <li>Provider failures are visible and bounded; no silent paid fallback.</li>
+    </ul>
+  </main>
+</body>
+</html>

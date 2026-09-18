@@ -82,6 +82,14 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
 a host without Docker; if Docker Desktop is stopped it records
 `docker=blocked (daemon unavailable)` and does not suggest a paid upgrade.
 
+## Real integration setup guides
+
+The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
+and rendered inside the web console as the left-side setup-guide navigation.
+The order is intentional: contracts and validators first, then Google OAuth,
+one payment sandbox, one Agent provider, and finally the full verification gate.
+No secret is required for the default local profile.
+
 ## Docker path
 
 Docker Compose starts the local PostgreSQL companion and the same HTTP surface.
@@ -138,7 +146,7 @@ python3 scripts/record-step-outputs.py --all
 ```
 
 This writes `phases/ai-saas-foundation/step0-output.json` through
-`step6-output.json` with the real command exit code, stdout, stderr, and
+`step12-output.json` with the real command exit code, stdout, stderr, and
 duration. Docker availability and browser-console verification are preserved
 as explicit environment notes.
 
