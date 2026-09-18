@@ -85,7 +85,11 @@ def build_registry_from_environment(values: Mapping[str, str]) -> ProviderRegist
     if selected == "mock":
         if toss_configured or lemon_configured:
             raise ProviderConfigurationError("live credentials are present while mock is selected")
-        return build_registry(environment=environment, selected_provider=selected, mock=MockPaymentAdapter())
+        return build_registry(
+            environment=environment,
+            selected_provider=selected,
+            mock=MockPaymentAdapter(webhook_secret=values.get("MOCK_WEBHOOK_SECRET", "mock-secret")),
+        )
     if selected == "toss":
         return build_registry(
             environment=environment,

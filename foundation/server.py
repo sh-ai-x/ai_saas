@@ -1,36 +1,118 @@
-"""Tiny local HTTP surface proving the foundation can start without paid services."""
+"""Runnable local HTTP surface for the foundation vertical slice.
+
+The local profile exposes the same logical seams as the production design:
+Google session validation, tenant-scoped admin operations, provider-neutral
+mock billing, durable runs, and replayable SSE. It uses only stdlib HTTP and
+SQLite so a fresh clone can exercise the flow without cloud credentials.
+"""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from typing import Any, Mapping
+from urllib.parse import parse_qs, urlparse
+
+from services.billing.errors import InsufficientCredits
+from services.identity_tenant import AuthorizationDenied, OAuthCallbackError
+from services.run_service.errors import RunError, RunNotFound, TenantMismatch
 
 from .config import ConfigError, merged_environment, validate_profile
+from .local_runtime import DEMO_ACCOUNT_ID, DEMO_TENANT_ID, LocalRuntime
+
+
+MAX_BODY_BYTES = 64 * 1024
+
+
+class LocalServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+    def __init__(self, address: tuple[str, int], runtime: LocalRuntime) -> None:
+        super().__init__(address, FoundationHandler)
+        self.runtime = runtime
 
 
 class FoundationHandler(BaseHTTPRequestHandler):
-    server_version = "ai-saas-foundation/0.1"
+    server_version = "ai-saas-foundation/0.2"
 
-    def _json(self, status: int, payload: dict[str, object]) -> None:
-        body = json.dumps(payload, sort_keys=True).encode("utf-8")
+    @property
+    def runtime(self) -> LocalRuntime:
+        return self.server.runtime  # type: ignore[attr-defined]
+
+    def _json(self, status: int, payload: Mapping[str, object]) -> None:
+        body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
+    def _sse(self, body: str) -> None:
+        encoded = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _error(self, status: int, code: str, message: str) -> None:
+        self._json(status, {"error": code, "message": message})
+
+    def _body(self) -> dict[str, Any]:
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if length < 0 or length > MAX_BODY_BYTES:
+            raise ValueError("request body is too large")
+        raw = self.rfile.read(length)
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("request body must be a JSON object") from exc
+        if not isinstance(value, dict):
+            raise ValueError("request body must be a JSON object")
+        return value
+
+    def _tenant(self) -> str:
+        return self.headers.get("X-Tenant-Id", DEMO_TENANT_ID)
+
+    def _request_tenant(self, expected: str | None = None) -> str:
+        tenant_id = self._tenant()
+        self.runtime.authenticate_demo(tenant_id)
+        if expected is not None and expected != tenant_id:
+            raise TenantMismatch("tenant access denied")
+        return tenant_id
+
+    def _session(self):
+        session_id = self.headers.get("X-Session-Id", "demo-session")
+        if session_id != self.runtime.session.session_id:
+            raise AuthorizationDenied("session access denied")
+        return self.runtime.identity.authenticate(self.runtime.session)
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
-        path = urlparse(self.path).path
-        config = self.server.foundation_config  # type: ignore[attr-defined]
+        try:
+            self._get()
+        except Exception as exc:  # boundary converts expected failures safely
+            self._handle_error(exc)
+
+    def _get(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
         if path == "/healthz":
             self._json(
                 200,
                 {
                     "status": "ok",
-                    "contract_version": config.contract_version,
-                    "deployment_profile": config.deployment_profile,
+                    "contract_version": self.runtime.config.contract_version,
+                    "deployment_profile": self.runtime.config.deployment_profile,
                 },
             )
             return
@@ -41,31 +123,245 @@ class FoundationHandler(BaseHTTPRequestHandler):
                     "contract_version": "v1",
                     "families": ["rest", "sse", "events", "providers"],
                     "provider_policy": "domain consumes normalized events only",
+                    "local_runtime": "sqlite + stdlib http + mock provider",
                 },
             )
             return
-        if path.startswith("/v1/runs/") and path.endswith("/events"):
-            run_id = path.removeprefix("/v1/runs/").removesuffix("/events").strip("/")
-            if not run_id:
-                self._json(400, {"error": "run_id is required"})
-                return
-            body = (
-                "id: 1\n"
-                "event: run.state_changed\n"
-                f"data: {{\"contract_version\":\"v1\",\"run_id\":{json.dumps(run_id)},\"state\":\"queued\"}}\n\n"
-            ).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        if path == "/v1/auth/session":
+            self._request_tenant(self.runtime.session.active_tenant_id)
+            self._session()
+            self._json(200, self.runtime.auth_payload())
             return
-        self._json(404, {"error": "not_found"})
+        if path == "/v1/auth/google/start":
+            self._json(200, self.runtime.start_google())
+            return
+        if path == "/v1/admin/users":
+            actor = self._session()
+            users = self.runtime.admin.search_users(actor, self._tenant())
+            self._json(200, {"users": [self._admin_user(user) for user in users]})
+            return
+        if path.startswith("/v1/runs/"):
+            self._get_run(path, parsed.query)
+            return
+        if path.startswith("/v1/billing/orders/"):
+            order_id = path.removeprefix("/v1/billing/orders/")
+            tenant_id = self._request_tenant()
+            order = self.runtime.billing_store.order(order_id)
+            if order.tenant_id != tenant_id:
+                raise TenantMismatch("tenant access denied")
+            self._json(200, self._order(order))
+            return
+        if path == "/v1/billing/balance":
+            self._request_tenant()
+            account_id = parse_qs(parsed.query).get("account_id", ["demo-account"])[0]
+            if account_id != DEMO_ACCOUNT_ID:
+                raise TenantMismatch("account access denied")
+            self._json(
+                200,
+                {
+                    "account_id": account_id,
+                    "run_credits_available": self.runtime.credit_ledger.available(account_id),
+                    "payment_credits": self.runtime.billing_store.balance(account_id),
+                    "entitlement": self.runtime.billing_store.entitlement(account_id).plan,
+                },
+            )
+            return
+        self._error(404, "not_found", "route not found")
+
+    def _get_run(self, path: str, query: str) -> None:
+        parts = path.split("/")
+        if len(parts) < 4 or not parts[3]:
+            self._error(404, "not_found", "run not found")
+            return
+        run_id = parts[3]
+        tenant_id = self._tenant()
+        if len(parts) == 5 and parts[4] == "events":
+            last_id = self.headers.get("Last-Event-ID")
+            if not last_id:
+                last_id = parse_qs(query).get("last_event_id", [None])[0]
+            self._sse(self.runtime.run_service.sse(run_id, tenant_id, last_event_id=last_id))
+            return
+        if len(parts) == 4:
+            self._json(200, self.runtime.run_payload(self.runtime.run_service.status(run_id, tenant_id)))
+            return
+        self._error(404, "not_found", "route not found")
+
+    def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+        try:
+            self._post()
+        except Exception as exc:  # boundary converts expected failures safely
+            self._handle_error(exc)
+
+    def _post(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        if path == "/v1/auth/google/callback":
+            if self.runtime.config.app_env not in {"local", "test"}:
+                raise AuthorizationDenied("local Google callback is disabled")
+            self._json(200, self.runtime.complete_google(self._body()))
+            return
+        if path == "/v1/runs":
+            payload = self._body()
+            if payload.get("contract_version") != "v1":
+                raise ValueError("contract_version must be v1")
+            request_tenant = self._request_tenant()
+            payload_tenant = str(payload.get("tenant_id") or request_tenant)
+            if payload_tenant != request_tenant:
+                raise TenantMismatch("tenant access denied")
+            self._json(201, self.runtime.create_run(payload))
+            return
+        if path.startswith("/v1/runs/"):
+            self._post_run(path)
+            return
+        if path == "/v1/billing/orders":
+            payload = self._body()
+            request_tenant = self._request_tenant()
+            tenant_id = str(payload.get("tenant_id") or request_tenant)
+            if tenant_id != request_tenant:
+                raise TenantMismatch("tenant access denied")
+            from services.billing import CreateOrder
+
+            request = CreateOrder(
+                order_id=str(payload.get("order_id") or f"order-{uuid_hex()}"),
+                tenant_id=tenant_id,
+                account_id=str(payload.get("account_id") or "demo-account"),
+                plan_id=str(payload.get("plan_id") or "pro"),
+                amount_minor=int(payload.get("amount_minor", 1000)),
+                currency=str(payload.get("currency") or "USD"),
+                credit_grant=int(payload.get("credit_grant", 10)),
+                idempotency_key=str(payload["idempotency_key"]),
+            )
+            checkout = self.runtime.billing.create_order(request)
+            self._json(
+                201,
+                {
+                    "order_id": request.order_id,
+                    "provider": checkout.provider,
+                    "provider_reference": checkout.provider_reference,
+                    "checkout_url": checkout.checkout_url,
+                    "test_mode": checkout.test_mode,
+                },
+            )
+            return
+        if path == "/v1/billing/mock/complete":
+            self._complete_mock_payment(self._body())
+            return
+        if path == "/v1/admin/plan":
+            self._admin_mutation("plan.change", self._body())
+            return
+        if path == "/v1/admin/credits":
+            self._admin_mutation("credits.adjust", self._body())
+            return
+        self._error(404, "not_found", "route not found")
+
+    def _post_run(self, path: str) -> None:
+        parts = path.split("/")
+        if len(parts) != 5 or parts[4] not in {"approve", "cancel"}:
+            self._error(404, "not_found", "route not found")
+            return
+        run_id = parts[3]
+        self.runtime.authenticate_demo(self._tenant())
+        run = (
+            self.runtime.run_service.approve(run_id, self._tenant())
+            if parts[4] == "approve"
+            else self.runtime.run_service.cancel(run_id, self._tenant())
+        )
+        if parts[4] == "approve" and run.state == "running":
+            run = self.runtime.worker.execute(run_id)
+        self._json(200, self.runtime.run_payload(run))
+
+    def _complete_mock_payment(self, payload: Mapping[str, Any]) -> None:
+        if self.runtime.config.payment_provider != "mock":
+            raise AuthorizationDenied("mock payment route is disabled")
+        request_tenant = self._request_tenant()
+        order_id = str(payload.get("order_id") or "")
+        order = self.runtime.billing_store.order(order_id)
+        if order.tenant_id != request_tenant:
+            raise TenantMismatch("tenant access denied")
+        event = {
+            "event_id": str(payload.get("event_id") or f"mock-event-{order_id}"),
+            "event_type": "payment.updated",
+            "status": str(payload.get("status") or "succeeded"),
+            "order_id": order_id,
+            "amount_minor": int(payload.get("amount_minor", order.amount_minor)),
+            "idempotency_key": str(payload.get("idempotency_key") or f"mock-event-{order_id}"),
+            "test_mode": True,
+        }
+        raw = json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        secret = self.runtime.values.get("MOCK_WEBHOOK_SECRET", "mock-secret")
+        signature = hmac.new(secret.encode("utf-8"), raw, hashlib.sha256).hexdigest()
+        result = self.runtime.billing.receive_webhook("mock", raw, {"x-signature": signature})
+        self._json(200, {"provider": result.provider, "event_id": result.provider_event_id, "status": result.status, "applied": result.applied})
+
+    def _admin_mutation(self, action: str, payload: Mapping[str, Any]) -> None:
+        actor = self._session()
+        request_tenant = self._request_tenant()
+        tenant_id = str(payload.get("tenant_id") or request_tenant)
+        if tenant_id != request_tenant:
+            raise TenantMismatch("tenant access denied")
+        target_user_id = str(payload.get("target_user_id") or "")
+        reason = str(payload.get("reason") or "")
+        correlation_id = str(payload.get("correlation_id") or f"local-{uuid_hex()}")
+        idempotency_key = payload.get("idempotency_key")
+        if action == "plan.change":
+            result = self.runtime.admin.change_plan(
+                actor,
+                tenant_id,
+                target_user_id,
+                str(payload.get("plan") or ""),
+                reason=reason,
+                correlation_id=correlation_id,
+                idempotency_key=str(idempotency_key) if idempotency_key else None,
+            )
+        else:
+            raw_amount = payload.get("amount")
+            if not isinstance(raw_amount, int) or isinstance(raw_amount, bool):
+                raise ValueError("amount must be an integer")
+            result = self.runtime.admin.adjust_credits(
+                actor,
+                tenant_id,
+                target_user_id,
+                raw_amount,
+                reason=reason,
+                correlation_id=correlation_id,
+                idempotency_key=str(idempotency_key) if idempotency_key else None,
+            )
+        self._json(200, {"action": result.action, "target_user_id": result.target_user_id, "before": dict(result.before), "after": dict(result.after), "audit_event_id": result.audit_event_id})
+
+    @staticmethod
+    def _admin_user(user: Any) -> dict[str, object]:
+        return {"user_id": user.user_id, "email": user.email, "status": user.status, "tenant_id": user.tenant_id, "plan": user.plan, "credit_balance": user.credit_balance}
+
+    @staticmethod
+    def _order(order: Any) -> dict[str, object]:
+        return {"order_id": order.order_id, "tenant_id": order.tenant_id, "account_id": order.account_id, "plan_id": order.plan_id, "amount_minor": order.amount_minor, "currency": order.currency, "credit_grant": order.credit_grant, "status": order.status, "provider": order.provider, "provider_reference": order.provider_reference}
+
+    def _handle_error(self, exc: Exception) -> None:
+        if isinstance(exc, (AuthorizationDenied, OAuthCallbackError)):
+            status = getattr(exc, "status_code", 403 if isinstance(exc, AuthorizationDenied) else 400)
+            self._error(status, "authorization_denied" if status == 403 else "invalid_request", str(exc))
+        elif isinstance(exc, InsufficientCredits):
+            self._error(402, "insufficient_credits", "credits are unavailable")
+        elif isinstance(exc, RunNotFound):
+            self._error(404, "run_not_found", "run not found")
+        elif isinstance(exc, TenantMismatch):
+            self._error(403, "tenant_access_denied", "tenant access denied")
+        elif isinstance(exc, RunError):
+            self._error(409, "run_conflict", str(exc))
+        elif isinstance(exc, (KeyError, TypeError, ValueError)):
+            self._error(400, "invalid_request", str(exc))
+        else:
+            self._error(500, "internal_error", "request could not be completed")
 
     def log_message(self, format: str, *args: object) -> None:
-        # Keep local logs deterministic and free of request payloads.
+        # Keep logs deterministic and free of request bodies, headers, and secrets.
         print(f"foundation: {format % args}")
+
+
+def uuid_hex() -> str:
+    import uuid
+
+    return uuid.uuid4().hex
 
 
 def _main() -> int:
@@ -75,21 +371,26 @@ def _main() -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
+    values = merged_environment(args.env_file)
     try:
-        config = validate_profile(merged_environment(args.env_file), args.profile)
-    except ConfigError as exc:
+        config = validate_profile(values, args.profile)
+        runtime = LocalRuntime(config, values)
+    except (ConfigError, ValueError) as exc:
         print(str(exc))
         return 2
 
-    server = ThreadingHTTPServer((args.host, args.port), FoundationHandler)
-    server.foundation_config = config  # type: ignore[attr-defined]
-    print(f"foundation listening on http://{args.host}:{args.port} ({config.deployment_profile})")
+    server = LocalServer((args.host, args.port), runtime)
+    actual_address = server.server_address
+    actual_host, actual_port = actual_address[0], actual_address[1]
+    host_text = actual_host.decode("ascii") if isinstance(actual_host, bytes) else str(actual_host)
+    print(f"foundation listening on http://{host_text}:{actual_port} ({config.deployment_profile})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("foundation stopping")
     finally:
         server.server_close()
+        runtime.close()
     return 0
 
 

@@ -1,0 +1,19 @@
+{
+  "commands": [
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -m pytest -q tests/test_billing.py",
+      "duration_seconds": 0.623,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": ".............                                                            [100%]\n13 passed in 0.03s\n"
+    }
+  ],
+  "duration_seconds": 0.623,
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "",
+  "stdout": ".............                                                            [100%]\n13 passed in 0.03s\n",
+  "step": 2,
+  "timestamp": "2026-09-18T13:34:56.655097+00:00"
+}

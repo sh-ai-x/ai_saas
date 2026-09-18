@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: identity-tenant-admin
 
 Read first:

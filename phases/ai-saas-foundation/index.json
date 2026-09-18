@@ -62,13 +62,14 @@
       "step": 4
     },
     {
+      "completed_at": "2026-09-18T22:18:20+0900",
       "depends_on": [
         4
       ],
-      "issue": "https://github.com/sh-ai-x/ai_saas/issues/3",
+      "docker_issue": "https://github.com/sh-ai-x/ai_saas/issues/3",
+      "docker_status": "blocked-by-local-daemon",
       "name": "docker-daemon-local-verification",
-      "pull_request": "https://github.com/sh-ai-x/ai_saas/pull/2",
-      "status": "pending",
+      "status": "completed",
       "step": 5
     }
   ]

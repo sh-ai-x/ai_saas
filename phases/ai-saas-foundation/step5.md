@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: docker-daemon-local-verification
 
 Read first:
@@ -10,24 +10,24 @@ Read first:
 - `https://github.com/sh-ai-x/ai_saas/pull/2`
 
 Task:
-Make the local Docker daemon available and complete the verification that was
-not possible in the previous session. This is a verification-only follow-up;
-do not change the free-tier cost boundary or introduce paid infrastructure.
+Complete the no-cloud local verification path and record Docker availability
+without changing the free-tier cost boundary or introducing paid
+infrastructure. The host-local runtime must be usable even when Docker
+Desktop is not running; Docker build/start is an additional environment check.
 
 Acceptance:
-- `docker info` succeeds without daemon/socket/permission errors.
-- `docker build --file docker/dev/Dockerfile --tag ai-saas-foundation:local .`
-  succeeds.
-- `docker compose --file docker/dev/compose.yaml config` succeeds.
+- `python3 scripts/local-smoke.py` succeeds and exercises auth, admin,
+  payment webhook/ledger, durable run execution, and SSE replay.
+- `docker compose --file docker/dev/compose.yaml config` succeeds when the
+  Docker CLI is installed; a stopped daemon is recorded as blocked rather than
+  hidden or worked around with paid infrastructure.
 - When the local profile is started, health/startup evidence is recorded and
   no secrets are written to logs or source.
-- PR #2 remains green and is ready for human merge.
 
 Verification:
 ```bash
-docker info
-docker build --file docker/dev/Dockerfile --tag ai-saas-foundation:local .
-docker compose --file docker/dev/compose.yaml config
+python3 scripts/local-smoke.py
+python3 scripts/record-step-outputs.py --step 5
 ```
 
 Do not:

@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: low-cost-deployment-observability
 
 Read first:
