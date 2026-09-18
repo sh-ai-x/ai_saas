@@ -4,8 +4,8 @@
 3. Provider secrets stay server-side and are excluded from tracked config values.
 4. Payment selection is one adapter per environment with sandbox-first validation.
 5. Markdown guides are imported from apps/web/content/guides/*.md at build time.
-6. The web console renders the imported source in a read-only line-numbered editor.
+6. The dedicated /guides route renders imported source in a read-only line-numbered editor.
 7. Phase steps 7–12 have completed documents and JSON evidence outputs.
 8. Contract inventory, 90 Python tests, web lint/build, and verify-local pass.
-9. Browser verification passed sidebar navigation and Markdown copy behavior.
+9. Browser verification passed separate / and /guides routes plus payment child navigation.
 10. PR #7 is at USER_MERGE_REQUIRED; no automatic merge is authorized.

@@ -12,8 +12,9 @@ Acceptance:
   secrets, while configured sandbox smoke commands are documented.
 - Browser verification finds no page or console errors and exercises sidebar,
   login setup, Agent setup, and payment setup pages.
-- Browser verification confirms that the Markdown source editor renders imported
-  guide files, switches categories, and copies the active source.
+- Browser verification confirms that `/` and `/guides` are separate, the
+  Markdown source editor renders imported guide files, the payment group has
+  Toss and Lemon Squeezy child pages, and the active source can be copied.
 - Step outputs are valid JSON and contain commands, exit codes, and environment
   notes without secret values.
 

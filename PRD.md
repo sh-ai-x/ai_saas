@@ -76,7 +76,7 @@ provider is enabled only after its configuration validator passes.
 | 8 | google-oauth-provider | 7 | Server-side Google authorization URL, code exchange, token/userinfo verification, session cookie, and callback route |
 | 9 | sandbox-payment-provider | 7 | Toss or Lemon Squeezy sandbox checkout/confirmation/webhook routes, one-provider selection, and exactly-once ledger effects |
 | 10 | agent-provider-runtime | 7 | Provider-neutral model port with OpenAI, Anthropic, and Gemini HTTP adapters, bounded usage, redaction, and run integration |
-| 11 | setup-guide-console | 8–10 | Detailed category guides in the web app, left sidebar navigation, environment examples, and existing console integration |
+| 11 | setup-guide-console | 8–10 | Dedicated `/guides` Markdown editor, hierarchical left sidebar with separate Toss/Lemon Squeezy pages, environment examples, and a link back to the console |
 | 12 | integration-e2e-verification | 8–11 | Contract, config, adapter, API, browser, and sandbox fixture verification with step output evidence |
 
 ### Real integration constraints
@@ -109,6 +109,7 @@ provider is enabled only after its configuration validator passes.
 - **REQ-9:** A configured Agent provider can execute a bounded run through the
   same metering/checkpoint/SSE path; provider credentials never enter output or
   telemetry.
-- **REQ-10:** The browser contains category-based setup guides for local,
-  Google, payment, Agent, verification, and operations; the sidebar links the
-  guides to the existing console without breaking the local profile.
+- **REQ-10:** The browser contains a dedicated `/guides` route with
+  category-based setup guides for local, Google, separate Toss and Lemon
+  Squeezy payments, Agent, verification, and operations; the sidebar links the
+  guides back to the `/` console without breaking the local profile.

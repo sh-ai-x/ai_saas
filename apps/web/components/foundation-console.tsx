@@ -2,8 +2,6 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { setupGuides, SetupGuide } from "../content/setup-guides";
-
 type JsonRecord = Record<string, unknown>;
 
 const jsonHeaders = { "content-type": "application/json" };
@@ -30,58 +28,7 @@ function formatError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 처리하지 못했습니다.";
 }
 
-function GuidePanel({ guide }: { guide: SetupGuide }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copyMarkdown() {
-    try {
-      await navigator.clipboard.writeText(guide.markdown);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <section className="guide-panel">
-      <div className="guide-heading">
-        <p className="eyebrow accent">SETUP GUIDE / {guide.category}</p>
-        <h2>{guide.title}</h2>
-        <p>{guide.summary}</p>
-      </div>
-      <div className="markdown-editor" aria-label={`${guide.title} Markdown source`}>
-        <div className="markdown-toolbar">
-          <span className="markdown-path">{guide.path}</span>
-          <span className="markdown-mode">MARKDOWN · READ ONLY</span>
-          <button className="markdown-copy" type="button" onClick={copyMarkdown}>
-            {copied ? "Copied" : "Copy markdown"}
-          </button>
-        </div>
-        <pre className="markdown-source">
-          {guide.markdown.split("\n").map((line, index) => (
-            <span className="markdown-line" key={`${index}-${line}`}>
-              <span className="line-number">{String(index + 1).padStart(2, "0")}</span>
-              <span>{line || " "}</span>
-            </span>
-          ))}
-        </pre>
-      </div>
-      <div className="guide-steps">
-        {guide.steps.map((step) => (
-          <article className="guide-step" key={step.title}>
-            <h3>{step.title}</h3>
-            <p>{step.body}</p>
-            {step.code && <pre className="guide-code"><code>{step.code}</code></pre>}
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function FoundationConsole() {
-  const [activeGuideId, setActiveGuideId] = useState("getting-started");
   const [tenantId, setTenantId] = useState("demo-tenant");
   const [health, setHealth] = useState("checking");
   const [session, setSession] = useState<JsonRecord | null>(null);
@@ -99,10 +46,6 @@ export function FoundationConsole() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const activeGuide = useMemo(
-    () => setupGuides.find((guide) => guide.id === activeGuideId) ?? setupGuides[0],
-    [activeGuideId],
-  );
   const log = useCallback((entry: string) => {
     setActivity((current) => [`${new Date().toLocaleTimeString()} · ${entry}`, ...current].slice(0, 8));
   }, []);
@@ -247,25 +190,13 @@ export function FoundationConsole() {
   }
 
   return (
-    <main className="app-shell">
-      <aside className="guide-sidebar" aria-label="Setup guide navigation">
-        <div className="sidebar-brand"><span className="brand-mark">AI</span><div><p className="eyebrow">FOUNDATION</p><strong>Setup guides</strong></div></div>
-        <p className="sidebar-caption">Provider setup and verification</p>
-        <nav className="guide-nav">
-          {setupGuides.map((guide) => (
-            <button className={`guide-nav-item ${activeGuideId === guide.id ? "is-active" : ""}`} key={guide.id} onClick={() => setActiveGuideId(guide.id)}>
-              <span>{guide.category}</span><strong>{guide.title}</strong>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-note"><span className="status-dot" /> Secrets stay server-side<br /><small>Sandbox first · one provider at a time</small></div>
-      </aside>
-
+    <main className="console-page">
       <div className="console-column">
         <header className="topbar">
           <div className="brand"><span className="brand-mark">AI</span><div><p className="eyebrow">FOUNDATION CONSOLE</p><h1>Operator workspace</h1></div></div>
           <div className="topbar-actions">
             <span className={`status-pill ${health === "ok" ? "is-ok" : ""}`}><span className="status-dot" /> API {health}</span>
+            <a className="button button-quiet" href="/guides">Setup guides</a>
             <button className="button button-quiet" onClick={() => void login()} disabled={busy !== null}>
               {sessionProvider === "google" ? "Google session active" : busy === "login" ? "Connecting…" : "Sign in with Google"}
             </button>
@@ -273,7 +204,6 @@ export function FoundationConsole() {
         </header>
 
         <div className="content-wrap">
-          <GuidePanel guide={activeGuide} />
           <section className="hero">
             <div><p className="eyebrow accent">LOCAL / INTEGRATION-READY</p><h2>Ship the AI product layer<br />without rebuilding the substrate.</h2><p className="hero-copy">Real OAuth, sandbox billing, bounded Agent providers, tenant controls, and SSE runs share one contract-first runtime.</p></div>
             <div className="hero-meta"><span className="meta-label">TENANT</span><strong>{tenantId}</strong><span className="meta-label">RUNTIME</span><strong>SQLite · stdlib HTTP</strong></div>

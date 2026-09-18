@@ -65,4 +65,7 @@ redaction. Setup guides are authored as Markdown in
 line-numbered Markdown editor; it never reads a runtime filesystem or provider
 secret. The operator-facing copy is mirrored under `docs/setup-guides/`, and
 the parser derives sidebar metadata and step previews from the imported
-document.
+document. The product landing/operator console remains at `/`; the guide
+editor is a separate `/guides` route. Its payment group has separate Toss and
+Lemon Squeezy child documents so provider semantics are not collapsed into one
+ambiguous setup page.

@@ -42,7 +42,8 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:3000`. The page demonstrates mock Google login, a
+Open `http://127.0.0.1:3000` for the product landing and operator console. The
+separate setup guide is at `http://127.0.0.1:3000/guides`. The console demonstrates mock Google login, a
 bounded run with SSE replay, audited admin plan/credit changes, and the
 provider-neutral mock payment adapter. It does not require Vercel, Neon,
 Cloudflare, AWS, Docker, or payment credentials.
@@ -85,10 +86,11 @@ a host without Docker; if Docker Desktop is stopped it records
 ## Real integration setup guides
 
 The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
-and rendered inside the web console as the left-side setup-guide navigation.
-The order is intentional: contracts and validators first, then Google OAuth,
-one payment sandbox, one Agent provider, and finally the full verification gate.
-No secret is required for the default local profile.
+and rendered on the dedicated `/guides` route as a Markdown editor with a
+hierarchical sidebar. Payment setup is split into `Toss` and `Lemon Squeezy`
+pages. The order is intentional: contracts and validators first, then Google
+OAuth, one payment sandbox, one Agent provider, and finally the full
+verification gate. No secret is required for the default local profile.
 
 ## Docker path
 

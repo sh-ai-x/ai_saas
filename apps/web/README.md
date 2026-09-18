@@ -24,7 +24,8 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. Set `FOUNDATION_API_URL` when the API is not at
+Open http://127.0.0.1:3000 for the landing/operator console. Setup guides are
+at http://127.0.0.1:3000/guides. Set `FOUNDATION_API_URL` when the API is not at
 `http://127.0.0.1:8080`.
 
 ```bash
@@ -39,10 +40,10 @@ npm run build
 npm run start
 ```
 
-The left sidebar contains category guides for local startup, Google OAuth,
-Toss/Lemon Squeezy sandbox payments, OpenAI/Anthropic/Gemini Agent providers,
-verification, and operations. Each guide is imported at build time from the
-Markdown files in `apps/web/content/guides/*.md`, displayed as a read-only
-Markdown editor with line numbers, and connected to the live console actions.
-The same source is mirrored as canonical documentation under
-`docs/setup-guides/`.
+The `/guides` route contains the category sidebar for local startup, Google
+OAuth, separate Toss and Lemon Squeezy sandbox payment guides,
+OpenAI/Anthropic/Gemini Agent providers, verification, and operations. Each
+guide is imported at build time from the Markdown files in
+`apps/web/content/guides/*.md`, displayed as a read-only Markdown editor with
+line numbers, and linked back to the operator console. The same source is
+mirrored as canonical documentation under `docs/setup-guides/`.

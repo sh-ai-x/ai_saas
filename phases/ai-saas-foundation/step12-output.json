@@ -13,10 +13,11 @@
     "status": "passed",
     "command": "npx --yes agent-browser open http://127.0.0.1:3001 && npx --yes agent-browser snapshot --json",
     "observed": [
-      "left sidebar switched between local, Google, payments, Agent, verification, and operations guides",
+      "dedicated /guides route switched between local, Google, Agent, verification, and operations guides",
+      "PAYMENTS parent rendered Toss Payments sandbox and Lemon Squeezy sandbox child entries",
       "active imported Markdown source rendered with line numbers and read-only toolbar",
       "Copy markdown changed to Copied",
-      "existing Agent, admin, and payment console remained visible"
+      "operator console remained available at / with an explicit return link"
     ]
   },
   "environment_note": "Provider integration evidence uses deterministic HTTP fixtures. Sandbox credentials are required only for the documented external smoke step; no credential value is recorded in this output.",

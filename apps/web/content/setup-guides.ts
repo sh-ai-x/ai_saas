@@ -1,9 +1,10 @@
 import localFoundationMarkdown from "./guides/00-local-foundation.md";
 import googleOAuthMarkdown from "./guides/01-google-oauth.md";
-import paymentsMarkdown from "./guides/02-sandbox-payments.md";
-import agentProvidersMarkdown from "./guides/03-agent-providers.md";
-import verificationMarkdown from "./guides/04-verification.md";
-import operationsMarkdown from "./guides/05-operations.md";
+import tossPaymentsMarkdown from "./guides/02-payment-toss.md";
+import lemonSqueezyPaymentsMarkdown from "./guides/03-payment-lemonsqueezy.md";
+import agentProvidersMarkdown from "./guides/04-agent-providers.md";
+import verificationMarkdown from "./guides/05-verification.md";
+import operationsMarkdown from "./guides/06-operations.md";
 
 export type SetupGuideStep = {
   title: string;
@@ -29,10 +30,11 @@ type MarkdownSource = {
 const markdownSources: MarkdownSource[] = [
   { path: "apps/web/content/guides/00-local-foundation.md", raw: localFoundationMarkdown },
   { path: "apps/web/content/guides/01-google-oauth.md", raw: googleOAuthMarkdown },
-  { path: "apps/web/content/guides/02-sandbox-payments.md", raw: paymentsMarkdown },
-  { path: "apps/web/content/guides/03-agent-providers.md", raw: agentProvidersMarkdown },
-  { path: "apps/web/content/guides/04-verification.md", raw: verificationMarkdown },
-  { path: "apps/web/content/guides/05-operations.md", raw: operationsMarkdown },
+  { path: "apps/web/content/guides/02-payment-toss.md", raw: tossPaymentsMarkdown },
+  { path: "apps/web/content/guides/03-payment-lemonsqueezy.md", raw: lemonSqueezyPaymentsMarkdown },
+  { path: "apps/web/content/guides/04-agent-providers.md", raw: agentProvidersMarkdown },
+  { path: "apps/web/content/guides/05-verification.md", raw: verificationMarkdown },
+  { path: "apps/web/content/guides/06-operations.md", raw: operationsMarkdown },
 ];
 
 function parseFrontmatter(raw: string) {
