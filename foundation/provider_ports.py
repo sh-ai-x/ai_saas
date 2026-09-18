@@ -91,4 +91,3 @@ PROVIDER_CAPABILITIES: Mapping[str, Sequence[str]] = {
         "event.reconcile",
     ),
 }
-

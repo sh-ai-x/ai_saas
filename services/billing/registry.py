@@ -107,4 +107,3 @@ def build_registry_from_environment(values: Mapping[str, str]) -> ProviderRegist
             ),
         )
     raise ProviderConfigurationError("selected provider is not supported")
-

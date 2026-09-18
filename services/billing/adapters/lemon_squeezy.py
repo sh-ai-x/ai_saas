@@ -101,4 +101,3 @@ def _status(value: str, event_type: str) -> str:
     if value in {"paused", "on_trial", "pending"}:
         return "pending"
     return "unknown"
-

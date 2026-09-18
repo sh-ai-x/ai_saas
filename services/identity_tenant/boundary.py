@@ -432,4 +432,3 @@ class TenantBoundary:
         if tenant_id not in self._tenants:
             raise AuthorizationDenied("tenant access denied")
         return tuple(m for m in self._memberships.values() if m.tenant_id == tenant_id)
-

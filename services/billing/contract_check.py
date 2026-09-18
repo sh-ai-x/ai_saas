@@ -64,4 +64,3 @@ def run_contract_checks() -> list[str]:
             raise AssertionError("real adapter did not produce the shared normalized event")
     store.close()
     return ["validated REQ-3 provider adapters share inbox, normalized-event, entitlement, ledger, and audit path"]
-

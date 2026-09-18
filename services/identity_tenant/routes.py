@@ -59,4 +59,3 @@ def require_admin_access(
     permission: str,
 ) -> RequestContext:
     return ProtectedRouteChecks(boundary).admin(session, tenant_id, permission)
-

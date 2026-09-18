@@ -138,4 +138,3 @@ def _status(value: str) -> str:
         "FAILED": "failed", "ABORTED": "failed", "CANCELED": "cancelled", "CANCELLED": "cancelled",
         "REFUNDED": "refunded",
     }.get(value.upper(), "unknown")
-

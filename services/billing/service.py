@@ -54,4 +54,3 @@ class BillingService:
         provider = self._providers.require(provider_id, "webhook.verify")
         event = provider.verify_and_normalize_event(raw_body, headers)
         return self._store.process_event(event, raw_body, dict(headers))
-

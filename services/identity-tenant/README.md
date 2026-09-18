@@ -6,4 +6,3 @@ directory remains the deployable service ownership marker.
 
 The boundary consumes server-resolved Better Auth sessions, validates Google
 callback transactions exactly once, and denies missing or cross-tenant scope.
-

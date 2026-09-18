@@ -69,4 +69,3 @@ class AuditPort(Protocol):
 
 
 EventVerifier = Callable[[bytes, Mapping[str, str]], NormalizedEvent]
-

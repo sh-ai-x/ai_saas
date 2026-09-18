@@ -246,4 +246,3 @@ class _Transaction:
             self._connection.execute("ROLLBACK" if exc_type else "COMMIT")
         finally:
             self._lock.release()
-

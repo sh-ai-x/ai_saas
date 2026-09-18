@@ -27,4 +27,3 @@ class UnknownOrder(BillingError):
 
 class InsufficientCredits(BillingError):
     """A guarded debit would make an account balance negative."""
-

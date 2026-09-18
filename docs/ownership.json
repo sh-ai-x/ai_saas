@@ -15,4 +15,3 @@
   ],
   "forbidden_resources_in_baseline": ["alb", "nat-gateway", "redis", "always-on-ecs", "paid-edge-plan"]
 }
-

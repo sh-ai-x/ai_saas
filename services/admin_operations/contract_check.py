@@ -56,4 +56,3 @@ def run_contract_checks() -> list[str]:
     else:
         raise AssertionError("cross-tenant admin mutation was accepted")
     return ["validated reason-required admin mutation and audit snapshots"]
-

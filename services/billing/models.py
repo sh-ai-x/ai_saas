@@ -142,4 +142,3 @@ class ProcessingResult:
     provider_event_id: str
     applied: bool
     status: str
-

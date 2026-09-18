@@ -1,2 +1,1 @@
 """Repository verification entry points."""
-

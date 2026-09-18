@@ -75,4 +75,3 @@ def run_contract_checks() -> list[str]:
     else:
         raise AssertionError("cross-tenant admin access was accepted")
     return ["validated Google callback and one-time state", "validated tenant RBAC denial"]
-

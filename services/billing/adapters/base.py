@@ -103,4 +103,3 @@ def normalized(
         amount_minor=amount_minor,
         metadata=metadata or {},
     )
-

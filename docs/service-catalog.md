@@ -47,4 +47,3 @@ of the profile; an injected task role is the only supported auth mode.
 The machine-readable ownership summary is [ownership.json](ownership.json),
 and the versioned wire contracts live under
 [`packages/contracts/`](../packages/contracts/).
-

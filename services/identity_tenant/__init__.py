@@ -34,4 +34,3 @@ __all__ = [
     "require_authenticated",
     "require_tenant_access",
 ]
-
