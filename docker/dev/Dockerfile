@@ -10,6 +10,7 @@ COPY services ./services
 COPY evaluators ./evaluators
 COPY packages/contracts ./packages/contracts
 COPY config ./config
+COPY infra ./infra
 
 RUN python -m foundation.contract_check
 
