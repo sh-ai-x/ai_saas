@@ -1,0 +1,33 @@
+{
+  "$id": "https://contracts.ai-saas.local/events/v1/audit-event.json",
+  "version": "v1",
+  "title": "Append-only privileged audit event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "event_id", "actor_user_id", "tenant_id", "action", "target_id", "reason", "before", "after", "correlation_id"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "actor_user_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "enum": ["plan.change", "credits.adjust"]},
+    "target_id": {"type": "string", "minLength": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "before": {"type": "object", "additionalProperties": true},
+    "after": {"type": "object", "additionalProperties": true},
+    "correlation_id": {"type": "string", "minLength": 1}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "event_id": "audit-demo",
+    "actor_user_id": "admin-demo",
+    "tenant_id": "tenant-demo",
+    "action": "credits.adjust",
+    "target_id": "user-demo",
+    "reason": "make-good",
+    "before": {"credit_balance": 0},
+    "after": {"credit_balance": 5},
+    "correlation_id": "corr-demo"
+  }
+}
+

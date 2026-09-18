@@ -1,0 +1,25 @@
+{
+  "$id": "https://contracts.ai-saas.local/sse/v1/run-event.json",
+  "version": "v1",
+  "title": "Replayable run SSE event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "event_id", "event", "run_id", "sequence", "payload"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "event": {"type": "string", "enum": ["run.state_changed", "run.token", "run.completed", "run.failed"]},
+    "run_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer"},
+    "payload": {"type": "object", "additionalProperties": true}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "event_id": "run-event-001",
+    "event": "run.state_changed",
+    "run_id": "run-demo",
+    "sequence": 1,
+    "payload": {"state": "queued"}
+  }
+}
+

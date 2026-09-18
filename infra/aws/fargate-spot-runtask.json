@@ -1,0 +1,52 @@
+{
+  "contract_version": "v1",
+  "operation": "ecs:RunTask",
+  "profile": "aws-worker",
+  "provisioning": "declarative-only",
+  "cost_boundary": {
+    "capacity_provider": "FARGATE_SPOT",
+    "interruptible": true,
+    "always_on_service": false,
+    "alb_required": false,
+    "nat_gateway_required": false,
+    "redis_required": false,
+    "multi_az_sla": false
+  },
+  "task_definition_constraints": {
+    "requires_compatibilities": ["FARGATE"],
+    "network_mode": "awsvpc",
+    "cpu": "256",
+    "vcpu": "0.25",
+    "memory": "512",
+    "memory_mb": 512,
+    "runtime_platform": {
+      "cpu_architecture": "ARM64",
+      "operating_system_family": "LINUX"
+    },
+    "container_name": "agent-worker",
+    "port_mappings": [],
+    "checkpoint_before_model_call": true,
+    "task_role_auth_only": true
+  },
+  "run_task_request": {
+    "cluster": "${AWS_CLUSTER_ARN}",
+    "taskDefinition": "${AWS_TASK_DEFINITION}",
+    "capacityProviderStrategy": [
+      {"capacityProvider": "FARGATE_SPOT", "weight": 1}
+    ],
+    "count": 1,
+    "networkConfiguration": {
+      "awsvpcConfiguration": {
+        "subnets": ["${AWS_SUBNET_ID}"],
+        "securityGroups": ["${AWS_SECURITY_GROUP_ID}"],
+        "assignPublicIp": "ENABLED"
+      }
+    },
+    "overrides": {"containerOverrides": [{"name": "agent-worker"}]}
+  },
+  "security_boundary": {
+    "outbound": "public-subnet-internet-gateway",
+    "inbound_worker_rules": "none",
+    "worker_http_listener": false
+  }
+}

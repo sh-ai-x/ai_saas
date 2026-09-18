@@ -1,0 +1,29 @@
+{
+  "$id": "https://contracts.ai-saas.local/events/v1/run-requested.json",
+  "version": "v1",
+  "title": "Run requested event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "event_id", "event_type", "tenant_id", "run_id", "trace_id", "idempotency_key", "reservation_id"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"const": "run.requested"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "reservation_id": {"type": "string", "minLength": 1}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "event_id": "event-run-requested-001",
+    "event_type": "run.requested",
+    "tenant_id": "tenant-demo",
+    "run_id": "run-demo",
+    "trace_id": "trace-001",
+    "idempotency_key": "run-request-001",
+    "reservation_id": "reservation-001"
+  }
+}
+

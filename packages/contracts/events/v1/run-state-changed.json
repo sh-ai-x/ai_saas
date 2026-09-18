@@ -1,0 +1,28 @@
+{
+  "$id": "https://contracts.ai-saas.local/events/v1/run-state-changed.json",
+  "version": "v1",
+  "title": "Run state changed event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "event_id", "event_type", "tenant_id", "run_id", "trace_id", "sequence", "state"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"const": "run.state_changed"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer"},
+    "state": {"type": "string", "enum": ["queued", "running", "waiting_approval", "quota_paused", "completed", "failed", "cancelled"]}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "event_id": "event-state-001",
+    "event_type": "run.state_changed",
+    "tenant_id": "tenant-demo",
+    "run_id": "run-demo",
+    "trace_id": "trace-001",
+    "sequence": 1,
+    "state": "queued"
+  }
+}

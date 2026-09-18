@@ -1,0 +1,35 @@
+{
+  "$id": "https://contracts.ai-saas.local/providers/v1/capabilities.json",
+  "version": "v1",
+  "title": "Provider capability registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "providers", "domain_rule"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "mode", "capabilities"],
+        "properties": {
+          "id": {"type": "string", "enum": ["mock", "toss", "lemon-squeezy"]},
+          "mode": {"type": "string", "enum": ["test-only", "sandbox-or-live"]},
+          "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "domain_rule": {"const": "domain consumes capability ports and normalized events only"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "providers": [
+      {"id": "mock", "mode": "test-only", "capabilities": ["checkout.create", "webhook.verify", "event.reconcile"]},
+      {"id": "toss", "mode": "sandbox-or-live", "capabilities": ["checkout.create", "payment.confirm", "webhook.verify", "event.reconcile"]},
+      {"id": "lemon-squeezy", "mode": "sandbox-or-live", "capabilities": ["checkout.create", "subscription.transition", "webhook.verify", "event.reconcile"]}
+    ],
+    "domain_rule": "domain consumes capability ports and normalized events only"
+  }
+}
+

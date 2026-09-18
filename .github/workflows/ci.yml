@@ -1,0 +1,24 @@
+name: foundation-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Contract, unit, intent, and evaluator checks
+        run: scripts/verify-local.sh
+      - name: Secret and placeholder scan
+        run: |
+          ! rg -n -i 'BEGIN (RSA|OPENSSH|PRIVATE)|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|card=[0-9]{6,}|Bearer [A-Za-z0-9._~-]+' foundation services evaluators infra scripts tests config docker README.md
+      - name: Build the local runtime image
+        run: docker build --file docker/dev/Dockerfile --tag ai-saas-foundation:ci .

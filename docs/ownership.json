@@ -1,0 +1,18 @@
+{
+  "contract_version": "v1",
+  "composition_root": "foundation",
+  "profiles": ["free-portfolio", "aws-worker"],
+  "modules": [
+    {"id": "web-console", "path": "apps/web", "owner": "web-console", "writes": []},
+    {"id": "api-gateway", "path": "foundation", "owner": "api-gateway", "writes": []},
+    {"id": "identity-tenant", "path": "services/identity-tenant", "owner": "identity-tenant", "writes": ["identity"]},
+    {"id": "project-service", "path": "services/project-service", "owner": "project-service", "writes": ["projects"]},
+    {"id": "run-service", "path": "services/run-service", "owner": "run-service", "writes": ["runs", "run_events"]},
+    {"id": "agent-worker", "path": "services/agent-worker", "owner": "agent-worker", "writes": ["checkpoints"]},
+    {"id": "metering-billing", "path": "services/metering-billing", "owner": "metering-billing", "writes": ["billing", "ledger", "provider_inbox"]},
+    {"id": "admin-operations", "path": "services/admin-operations", "owner": "admin-operations", "writes": ["audit"]},
+    {"id": "observability", "path": "services/observability", "owner": "observability", "writes": ["telemetry"]}
+  ],
+  "forbidden_resources_in_baseline": ["alb", "nat-gateway", "redis", "always-on-ecs", "paid-edge-plan"]
+}
+

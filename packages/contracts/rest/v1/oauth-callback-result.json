@@ -1,0 +1,21 @@
+{
+  "$id": "https://contracts.ai-saas.local/rest/v1/oauth-callback-result.json",
+  "version": "v1",
+  "title": "Validated Google identity result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "provider", "provider_subject", "email_verified"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "provider": {"const": "google"},
+    "provider_subject": {"type": "string", "minLength": 1},
+    "email_verified": {"type": "boolean"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "provider": "google",
+    "provider_subject": "google-subject-demo",
+    "email_verified": true
+  }
+}
+

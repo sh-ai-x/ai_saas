@@ -1,0 +1,15 @@
+{
+  "$id": "https://contracts.ai-saas.local/rest/v1/health.json",
+  "version": "v1",
+  "title": "Health response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "contract_version", "deployment_profile"],
+  "properties": {
+    "status": {"type": "string", "enum": ["ok"]},
+    "contract_version": {"const": "v1"},
+    "deployment_profile": {"type": "string", "enum": ["free-portfolio", "aws-worker"]}
+  },
+  "x-example": {"status": "ok", "contract_version": "v1", "deployment_profile": "free-portfolio"}
+}
+
