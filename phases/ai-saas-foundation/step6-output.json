@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "command": "npm --prefix apps/web audit --omit=dev --audit-level=high",
+      "duration_seconds": 0.455,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "found 0 vulnerabilities\n"
+    },
+    {
+      "command": "npm --prefix apps/web run build",
+      "duration_seconds": 7.473,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "\n> ai-saas-foundation-web@0.1.0 build\n> next build\n\n   \u25b2 Next.js 15.5.25\n\n   Creating an optimized production build ...\n \u2713 Compiled successfully in 669ms\n   Linting and checking validity of types ...\n   Collecting page data ...\n   Generating static pages (0/4) ...\n   Generating static pages (1/4) \n   Generating static pages (2/4) \n   Generating static pages (3/4) \n \u2713 Generating static pages (4/4)\n   Finalizing page optimization ...\n   Collecting build traces ...\n\nRoute (app)                                 Size  First Load JS\n\u250c \u25cb /                                    3.04 kB         106 kB\n\u251c \u25cb /_not-found                            998 B         104 kB\n\u2514 \u0192 /api/foundation/[...path]              120 B         103 kB\n+ First Load JS shared by all             103 kB\n  \u251c chunks/255-37e0f0325134c4d7.js       46.4 kB\n  \u251c chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB\n  \u2514 other shared chunks (total)          1.89 kB\n\n\n\u25cb  (Static)   prerendered as static content\n\u0192  (Dynamic)  server-rendered on demand\n\n"
+    }
+  ],
+  "duration_seconds": 7.928,
+  "environment_note": "The Next.js console is a local same-origin proxy over the foundation API. Browser verification covers mock Google login, SSE run replay, admin mutation, and mock payment ledger application.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "\n",
+  "stdout": "found 0 vulnerabilities\n\n\n> ai-saas-foundation-web@0.1.0 build\n> next build\n\n   \u25b2 Next.js 15.5.25\n\n   Creating an optimized production build ...\n \u2713 Compiled successfully in 669ms\n   Linting and checking validity of types ...\n   Collecting page data ...\n   Generating static pages (0/4) ...\n   Generating static pages (1/4) \n   Generating static pages (2/4) \n   Generating static pages (3/4) \n \u2713 Generating static pages (4/4)\n   Finalizing page optimization ...\n   Collecting build traces ...\n\nRoute (app)                                 Size  First Load JS\n\u250c \u25cb /                                    3.04 kB         106 kB\n\u251c \u25cb /_not-found                            998 B         104 kB\n\u2514 \u0192 /api/foundation/[...path]              120 B         103 kB\n+ First Load JS shared by all             103 kB\n  \u251c chunks/255-37e0f0325134c4d7.js       46.4 kB\n  \u251c chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB\n  \u2514 other shared chunks (total)          1.89 kB\n\n\n\u25cb  (Static)   prerendered as static content\n\u0192  (Dynamic)  server-rendered on demand\n\n",
+  "step": 6,
+  "timestamp": "2026-09-18T21:44:16.075555+00:00"
+}

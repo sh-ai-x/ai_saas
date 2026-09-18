@@ -31,6 +31,25 @@ In another terminal, check `http://127.0.0.1:8080/healthz`,
 `/v1/contracts`, or `/v1/runs/demo/events`. The server validates all required
 settings before binding a port and never prints secret values.
 
+### Web console
+
+The local browser console lives in `apps/web` and talks to the same API through
+a same-origin Next.js proxy. Start the API first, then run:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:3000`. The page demonstrates mock Google login, a
+bounded run with SSE replay, audited admin plan/credit changes, and the
+provider-neutral mock payment adapter. It does not require Vercel, Neon,
+Cloudflare, AWS, Docker, or payment credentials.
+
+For a production-style local check, use `npm run build` and then
+`npm run start` from `apps/web`.
+
 The local server includes a complete deterministic vertical slice:
 
 ```bash
@@ -119,8 +138,9 @@ python3 scripts/record-step-outputs.py --all
 ```
 
 This writes `phases/ai-saas-foundation/step0-output.json` through
-`step5-output.json` with the real command exit code, stdout, stderr, and
-duration. Docker availability is preserved as an explicit environment note.
+`step6-output.json` with the real command exit code, stdout, stderr, and
+duration. Docker availability and browser-console verification are preserved
+as explicit environment notes.
 
 See [docs/service-catalog.md](docs/service-catalog.md) for ownership and
 [`packages/contracts/`](packages/contracts/) for the v1 wire contracts.
