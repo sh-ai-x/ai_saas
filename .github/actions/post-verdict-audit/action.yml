@@ -1,0 +1,58 @@
+name: "Post verdict audit comment"
+description: >-
+  Compose and post the canonical dev-kit verdict audit comment. The caller
+  passes the PR head SHA captured at run start so the audit remains bound to
+  the commit that was reviewed.
+
+inputs:
+  pr_number:
+    description: PR number to post the audit comment on
+    required: true
+  gh_token:
+    description: GitHub token with pull-requests write scope
+    required: true
+  run_id:
+    description: GitHub Actions run id
+    required: true
+  job:
+    description: Workflow job name
+    required: true
+  status:
+    description: Workflow job status
+    required: true
+  verdict:
+    description: Resolved judge verdict word
+    required: true
+  source:
+    description: Verdict source tag
+    required: false
+    default: "lib.maintenance_gate"
+  head_sha:
+    description: PR head SHA captured at run start
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Format and post verdict audit comment
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        RUN_ID: ${{ inputs.run_id }}
+        JOB: ${{ inputs.job }}
+        STATUS: ${{ inputs.status }}
+        VERDICT: ${{ inputs.verdict }}
+        SOURCE: ${{ inputs.source }}
+        HEAD_SHA: ${{ inputs.head_sha }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ -n "$GH_TOKEN" ]] || { echo "::error::gh_token input is empty"; exit 1; }
+        audit_body="$(python3 -m lib.maintenance_gate --format-audit \
+          --run "$RUN_ID" \
+          --job "$JOB" \
+          --status "$STATUS" \
+          --verdict "${VERDICT:-MISSING}" \
+          --source "$SOURCE" \
+          --extra "head_sha=${HEAD_SHA}")"
+        gh pr comment "$PR_NUMBER" --body "$audit_body"
