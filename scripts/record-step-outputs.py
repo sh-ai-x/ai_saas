@@ -30,6 +30,10 @@ COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
     3: ((sys.executable, "-m", "pytest", "-q", "tests/test_run_worker_streaming.py"),),
     4: ((sys.executable, "-m", "pytest", "-q", "tests/test_step4_low_cost.py"),),
     5: ((sys.executable, "scripts/local-smoke.py"),),
+    6: (
+        ("npm", "--prefix", "apps/web", "audit", "--omit=dev", "--audit-level=high"),
+        ("npm", "--prefix", "apps/web", "run", "build"),
+    ),
 }
 
 
@@ -90,6 +94,12 @@ def record(step: int) -> int:
             "Host-local vertical slice and Compose-independent checks pass. "
             "Docker build/start is recorded by local-smoke.py when a daemon is available."
         )
+    if step == 6:
+        document["environment_note"] = (
+            "The Next.js console is a local same-origin proxy over the foundation API. "
+            "Browser verification covers mock Google login, SSE run replay, admin mutation, "
+            "and mock payment ledger application."
+        )
     write_atomic(OUTPUT_DIR / f"step{step}-output.json", document)
     print(f"step{step}: exit={exit_code} duration={document['duration_seconds']}s")
     return exit_code
@@ -97,12 +107,12 @@ def record(step: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Record valid local phase step output JSON")
-    parser.add_argument("--step", type=int, choices=range(6))
+    parser.add_argument("--step", type=int, choices=range(7))
     parser.add_argument("--all", action="store_true")
     args = parser.parse_args()
     if not args.all and args.step is None:
         parser.error("provide --step N or --all")
-    steps = range(6) if args.all else (args.step,)
+    steps = range(7) if args.all else (args.step,)
     exit_code = 0
     for step in steps:
         exit_code = record(int(step)) or exit_code
