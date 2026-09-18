@@ -1,0 +1,14 @@
+{
+  "contract_version": "v1",
+  "schema": "contract-manifest",
+  "families": ["rest", "sse", "events", "providers"],
+  "versioning": {
+    "policy": "additive changes remain within v1; breaking changes require v2",
+    "event_delivery": "at-least-once",
+    "idempotency": "commands and consumers use stable idempotency keys"
+  },
+  "domain_boundary": {
+    "allowed_payment_dependency": "normalized provider events and capability ports",
+    "forbidden_payment_dependency": "provider SDKs and provider status strings"
+  }
+}

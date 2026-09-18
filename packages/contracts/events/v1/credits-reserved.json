@@ -1,0 +1,26 @@
+{
+  "$id": "https://contracts.ai-saas.local/events/v1/credits-reserved.json",
+  "version": "v1",
+  "title": "Credits reserved event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "event_id", "event_type", "tenant_id", "reservation_id", "idempotency_key", "units"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"const": "credits.reserved"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "reservation_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "units": {"type": "integer"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "event_id": "event-reserved-001",
+    "event_type": "credits.reserved",
+    "tenant_id": "tenant-demo",
+    "reservation_id": "reservation-001",
+    "idempotency_key": "run-request-001",
+    "units": 10
+  }
+}

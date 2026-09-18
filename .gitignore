@@ -1,4 +1,5 @@
 .dev-kit/
+/docs/sot/
 .DS_Store
 .env
 .env.*
@@ -8,4 +9,5 @@ dist/
 build/
 .next/
 coverage/
-
+__pycache__/
+*.py[cod]

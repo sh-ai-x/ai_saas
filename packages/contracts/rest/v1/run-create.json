@@ -1,0 +1,24 @@
+{
+  "$id": "https://contracts.ai-saas.local/rest/v1/run-create.json",
+  "version": "v1",
+  "title": "Create run request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "tenant_id", "project_id", "idempotency_key", "trace_id", "input"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "trace_id": {"type": "string", "minLength": 8},
+    "input": {"type": "object", "additionalProperties": true}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "tenant_id": "tenant-demo",
+    "project_id": "project-demo",
+    "idempotency_key": "run-request-001",
+    "trace_id": "trace-001",
+    "input": {"message": "contract fixture"}
+  }
+}

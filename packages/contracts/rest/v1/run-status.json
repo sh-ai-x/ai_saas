@@ -1,0 +1,22 @@
+{
+  "$id": "https://contracts.ai-saas.local/rest/v1/run-status.json",
+  "version": "v1",
+  "title": "Run status response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "run_id", "tenant_id", "state", "sequence"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "state": {"type": "string", "enum": ["queued", "running", "waiting_approval", "quota_paused", "completed", "failed", "cancelled"]},
+    "sequence": {"type": "integer"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "run_id": "run-demo",
+    "tenant_id": "tenant-demo",
+    "state": "queued",
+    "sequence": 1
+  }
+}

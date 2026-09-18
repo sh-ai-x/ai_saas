@@ -1,0 +1,32 @@
+{
+  "$id": "https://contracts.ai-saas.local/providers/v1/normalized-event.json",
+  "version": "v1",
+  "title": "Normalized provider event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "provider", "provider_event_id", "event_type", "status", "order_id", "occurred_at", "test_mode", "idempotency_key"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "provider": {"type": "string", "enum": ["mock", "toss", "lemon-squeezy"]},
+    "provider_event_id": {"type": "string", "minLength": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["pending", "succeeded", "failed", "cancelled", "refunded", "unknown"]},
+    "order_id": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "minLength": 1},
+    "test_mode": {"type": "boolean"},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "amount_minor": {"type": "integer"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "provider": "mock",
+    "provider_event_id": "mock-event-001",
+    "event_type": "payment.succeeded",
+    "status": "succeeded",
+    "order_id": "order-demo",
+    "occurred_at": "2026-09-18T00:00:00Z",
+    "test_mode": true,
+    "idempotency_key": "mock-event-001",
+    "amount_minor": 1000
+  }
+}

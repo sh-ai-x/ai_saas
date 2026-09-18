@@ -1,0 +1,28 @@
+{
+  "$id": "https://contracts.ai-saas.local/rest/v1/admin-operation.json",
+  "version": "v1",
+  "title": "Privileged admin mutation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "action", "tenant_id", "target_user_id", "reason", "correlation_id"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "action": {"type": "string", "enum": ["plan.change", "credits.adjust"]},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "target_user_id": {"type": "string", "minLength": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "before": {"type": "object", "additionalProperties": true},
+    "after": {"type": "object", "additionalProperties": true}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "action": "plan.change",
+    "tenant_id": "tenant-demo",
+    "target_user_id": "user-demo",
+    "reason": "approved support change",
+    "correlation_id": "corr-demo",
+    "before": {"plan": "free"},
+    "after": {"plan": "pro"}
+  }
+}

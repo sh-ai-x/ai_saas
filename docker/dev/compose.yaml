@@ -1,0 +1,54 @@
+name: ai-saas-foundation-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: foundation
+      POSTGRES_DB: foundation
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - foundation_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundation -d foundation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ../..
+      dockerfile: docker/dev/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DEPLOYMENT_PROFILE: free-portfolio
+      APP_BASE_URL: http://localhost:8080
+      DATABASE_URL: postgresql://foundation@postgres:5432/foundation
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY to a generated local value}
+      CONTRACT_VERSION: v1
+      PAYMENT_PROVIDER: mock
+      MOCK_PAYMENTS_ENABLED: "true"
+      WORKFLOW_PROVIDER: local
+      PAID_INFRASTRUCTURE: "false"
+      AWS_WORKER_ENABLED: "false"
+      RUN_QUOTA_MAX_RUNS: "10"
+      RUN_QUOTA_MAX_UNITS: "100"
+      RUN_QUOTA_PERIOD_SECONDS: "86400"
+      OTEL_ENABLED: "true"
+      OTEL_SAMPLE_RATE: "0.1"
+      OTEL_EXPORTER: memory
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  foundation_postgres_data:

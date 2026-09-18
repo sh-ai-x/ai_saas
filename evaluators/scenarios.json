@@ -1,0 +1,11 @@
+{
+  "schema_version": "v1",
+  "scenarios": [
+    {"id": "auth", "purpose": "invalid and valid OAuth/session boundary"},
+    {"id": "admin", "purpose": "tenant-scoped admin authorization and audit"},
+    {"id": "payment-replay", "purpose": "duplicate provider event replay"},
+    {"id": "ledger-concurrency", "purpose": "atomic credit reservation under concurrency"},
+    {"id": "run-recovery", "purpose": "checkpointed worker interruption recovery"},
+    {"id": "profile-boundaries", "purpose": "free and AWS low-cost contract limits"}
+  ]
+}
