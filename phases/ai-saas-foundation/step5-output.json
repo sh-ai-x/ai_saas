@@ -1,0 +1,20 @@
+{
+  "commands": [
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 scripts/local-smoke.py",
+      "duration_seconds": 0.808,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "local_health=pass\ngoogle_auth_mock=pass\nadmin_and_tenant_boundary=pass\nmock_payment_webhook_and_ledger=pass\nrun_checkpoint_and_sse=pass\ndocker=blocked (daemon unavailable)\ndocker_build=skipped\n"
+    }
+  ],
+  "duration_seconds": 0.808,
+  "environment_note": "Host-local vertical slice and Compose-independent checks pass. Docker build/start is recorded by local-smoke.py when a daemon is available.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "",
+  "stdout": "local_health=pass\ngoogle_auth_mock=pass\nadmin_and_tenant_boundary=pass\nmock_payment_webhook_and_ledger=pass\nrun_checkpoint_and_sse=pass\ndocker=blocked (daemon unavailable)\ndocker_build=skipped\n",
+  "step": 5,
+  "timestamp": "2026-09-18T13:34:58.792710+00:00"
+}

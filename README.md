@@ -31,6 +31,38 @@ In another terminal, check `http://127.0.0.1:8080/healthz`,
 `/v1/contracts`, or `/v1/runs/demo/events`. The server validates all required
 settings before binding a port and never prints secret values.
 
+The local server includes a complete deterministic vertical slice:
+
+```bash
+# mock Google OAuth start/callback
+curl http://127.0.0.1:8080/v1/auth/google/start
+
+# synchronous local run; the response is also persisted for SSE replay
+curl -X POST http://127.0.0.1:8080/v1/runs \
+  -H 'content-type: application/json' \
+  -d '{"contract_version":"v1","tenant_id":"demo-tenant","project_id":"demo-project","idempotency_key":"run-local-001","trace_id":"trace-local-001","input":{"message":"hello"}}'
+
+# inspect the run's replayable events after replacing RUN_ID
+curl http://127.0.0.1:8080/v1/runs/RUN_ID/events
+
+# create and complete a mock payment through the same signed webhook path
+curl -X POST http://127.0.0.1:8080/v1/billing/orders \
+  -H 'content-type: application/json' \
+  -d '{"order_id":"order-local-001","idempotency_key":"order-key-local-001","credit_grant":10}'
+curl -X POST http://127.0.0.1:8080/v1/billing/mock/complete \
+  -H 'content-type: application/json' \
+  -d '{"order_id":"order-local-001"}'
+
+# tenant-scoped admin mutation; the credit change uses the same local ledger
+curl -X POST http://127.0.0.1:8080/v1/admin/credits \
+  -H 'content-type: application/json' \
+  -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
+```
+
+`python3 scripts/local-smoke.py` runs this flow automatically. It succeeds on
+a host without Docker; if Docker Desktop is stopped it records
+`docker=blocked (daemon unavailable)` and does not suggest a paid upgrade.
+
 ## Docker path
 
 Docker Compose starts the local PostgreSQL companion and the same HTTP surface.
@@ -80,6 +112,16 @@ configuration validation, is `scripts/verify-local.sh`. It does not require a
 cloud account; if Docker is unavailable it reports the Compose check as
 skipped.
 
+Step evidence is compact, valid JSON rather than a raw agent transcript:
+
+```bash
+python3 scripts/record-step-outputs.py --all
+```
+
+This writes `phases/ai-saas-foundation/step0-output.json` through
+`step5-output.json` with the real command exit code, stdout, stderr, and
+duration. Docker availability is preserved as an explicit environment note.
+
 See [docs/service-catalog.md](docs/service-catalog.md) for ownership and
 [`packages/contracts/`](packages/contracts/) for the v1 wire contracts.
 
@@ -105,7 +147,9 @@ or email fields are never authorization inputs.
 credit adjustment use cases. Mutations require an authorized tenant-scoped
 operator and a reason, call entitlement/ledger ports, and append immutable
 before/after audit evidence. Cross-tenant requests fail before a domain port is
-called.
+called. The local composition root maps admin credit changes to the same
+SQLite account used by run reservations and mock payment grants, so the demo
+does not display a balance that differs from the executable balance.
 
 ## Durable agent runs
 

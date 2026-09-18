@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: billing-adapters-ledger
 
 Read first:

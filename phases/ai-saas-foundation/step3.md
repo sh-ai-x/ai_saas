@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: run-worker-streaming
 
 Read first:

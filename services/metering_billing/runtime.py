@@ -77,6 +77,14 @@ class SQLiteCreditLedger:
                 reason TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS credit_adjustments (
+                adjustment_id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
         for account_id, balance in (initial_balances or {}).items():
@@ -215,6 +223,54 @@ class SQLiteCreditLedger:
             (account_id,),
         ).fetchone()["units"]
         return int(account["balance"]) - int(held)
+
+    def adjust(self, account_id: str, amount: int, *, idempotency_key: str, reason: str) -> int:
+        """Apply a durable admin/payment adjustment to the shared account.
+
+        The local admin surface uses this capability to keep privileged credit
+        changes on the same SQLite account used by run reservations. Positive
+        and negative adjustments are atomic and idempotent, so the demo path
+        does not create a second, divergent balance ledger.
+        """
+
+        if not isinstance(account_id, str) or not account_id.strip():
+            raise ValueError("account id must be non-empty")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount == 0:
+            raise ValueError("credit adjustment must be a non-zero integer")
+        if not isinstance(idempotency_key, str) or len(idempotency_key) < 8:
+            raise ValueError("credit adjustment idempotency key must be at least 8 characters")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("credit adjustment reason must be non-empty")
+        with self._transaction():
+            existing = self._connection.execute(
+                "SELECT account_id, amount FROM credit_adjustments WHERE idempotency_key = ?", (idempotency_key,)
+            ).fetchone()
+            if existing is not None:
+                if existing["account_id"] != account_id or int(existing["amount"]) != amount:
+                    raise ReservationConflict("credit adjustment idempotency key is already used")
+                return self.available(account_id)
+            self._connection.execute(
+                "INSERT INTO credit_accounts(account_id, balance) VALUES (?, 0) "
+                "ON CONFLICT(account_id) DO NOTHING",
+                (account_id,),
+            )
+            held = self._connection.execute(
+                "SELECT COALESCE(SUM(units), 0) AS units FROM run_credit_reservations "
+                "WHERE account_id = ? AND status = 'reserved'",
+                (account_id,),
+            ).fetchone()["units"]
+            updated = self._connection.execute(
+                "UPDATE credit_accounts SET balance = balance + ? "
+                "WHERE account_id = ? AND balance + ? - ? >= 0",
+                (amount, account_id, amount, int(held)),
+            )
+            if updated.rowcount != 1:
+                raise InsufficientCredits(account_id)
+            self._connection.execute(
+                "INSERT INTO credit_adjustments VALUES (?, ?, ?, ?, ?, ?)",
+                (uuid.uuid4().hex, account_id, amount, idempotency_key, reason, _now()),
+            )
+            return self.available(account_id)
 
     def reservations(self) -> tuple[CreditReservation, ...]:
         rows = self._connection.execute("SELECT * FROM run_credit_reservations ORDER BY created_at").fetchall()

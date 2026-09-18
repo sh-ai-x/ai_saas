@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: baseline-contracts
 
 Read first:

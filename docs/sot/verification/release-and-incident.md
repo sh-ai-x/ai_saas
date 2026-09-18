@@ -73,6 +73,23 @@ Recovery must prefer replayable durable events over manual database edits.
 - Incidents record impact, timeline, containment, recovery, root cause, and
   which SOT document changed afterward.
 
+## Free-tier local evidence path
+
+The `free-portfolio` profile has a host-local verification path that does not
+require a cloud account or a running Docker daemon. Run
+`python3 scripts/local-smoke.py` to exercise mock Google callback validation,
+tenant-scoped admin mutations, the shared credit ledger, mock signed payment
+webhooks, durable run execution, and replayable SSE. Then run
+`python3 scripts/record-step-outputs.py --all` to atomically write compact,
+valid `step<N>-output.json` evidence with real exit codes, stdout, stderr, and
+durations.
+
+If the Docker CLI exists but its daemon is stopped, the smoke result records
+`docker=blocked (daemon unavailable)` and skips the image build. This is an
+environment blocker, not a reason to add paid infrastructure or bypass the
+free-tier cost boundary. Compose configuration can still be validated with
+`docker compose -f docker/dev/compose.yaml config`.
+
 ## Sources
 
 - [Anthropic: Effective Harnesses](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
