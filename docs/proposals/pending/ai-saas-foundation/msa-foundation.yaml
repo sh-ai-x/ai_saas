@@ -1,0 +1,268 @@
+title: Production-Ready AI SaaS Foundation Template — MSA Baseline
+status: ready-for-review
+date: 2026-09-18
+tags:
+  - ai-saas
+  - msa
+  - multi-tenant
+  - google-auth
+  - admin
+  - toss-payments
+  - lemon-squeezy
+  - mock-payment
+  - langgraph
+  - otel
+  - cost-optimized
+  - portfolio
+
+before:
+  summary: |
+    The original proposal defines the target Production-Ready MSA foundation.
+    The `mysaas` repository provides an initial vertical slice rather than an
+    empty starting point: Next.js 16.3, Better Auth, Drizzle, Neon-compatible
+    PostgreSQL, Vercel-oriented deployment, Inngest background work, Docker
+    development, and an existing super-admin/payment baseline. The gap is the
+    extraction and hardening path from that slice to the target MSA runtime.
+  evidence:
+    - 'User-approved baseline proposal: Next.js, FastAPI, LangGraph, PostgreSQL, queue, metering, OTel, and ECS/Fargate.'
+    - 'Copied SOT contracts define Google OAuth validation, admin audit, provider adapters, webhook inboxes, and ledgers.'
+    - '`mysaas/my-saas/package.json:1-120` records Next.js 16.3, Better Auth, Drizzle, Neon serverless, Inngest, and the available provider SDKs.'
+    - '`mysaas/my-saas/src/auth.ts:24-35,81-127` and `src/db/schema/user.ts:16-93` provide the initial Google/session/admin baseline.'
+    - '`mysaas/my-saas/docker/dev/compose.yaml:1-64`, `docker/prod/Dockerfile:1-59`, and `.env.example:1-80` provide local Docker and Vercel-oriented deployment evidence.'
+    - '`mysaas` has no Toss implementation and no Lemon Squeezy webhook route; these remain target adapters/contracts, not inherited capabilities.'
+
+after:
+  summary: |
+    A cost-tiered foundation removes the ambiguity between portfolio cost and
+    worker isolation. Free Portfolio Mode uses the `mysaas` slice as one
+    deployable modular monolith with logical MSA contracts. AWS Low-Cost Worker
+    Mode adds only an on-demand ECS Fargate Spot agent-worker, while keeping the
+    web/API on a free-tier host and the data on one Neon PostgreSQL cluster.
+    This preserves low fixed cost without provisioning ALB, NAT, or a nine-
+    service topology. Google OAuth is server-side, admin mutations are audited,
+    Toss and Lemon Squeezy are Ports-and-Adapters, and mock payment follows the
+    same ledger path in non-production.
+  files:
+    - path: .gitignore
+      change: Ignore copied SOT and generated dev-kit handoff artifacts as requested.
+    - path: docs/sot/
+      change: Preserve the copied reference SOT locally without tracking it in Git.
+    - path: .dev-kit/hand-off/sot-harness-ai-saas-msa-20260918.md
+      change: Record `mysaas` as the initial implementation baseline and define the migration path to the target MSA topology.
+    - path: apps/web/
+      change: 'Initial deployable modular monolith: Next.js console, Google login, tenant UI, admin page, billing UI, SSE client, and internal service modules.'
+    - path: packages/contracts/
+      change: Versioned REST, SSE, event, and provider-normalized schemas used inside the initial app and later extracted services.
+    - path: services/identity-tenant/
+      change: Extraction target for OAuth callback/session, organizations, memberships, RBAC, and invitations; not a required day-one deployment.
+    - path: services/admin-operations/
+      change: Extraction target for privileged operations, reconciliation actions, and append-only audit events; initially an internal module.
+    - path: services/metering-billing/
+      change: Provider ports, Toss/Lemon Squeezy/mock adapters, provider inbox, entitlement, and credit ledger; initially one billing module with one live provider at a time.
+    - path: services/run-service/
+      change: Run state machine, idempotency, stream replay, and approval boundaries; initially co-located with the web app.
+    - path: services/agent-worker/
+      change: Queue-backed LangGraph execution, checkpoints, retries, and OTel correlation; initially Inngest-backed, later extractable to FastAPI/ECS.
+    - path: infra/
+      change: Minimal Vercel/Docker deployment contract first; Terraform, ECS/Fargate, ALB, NAT, and managed secrets only after an explicit cost/scale gate.
+
+pros:
+  - 'Uses a working initial vertical slice instead of requiring a full rewrite before the first deployable increment.'
+  - 'Minimizes fixed cost by running one deployable app, one database, and one durable workflow path before service extraction.'
+  - 'Makes the trade-off explicit: Free Portfolio Mode optimizes cost, while AWS Low-Cost Worker Mode adds only interruptible worker isolation.'
+  - 'Produces a credible portfolio artifact with Google auth, admin operations, payment lifecycle, metering, and AI workflow evidence without requiring an always-on AWS stack.'
+  - 'Separates domain invariants from provider-specific payment APIs through capability ports and adapters.'
+  - 'Makes Google login, admin actions, payment events, mock scenarios, and AI runs observable and auditable.'
+  - 'Keeps the extraction path open through versioned contracts and deterministic replay/concurrency evidence.'
+
+cons:
+  - 'Fargate Spot workers can be interrupted and public-subnet networking has a larger exposure surface; mitigate with checkpoint/retry, no inbound worker rules, and Cloudflare/Vercel as the only public web boundary.'
+  - 'Toss and Lemon Squeezy differ in payment semantics; mitigate with a Ports-and-Adapters pattern: provider-specific adapters implement shared capability ports and normalized events, while only one live provider is enabled per environment.'
+
+limitations:
+  - 'Free Portfolio Mode is for personal/demo and low-volume validation; AWS Low-Cost Worker Mode adds variable usage cost but does not provide commercial SLA or multi-AZ high availability.'
+  - 'Real payment launch still requires provider sandbox/live verification; mock payment is evidence of application flow, not provider certification.'
+
+sections:
+  - title: Cost-optimized portfolio operating profile
+    body: |
+      The default profile optimizes for a credible portfolio and near-zero
+      fixed monthly infrastructure cost. It deliberately keeps the first
+      release as a modular monolith with extraction-ready contracts:
+
+      | Capability | Default profile | Upgrade trigger |
+      |---|---|---|
+      | Web and API | Vercel Hobby or Cloudflare Workers Free/vinext after compatibility check | Remain on free tier; pause or fallback when quotas/compatibility fail |
+      | Database | One Neon PostgreSQL project, one primary branch, Drizzle | Connection, storage, availability, or tenant-isolation threshold |
+      | Durable work | Inngest Hobby for bounded workflows; local Docker for development | Execution quota, concurrency, runtime, or data-residency pressure |
+      | Edge | Cloudflare DNS/SSL/basic protection; Turnstile where needed | Advanced WAF, high traffic, or edge compute requirement |
+      | AI runtime | Provider abstraction and bounded calls inside the initial app/workflow | Long execution, tool isolation, GPU/runtime needs, or queue depth |
+      | Payments | Mock by default; one live provider per environment, Toss or Lemon Squeezy | Regional rollout, recurring billing, tax, or reconciliation volume |
+      | Observability | Structured logs, sampled OTel, provider-native basic traces | Incident volume, retention, evaluation scale, or compliance |
+      | CI/CD | GitHub Actions plus Vercel Git deployment | Multi-service images, migrations, rollback, or AWS extraction |
+      | AWS worker | Off by default; optional ECS Fargate Spot RunTask, 0.25 vCPU/0.5 GB ARM, public subnet, no ALB/NAT, no inbound rules | Long execution, worker isolation, or queue pressure with an approved variable-cost ceiling |
+
+      The free profile must fail closed at quotas, never create hidden paid
+      resources, and expose usage counters. The portfolio demo should use
+      synthetic/mock payment records and low-cost model settings by default.
+      LLM inference, payment processing fees, custom domains, and commercial
+      provider plans are variable costs and are not treated as guaranteed free.
+
+      AWS Low-Cost Worker Mode is intentionally a worker-only profile. The
+      public web/API remains on Vercel Hobby or Cloudflare Workers Free, and
+      the worker has no inbound route. AWS documents public-subnet Fargate with
+      an assigned public IP as a supported outbound pattern; this avoids a NAT
+      Gateway, but the security group must deny inbound traffic. Fargate Spot
+      is allowed only because LangGraph checkpoints and idempotent retries make
+      interruption recoverable. ALB, private-subnet NAT, multi-AZ replicas, and
+      always-on worker services are outside the low-cost profile.
+
+      Official plan references used for this cost profile: Vercel Hobby
+      (https://vercel.com/docs/plans/hobby), Inngest Hobby
+      (https://www.inngest.com/pricing), and Cloudflare Workers Free limits
+      (https://developers.cloudflare.com/workers/platform/pricing/). Neon
+      plan eligibility and limits must be checked in the account before each
+      deployment rather than hard-coded into the application contract.
+
+  - title: Initial baseline and target migration
+    body: |
+      `mysaas` is the initial version of this foundation, not a competing
+      architecture. Preserve its first vertical slice: Next.js 16.3 App
+      Router, Better Auth, Drizzle, Neon-compatible PostgreSQL, Vercel for the
+      web surface, Inngest for initial background work, and Docker Compose for
+      local development.
+
+      Portfolio Mode accepts one deployable modular monolith because its
+      acceptance target is contract-level MSA alignment. AWS Low-Cost Worker
+      Mode promotes only the agent-worker into an on-demand Fargate Spot task;
+      the web/gateway remains on the free-tier host. Identity, project,
+      billing, and admin remain owned modules on the shared data path. This is
+      the smallest physical split that creates meaningful worker isolation
+      without paying for a nine-service topology.
+
+      The migration sequence is: (1) formalize identity, tenant, billing, and
+      run contracts around the existing app; (2) add transactional
+      provider-neutral billing and the admin audit boundary; (3) ship the
+      portfolio demo on the free profile; (4) introduce queue-backed run state
+      and SSE replay; (5) extract FastAPI/LangGraph workers only after a budget
+      and workload gate; and (6) retain Vercel/Neon for the web and primary
+      data path unless a later ADR changes that decision.
+
+  - title: Scope and acceptance contract
+    body: |
+      Build a deployable, cost-controlled foundation for enterprise AI
+      services. The portfolio release must cover multi-tenant identity, Google
+      OAuth, admin operations, bounded LangGraph runs, SSE replay, atomic
+      metering, provider-neutral billing, mock payments, sampled OTel, CI/CD,
+      and a reproducible local environment. Toss or Lemon Squeezy is enabled as
+      one live provider per environment after the mock path passes; both
+      adapters remain contract-tested.
+
+      A payment success page never grants access. Only a verified provider
+      event or an explicitly audited admin action can change entitlement or
+      credits. Mock actions are test-only and must be visibly separated from
+      live records.
+
+  - title: MSA service topology
+    body: |
+      The service catalog is logical from day one. Deployment profiles are:
+
+      | Profile | Physical units | Purpose |
+      |---|---|---|
+      | Free Portfolio Mode | One Next.js deployable plus managed workflow invocations | Near-zero fixed cost and portfolio evidence |
+      | AWS Low-Cost Worker Mode | Free-tier web/gateway plus on-demand Fargate Spot agent-worker, one shared Neon cluster | Minimum worker isolation for long-running jobs |
+      | Scale Mode | Extracted identity, billing, admin, and data boundaries as justified | Not part of the low-cost default; future migration only |
+
+      The extraction target is:
+
+      | Service | Responsibility |
+      |---|---|
+      | web-console | Next.js UI, login, tenant views, admin page, billing UI, SSE client |
+      | api-gateway | public API, auth propagation, rate limiting, correlation |
+      | identity-tenant | Google OAuth, users, organizations, memberships, RBAC |
+      | project-service | AI project metadata and provider configuration references |
+      | run-service | run state machine, idempotency, approvals, stream replay |
+      | agent-worker | queue-backed LangGraph execution, checkpoints, retries |
+      | metering-billing | reservations, provider adapters, webhooks, entitlement, ledger |
+      | admin-operations | privileged operations, reconciliation, audit events |
+      | observability | OTel collection, redaction, traces, evaluation records |
+
+      Free Portfolio Mode may keep the existing Next.js application as the
+      composition root. AWS Low-Cost Worker Mode deploys only the worker
+      boundary separately while keeping Neon-compatible PostgreSQL with Drizzle
+      as one cluster through schema ownership. Cross-module mutations still use
+      application use cases and durable events, not arbitrary table writes.
+      ECS/Fargate is optional and worker-only in the low-cost profile.
+
+  - title: Google authentication and admin page
+    body: |
+      Google login uses a server-side authorization-code flow. The callback
+      validates state, issuer, code, exact redirect URI, and provider subject
+      before creating or linking the local account. Provider secrets, codes,
+      and sensitive identity payloads never enter browser bundles, agent
+      context, logs, or traces.
+
+      The admin page calls server-side admin-operations APIs. Each mutation
+      resolves the operator, checks role and resource scope, validates the
+      target, captures before state, requires a reason, applies a shared use
+      case, and records actor/action/target/before/after/correlation/time in
+      an append-only audit event. MVP may use super-admin, but the boundary
+      remains replaceable by RBAC and must gain step-up/MFA before production.
+
+  - title: Toss, Lemon Squeezy, and mock payment
+    body: |
+      Billing uses the Ports-and-Adapters pattern with application-owned
+      capability ports and a provider registry. Toss Payments and Lemon Squeezy
+      are separate adapters. The domain depends only on shared ports and
+      normalized events; it never imports provider SDKs or provider status
+      strings. The common flow
+      is pending internal order → provider proof or query → durable inbox →
+      dedupe → normalized event → transactional entitlement/ledger/audit.
+
+      Toss requires server-side order and amount comparison, persisted
+      idempotency keys, payment query recovery, provider-specific webhook
+      proof, and application-owned billing-key scheduling where recurring
+      billing is enabled. Lemon Squeezy requires raw-body X-Signature
+      verification, event allowlisting, exact store/product/variant mapping,
+      subscription-state normalization, and replay/reconciliation.
+
+      The mock adapter is enabled only in non-production environments. Its
+      admin controls create deterministic success, failure, duplicate,
+      delayed, out-of-order, cancellation, refund, and unknown-state events.
+      It uses the same provider ports, inbox, dedupe, entitlement, credit
+      ledger, and audit path as real providers and never writes plan or credit
+      state directly.
+
+  - title: Dependency-ordered phases
+    body: |
+      1. Cost-controlled vertical slice: preserve `mysaas`, add contracts,
+         Google login, admin audit, mock billing, metering, and Docker/Vercel
+         deployment.
+      2. Durable lifecycle: add bounded runs, Inngest-backed retries,
+         checkpoints, SSE replay, pending orders, and provider inbox.
+      3. Verification: deterministic CI, RLS isolation, OAuth replay, admin
+         denial/audit, provider replay, ledger concurrency, and E2E evaluator.
+      4. Portfolio hardening: sampled OTel, redaction, usage counters, quota
+         pause behavior, and documented free-tier operational limits.
+      5. Conditional extraction: only if the budget/workload gate passes, add
+         FastAPI/LangGraph worker, ECS/Fargate, Terraform, and multi-service
+         deployment.
+
+      Each phase must have a runnable verification artifact before it can be
+      marked complete.
+
+  - title: Non-goals and open decisions
+    body: |
+      Non-goals are domain-specific agent workflows, always-on AWS resources in
+      the portfolio profile, universal physical database-per-service
+      deployment, and real payment processing in local development.
+
+      Open decisions are the service-extraction threshold from the initial
+      `mysaas` slice, Inngest versus Redis/Celery/SQS for long-running agent
+      work, whether Better Auth remains the extracted identity implementation,
+      whether Toss and Lemon launch together, staging availability of mock
+      payment controls, admin MFA/step-up policy, and repository/database
+      extraction thresholds. Neon + Drizzle + Better Auth + Vercel are the
+      initial baseline decisions, not unresolved prerequisites for the first
+      increment. The cost gate must approve any new always-on resource and
+      record its monthly ceiling, free-tier assumption, and removal plan.
