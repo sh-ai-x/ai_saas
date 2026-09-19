@@ -1,19 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
 export function GoogleLoginForm({ googleConfigured, callbackURL }: { googleConfigured: boolean; callbackURL: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const signInInFlight = useRef(false);
 
   async function signIn() {
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     setPending(true);
     setError(null);
-    const result = await authClient.signIn.social({ provider: "google", callbackURL });
-    if (result.error) setError("Google sign-in could not be started. Check the configured redirect URI.");
-    setPending(false);
+    try {
+      const result = await authClient.signIn.social({ provider: "google", callbackURL });
+      if (result.error) setError("Google sign-in could not be started. Check the configured redirect URI.");
+    } catch {
+      setError("Google sign-in could not be started. Check the configured redirect URI.");
+    } finally {
+      signInInFlight.current = false;
+      setPending(false);
+    }
   }
 
   return (
