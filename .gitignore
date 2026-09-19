@@ -19,6 +19,16 @@ __pycache__/
 *.py[cod]
 *.tsbuildinfo
 
+# Local worktrees and browser automation artifacts.
+.worktrees/
+.playwright-mcp/
+
+# Local Python environments and generated test caches.
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # >>> dev-kit >>>
 # dev-kit runtime artifacts (auto-installed by `dev-kit:ci-setup`; issue #202).
 # Marker `.dev-kit/ci-config.json` is intentionally tracked so that
