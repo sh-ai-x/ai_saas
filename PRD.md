@@ -79,6 +79,7 @@ provider is enabled only after its configuration validator passes.
 | 11 | setup-guide-console | 8–10 | Dedicated `/guides` Markdown editor, hierarchical left sidebar with separate Toss/Lemon Squeezy pages, environment examples, and a link back to the console |
 | 12 | integration-e2e-verification | 8–11 | Contract, config, adapter, API, browser, and sandbox fixture verification with step output evidence |
 | 13 | neon-production-database | 7, 12 | Linked Neon production branch, committed policy, ignored connection env flow, read-only connectivity evidence, and web setup guide |
+| 14 | sandbox-checkout-handoff | 9, 11 | Provider-correct Toss browser SDK handoff, Lemon Squeezy store/variant checkout, safe redirect routes, and adapter fixture coverage |
 
 ### Real integration constraints
 
@@ -118,3 +119,8 @@ provider is enabled only after its configuration validator passes.
   production branch with no committed credentials; `neon.ts`, policy plan/
   deploy, read-only connectivity, ignored env injection, and a web-visible
   Markdown setup guide are reproducible.
+- **REQ-12:** A real sandbox checkout receives only browser-safe handoff data:
+  Toss uses the client SDK with server-owned amount/order/redirect values, and
+  Lemon Squeezy uses configured store/variant JSON:API relationships with
+  signed-webhook-authoritative entitlement. Provider-specific fixtures reject
+  missing or mismatched checkout identity before any ledger effect.

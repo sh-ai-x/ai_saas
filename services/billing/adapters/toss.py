@@ -33,6 +33,8 @@ class TossPaymentsAdapter:
         base_url: str = "https://api.tosspayments.com",
         client_key: str | None = None,
         checkout_url: str = "https://js.tosspayments.com/v2/standard",
+        success_url: str = "",
+        fail_url: str = "",
         test_mode: bool = False,
         request_json: Callable[..., dict[str, Any]] = json_request,
         status_verifier: Callable[[Mapping[str, Any]], bool] | None = None,
@@ -42,6 +44,8 @@ class TossPaymentsAdapter:
         self._base_url = base_url.rstrip("/")
         self._client_key = client_key or ""
         self._checkout_url = checkout_url
+        self._success_url = success_url
+        self._fail_url = fail_url
         self._test_mode = test_mode
         self._request_json = request_json
         self._status_verifier = status_verifier
@@ -49,6 +53,12 @@ class TossPaymentsAdapter:
     def create_checkout(self, request: CheckoutRequest) -> CheckoutResponse:
         if not self._secret_key:
             raise RuntimeError("Toss secret key is not configured")
+        if not self._client_key:
+            raise RuntimeError("Toss client key is not configured")
+        if request.currency != "KRW":
+            raise ValueError("Toss checkout currency must be KRW")
+        if not self._success_url or not self._fail_url:
+            raise RuntimeError("Toss success and fail URLs are not configured")
         # Toss Payment Widgets/SDKs collect customer payment details in the
         # browser. The server creates the durable order and returns the
         # provider-neutral handoff; confirmation is always server-side.
@@ -57,6 +67,14 @@ class TossPaymentsAdapter:
             request.order_id,
             self._checkout_url,
             self._test_mode,
+            {
+                "client_key": self._client_key,
+                "order_id": request.order_id,
+                "order_name": request.plan_id,
+                "amount": {"value": request.amount_minor, "currency": request.currency},
+                "success_url": self._success_url,
+                "fail_url": self._fail_url,
+            },
         )
 
     def confirm_payment_event(

@@ -99,6 +99,8 @@ def build_registry_from_environment(values: Mapping[str, str]) -> ProviderRegist
                 webhook_secret=values.get("TOSS_WEBHOOK_SECRET"),
                 client_key=values.get("TOSS_CLIENT_KEY"),
                 checkout_url=values.get("TOSS_CHECKOUT_URL", "https://js.tosspayments.com/v2/standard"),
+                success_url=values.get("TOSS_SUCCESS_URL", f"{values.get('APP_BASE_URL', '').rstrip('/')}/payments/toss/success"),
+                fail_url=values.get("TOSS_FAIL_URL", f"{values.get('APP_BASE_URL', '').rstrip('/')}/payments/toss/fail"),
                 test_mode=environment != "production",
             ),
         )
@@ -109,6 +111,9 @@ def build_registry_from_environment(values: Mapping[str, str]) -> ProviderRegist
             lemon_squeezy=LemonSqueezyAdapter(
                 api_key=values.get("LEMONSQUEEZY_API_KEY"),
                 webhook_secret=values.get("LEMONSQUEEZY_WEBHOOK_SECRET") or values.get("LEMONSQUEEZY_API_KEY", ""),
+                store_id=values.get("LEMONSQUEEZY_STORE_ID"),
+                variant_id=values.get("LEMONSQUEEZY_VARIANT_ID"),
+                redirect_url=values.get("LEMONSQUEEZY_REDIRECT_URL", f"{values.get('APP_BASE_URL', '').rstrip('/')}/payments/lemon-squeezy/success"),
                 test_mode=environment != "production",
             ),
         )

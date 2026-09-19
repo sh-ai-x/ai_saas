@@ -4,6 +4,25 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type JsonRecord = Record<string, unknown>;
 
+type TossPayment = {
+  requestPayment: (options: {
+    method: "CARD";
+    amount: { value: number; currency: string };
+    orderId: string;
+    orderName: string;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
+};
+
+declare global {
+  interface Window {
+    TossPayments?: (clientKey: string) => {
+      payment: (options: { customerKey: string }) => TossPayment;
+    };
+  }
+}
+
 const jsonHeaders = { "content-type": "application/json" };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -26,6 +45,20 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 처리하지 못했습니다.";
+}
+
+async function loadTossSdk() {
+  if (window.TossPayments) return window.TossPayments;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://js.tosspayments.com/v2/standard";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Toss Payments SDK를 불러오지 못했습니다."));
+    document.head.appendChild(script);
+  });
+  if (!window.TossPayments) throw new Error("Toss Payments SDK가 초기화되지 않았습니다.");
+  return window.TossPayments;
 }
 
 export function FoundationConsole() {
@@ -176,6 +209,24 @@ export function FoundationConsole() {
           body: JSON.stringify({ order_id: nextOrderId }),
         });
         log(`Mock payment ${String(result.status)}; ledger applied=${String(result.applied)}`);
+      } else if (payment?.provider === "toss") {
+        const context = checkout.checkout_context as JsonRecord | undefined;
+        const clientKey = String(context?.client_key ?? "");
+        const amount = context?.amount as JsonRecord | undefined;
+        if (!context || !clientKey || !amount) throw new Error("Toss 브라우저 결제 컨텍스트가 없습니다.");
+        const TossPayments = await loadTossSdk();
+        const tossPayment = TossPayments(clientKey).payment({
+          customerKey: `customer-${tenantId}`,
+        });
+        await tossPayment.requestPayment({
+          method: "CARD",
+          amount: { value: Number(amount.value), currency: String(amount.currency) },
+          orderId: String(context.order_id),
+          orderName: String(context.order_name ?? "AI SaaS credits"),
+          successUrl: String(context.success_url),
+          failUrl: String(context.fail_url),
+        });
+        log("Toss sandbox checkout opened through the browser SDK");
       } else {
         log(`${String(payment?.provider)} sandbox order created; complete provider checkout/webhook next`);
         if (checkout.checkout_url) window.open(String(checkout.checkout_url), "_blank", "noopener,noreferrer");

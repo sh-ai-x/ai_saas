@@ -340,7 +340,7 @@ class FoundationHandler(BaseHTTPRequestHandler):
                 account_id=str(payload.get("account_id") or "demo-account"),
                 plan_id=str(payload.get("plan_id") or "pro"),
                 amount_minor=int(payload.get("amount_minor", 1000)),
-                currency=str(payload.get("currency") or "USD"),
+                currency=str(payload.get("currency") or ("KRW" if self.runtime.config.payment_provider == "toss" else "USD")),
                 credit_grant=int(payload.get("credit_grant", 10)),
                 idempotency_key=str(payload["idempotency_key"]),
             )
@@ -353,6 +353,7 @@ class FoundationHandler(BaseHTTPRequestHandler):
                     "provider_reference": checkout.provider_reference,
                     "checkout_url": checkout.checkout_url,
                     "test_mode": checkout.test_mode,
+                    "checkout_context": dict(checkout.checkout_context),
                 },
             )
             return

@@ -12,7 +12,7 @@ from services.billing.adapters.lemon_squeezy import LemonSqueezyAdapter
 from services.billing.adapters.mock import MockPaymentAdapter
 from services.billing.adapters.toss import TossPaymentsAdapter
 from services.billing.errors import InvalidWebhook, ProviderConfigurationError
-from services.billing.models import CreateOrder
+from services.billing.models import CheckoutRequest, CreateOrder
 from services.billing.registry import ProviderRegistry, build_registry, build_registry_from_environment
 from services.billing.service import BillingService
 from services.billing.store import SQLiteBillingStore
@@ -194,6 +194,59 @@ class BillingPathTests(unittest.TestCase):
 
 
 class AdapterContractTests(unittest.TestCase):
+    def test_toss_checkout_returns_browser_handoff_without_server_secret(self) -> None:
+        adapter = TossPaymentsAdapter(
+            secret_key="test_secret",
+            client_key="test_client",
+            success_url="https://app.example.test/payments/toss/success",
+            fail_url="https://app.example.test/payments/toss/fail",
+            test_mode=True,
+        )
+        checkout = adapter.create_checkout(
+            CheckoutRequest("tenant-1", "order-1", 1000, "KRW", "pro", "checkout-key-001")
+        )
+        self.assertEqual(checkout.checkout_context["client_key"], "test_client")
+        self.assertEqual(checkout.checkout_context["amount"], {"value": 1000, "currency": "KRW"})
+        self.assertNotIn("test_secret", repr(checkout))
+
+    def test_lemon_checkout_uses_store_variant_relationships(self) -> None:
+        calls = []
+
+        def request_json(method, url, headers, payload):
+            calls.append((method, url, headers, payload))
+            return {"data": {"id": "checkout-1", "attributes": {"url": "https://checkout.example.test/1"}}}
+
+        adapter = LemonSqueezyAdapter(
+            api_key="test_key",
+            webhook_secret="lemon-secret",
+            store_id="42",
+            variant_id="99",
+            redirect_url="https://app.example.test/payments/lemon-squeezy/success",
+            test_mode=True,
+            request_json=request_json,
+        )
+        checkout = adapter.create_checkout(
+            CheckoutRequest("tenant-1", "order-1", 1000, "USD", "pro", "checkout-key-001")
+        )
+        request_payload = calls[0][3]["data"]
+        self.assertEqual(request_payload["relationships"]["store"]["data"]["id"], "42")
+        self.assertEqual(request_payload["relationships"]["variant"]["data"]["id"], "99")
+        self.assertEqual(request_payload["attributes"]["checkout_data"]["custom"]["order_id"], "order-1")
+        self.assertEqual(checkout.checkout_url, "https://checkout.example.test/1")
+
+    def test_lemon_webhook_rejects_unexpected_variant(self) -> None:
+        adapter = LemonSqueezyAdapter(webhook_secret="lemon-secret", store_id="42", variant_id="99")
+        body = json.dumps(
+            {
+                "meta": {"event_name": "order_created", "custom_data": {"order_id": "order-1"}},
+                "data": {"id": "order-1", "attributes": {"status": "paid", "store_id": 42, "variant_id": 100}},
+            },
+            separators=(",", ":"),
+        ).encode()
+        signature = hmac.new(b"lemon-secret", body, hashlib.sha256).hexdigest()
+        with self.assertRaises(InvalidWebhook):
+            adapter.verify_and_normalize_event(body, {"X-Signature": signature})
+
     def test_toss_signature_and_status_are_normalized(self) -> None:
         adapter = TossPaymentsAdapter(webhook_secret="toss-secret")
         body = payload(status="DONE", event_id="toss-event", idempotency_key="toss-idem")
@@ -265,6 +318,7 @@ class AdapterContractTests(unittest.TestCase):
             "PAID_INFRASTRUCTURE": "false",
             "AWS_WORKER_ENABLED": "false",
             "TOSS_SECRET_KEY": "configured",
+            "TOSS_CLIENT_KEY": "test_client",
         }
         config = validate_profile(values)
         self.assertEqual(config.payment_provider, "toss")

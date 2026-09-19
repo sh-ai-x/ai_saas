@@ -18,6 +18,9 @@ PAYMENT_SANDBOX=true
 MOCK_PAYMENTS_ENABLED=false
 LEMONSQUEEZY_API_KEY=test-mode-server-key
 LEMONSQUEEZY_WEBHOOK_SECRET=server-only-secret
+LEMONSQUEEZY_STORE_ID=test-store-id
+LEMONSQUEEZY_VARIANT_ID=test-variant-id
+LEMONSQUEEZY_REDIRECT_URL=https://your-app.example/payments/lemon-squeezy/success
 ```
 
 Map the local plan to the test-mode variant in the provider dashboard. Keep
@@ -27,8 +30,12 @@ the API key and signing secret outside the browser bundle.
 
 ```text
 POST /v1/billing/orders
--> order_id, provider_reference, checkout_url, test_mode=true
+-> order_id, provider_reference, checkout_url, checkout_context, test_mode=true
 ```
+
+The adapter sends the configured store and variant as JSON:API relationships
+and places the local order/tenant correlation in `checkout_data.custom`. A
+plan name is never sent as a provider product ID.
 
 The order is pending before the redirect. Do not grant credits from a browser
 redirect or a client-provided status.

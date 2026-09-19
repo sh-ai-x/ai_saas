@@ -257,8 +257,8 @@ def validate_profile(
         errors.append("selected payment provider does not match configured live credentials")
     if payment_provider in LIVE_PAYMENT_PROVIDERS:
         required_keys = {
-            "toss": ("TOSS_SECRET_KEY",),
-            "lemon-squeezy": ("LEMONSQUEEZY_API_KEY",),
+            "toss": ("TOSS_SECRET_KEY", "TOSS_CLIENT_KEY"),
+            "lemon-squeezy": ("LEMONSQUEEZY_API_KEY", "LEMONSQUEEZY_STORE_ID", "LEMONSQUEEZY_VARIANT_ID"),
         }[payment_provider]
         for key in required_keys:
             if not values.get(key, "").strip():

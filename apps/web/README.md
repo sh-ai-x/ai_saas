@@ -4,7 +4,10 @@ This is the local Next.js 15 App Router console for the AI SaaS foundation.
 It is intentionally provider-free: browser requests go through the same-origin
 `/api/foundation/*` Route Handler proxy to the local Python composition root.
 The UI exercises mock Google auth, tenant-scoped admin operations, mock payment
-webhooks, durable runs, and SSE replay without cloud credentials.
+webhooks, durable runs, and SSE replay without cloud credentials. When a
+sandbox provider is configured, Toss is handed to its browser SDK with
+server-created order context, while Lemon Squeezy opens its hosted checkout;
+credits are still granted only by the signed provider event path.
 
 ## Run locally
 

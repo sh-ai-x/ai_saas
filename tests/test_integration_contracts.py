@@ -45,6 +45,7 @@ class IntegrationConfigurationTests(unittest.TestCase):
             "MOCK_PAYMENTS_ENABLED": "false",
             "PAYMENT_SANDBOX": "false",
             "TOSS_SECRET_KEY": "test_secret",
+            "TOSS_CLIENT_KEY": "test_client",
         }
         with self.assertRaises(ConfigError):
             validate_profile(values, "free-portfolio")

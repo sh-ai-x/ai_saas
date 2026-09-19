@@ -143,6 +143,14 @@
       "name": "neon-production-database",
       "status": "completed",
       "step": 13
+    },
+    {
+      "completed_at": "2026-09-19T09:32:00+0900",
+      "depends_on": [9, 11],
+      "duration_seconds": 0,
+      "name": "sandbox-checkout-handoff",
+      "status": "completed",
+      "step": 14
     }
   ]
 }

@@ -21,6 +21,9 @@ class PaymentSandboxApiTests(unittest.TestCase):
             adapter = TossPaymentsAdapter(
                 secret_key="test_secret",
                 webhook_secret="webhook_secret",
+                client_key="test_client",
+                success_url="http://127.0.0.1:3000/payments/toss/success",
+                fail_url="http://127.0.0.1:3000/payments/toss/fail",
                 test_mode=True,
                 request_json=request_json,
             )
@@ -28,7 +31,7 @@ class PaymentSandboxApiTests(unittest.TestCase):
             store = SQLiteBillingStore(str(Path(directory) / "billing.sqlite3"))
             service = BillingService(store=store, providers=registry, active_provider="toss")
             service.create_order(
-                CreateOrder("sandbox-order", "tenant", "account", "pro", 1000, "USD", 10, "sandbox-key-001")
+                CreateOrder("sandbox-order", "tenant", "account", "pro", 1000, "KRW", 10, "sandbox-key-001")
             )
             result = service.confirm_payment(
                 order_id="sandbox-order",
@@ -49,12 +52,19 @@ class PaymentSandboxApiTests(unittest.TestCase):
             store.close()
 
     def test_toss_confirmation_rejects_wrong_amount(self) -> None:
-        adapter = TossPaymentsAdapter(secret_key="test_secret", webhook_secret="webhook_secret", test_mode=True)
+        adapter = TossPaymentsAdapter(
+            secret_key="test_secret",
+            webhook_secret="webhook_secret",
+            client_key="test_client",
+            success_url="http://127.0.0.1:3000/payments/toss/success",
+            fail_url="http://127.0.0.1:3000/payments/toss/fail",
+            test_mode=True,
+        )
         registry = build_registry(environment="staging", selected_provider="toss", toss=adapter)
         with tempfile.TemporaryDirectory() as directory:
             store = SQLiteBillingStore(str(Path(directory) / "billing.sqlite3"))
             service = BillingService(store=store, providers=registry, active_provider="toss")
-            service.create_order(CreateOrder("order-amount", "tenant", "account", "pro", 1000, "USD", 10, "amount-key-001"))
+            service.create_order(CreateOrder("order-amount", "tenant", "account", "pro", 1000, "KRW", 10, "amount-key-001"))
             with self.assertRaises(ValueError):
                 service.confirm_payment(order_id="order-amount", provider_reference="payment", amount_minor=999, idempotency_key="confirm-amount-001")
             store.close()

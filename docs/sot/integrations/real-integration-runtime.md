@@ -33,6 +33,15 @@ and ledger/checkpoint effects. The Next.js app owns only presentation, guide
 navigation, and same-origin proxying. Browser code never calls Google, Toss,
 Lemon Squeezy, OpenAI, Anthropic, or Gemini directly.
 
+For checkout handoff, the boundary is intentionally asymmetric:
+
+- Toss returns a browser-safe client key plus a server-owned amount, order,
+  and success/fail URL. The browser invokes the Toss SDK; it never opens the
+  SDK source URL as a hosted checkout and never receives the secret key.
+- Lemon Squeezy creates a hosted checkout through JSON:API relationships bound
+  to the configured store and variant. Its post-checkout redirect is only a
+  status page; credits and entitlements remain webhook-authoritative.
+
 ## Selection rules
 
 - `AUTH_PROVIDER=local-mock` is the no-credential default;
@@ -57,6 +66,11 @@ agent execute -> reserve -> checkpoint -> provider call -> commit -> SSE replay
 
 Every external effect has a stable idempotency key. A duplicate callback,
 payment event, or Agent retry cannot create a second local effect.
+
+The checkout handoff contract is version-compatible with the existing order
+response: `checkout_context` is opaque to the billing domain and may contain
+only browser-safe values. Secret-bearing values remain inside the adapter
+boundary.
 
 ## Verification
 
