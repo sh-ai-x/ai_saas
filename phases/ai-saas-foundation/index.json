@@ -1,6 +1,6 @@
 {
   "phase": "ai-saas-foundation",
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "worktree": "plan/admin-pricing-foundation",
   "steps": [
     {
@@ -192,6 +192,16 @@
       "status": "completed",
       "step": 18,
       "writes": ["tests/", "phases/ai-saas-foundation/step18-output.json"]
+    },
+    {
+      "completed_at": "2026-09-19T11:08:54+0900",
+      "depends_on": [18],
+      "duration_seconds": 8.831088542,
+      "name": "hardening-test-suite",
+      "partition": "apps/web/tests,apps/web/package.json,apps/web/package-lock.json",
+      "status": "completed",
+      "step": 19,
+      "writes": ["apps/web/tests/", "apps/web/package.json", "apps/web/package-lock.json"]
     }
   ]
 }

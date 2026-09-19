@@ -44,6 +44,18 @@ npm run build
 npm run start
 ```
 
+Run the contract and adapter test suite without provider credentials:
+
+```bash
+npm run test
+npm run test:all
+```
+
+The tests cover exclusive billing-mode publishing, admin authorization,
+checkout rejection for the inactive mode, pricing validation, provider
+conflicts, and mock/Toss/Lemon Squeezy adapter handoffs. They use the explicit
+`APP_ENV=test` local seed profile and never grant live entitlements.
+
 The `/guides` route contains the category sidebar for local startup, Google
 OAuth, separate Toss and Lemon Squeezy sandbox payment guides,
 OpenAI/Anthropic/Gemini Agent providers, verification, and operations. Each
