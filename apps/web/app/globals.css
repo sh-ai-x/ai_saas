@@ -56,11 +56,32 @@ button:disabled { cursor: wait; opacity: .55; }
 .markdown-line { display: grid; grid-template-columns: 42px minmax(max-content, 1fr); min-width: max-content; padding-right: 18px; white-space: pre; }
 .markdown-line:hover { background: rgba(139, 183, 255, .06); }
 .line-number { border-right: 1px solid var(--line); margin-right: 12px; padding-right: 10px; color: #4e5a6d; text-align: right; user-select: none; }
-.guide-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
-.guide-step { border-top: 1px solid var(--line); padding-top: 14px; }
-.guide-step h3 { font-size: 14px; }
-.guide-step p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
-.guide-code { overflow: auto; margin: 11px 0 0; border: 1px solid var(--line); border-radius: 7px; background: #0a0d12; padding: 11px; color: var(--blue); font: 10px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.markdown-preview { margin-top: 22px; border: 1px solid var(--line); border-radius: 9px; background: #0d1118; padding: clamp(18px, 3vw, 30px); color: #dce3ed; font-size: 14px; line-height: 1.75; }
+.markdown-preview > :first-child { margin-top: 0; }
+.markdown-preview > :last-child { margin-bottom: 0; }
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { color: var(--text); line-height: 1.2; letter-spacing: -.03em; }
+.markdown-preview h1 { margin: 0 0 20px; font-size: clamp(25px, 3vw, 36px); }
+.markdown-preview h2 { margin: 32px 0 12px; font-size: 22px; }
+.markdown-preview h3 { margin: 24px 0 9px; font-size: 17px; }
+.markdown-preview h4 { margin: 18px 0 7px; font-size: 15px; }
+.markdown-preview p { margin: 12px 0; color: #c3ccd8; }
+.markdown-preview ul, .markdown-preview ol { margin: 12px 0; padding-left: 24px; }
+.markdown-preview li { margin: 5px 0; padding-left: 3px; }
+.markdown-preview li > p { margin: 4px 0; }
+.markdown-preview a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+.markdown-preview a:hover { color: var(--accent); }
+.markdown-preview strong { color: var(--text); }
+.markdown-preview blockquote { margin: 16px 0; border-left: 3px solid var(--accent); background: rgba(167, 243, 107, .05); padding: 4px 16px; color: var(--muted); }
+.markdown-preview code { border: 1px solid var(--line); border-radius: 4px; background: #171e29; padding: 2px 5px; color: var(--accent); font: .9em ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown-preview pre { overflow: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; background: #080b10; padding: 15px; color: var(--blue); white-space: pre; }
+.markdown-preview pre code { border: 0; background: transparent; padding: 0; color: inherit; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown-preview hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
+.markdown-table-wrap { overflow-x: auto; margin: 16px 0; }
+.markdown-preview table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 12px; line-height: 1.5; }
+.markdown-preview th, .markdown-preview td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+.markdown-preview th { background: #171e29; color: var(--text); font-weight: 700; }
+.markdown-preview td { color: #c3ccd8; }
+.markdown-preview img { max-width: 100%; height: auto; border-radius: 7px; }
 
 .topbar, .brand, .topbar-actions, .form-row, .panel-heading, footer { display: flex; align-items: center; }
 .topbar { justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 22px; }
@@ -124,7 +145,6 @@ footer { justify-content: space-between; margin-top: 38px; padding-top: 18px; bo
   .content-wrap { width: min(100% - 28px, 600px); padding-top: 18px; }
   .markdown-toolbar { align-items: flex-start; flex-wrap: wrap; }
   .markdown-mode { margin-left: 0; }
-  .guide-steps { grid-template-columns: 1fr; }
   .topbar, .hero { align-items: flex-start; flex-direction: column; }
   .guide-topbar { align-items: flex-start; flex-direction: column; padding: 18px 14px; }
   .topbar-actions { width: 100%; justify-content: space-between; }

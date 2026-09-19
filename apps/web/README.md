@@ -79,7 +79,8 @@ OAuth, separate Toss and Lemon Squeezy sandbox payment guides,
 OpenAI/Anthropic/Gemini Agent providers, verification, and operations. Each
 guide is imported at build time from the Markdown files in
 `apps/web/content/guides/*.md`, displayed as a read-only Markdown editor with
-line numbers, and linked back to the operator console. The database group
+line numbers, and rendered below as a GitHub-Flavored Markdown preview with
+headings, lists, tables, links, blockquotes, and fenced code. The database group
 contains the Neon PostgreSQL setup guide, including safe `.env.local`/`.neon`
 handling and read-only connection verification. The same source is mirrored as
 canonical documentation under `docs/setup-guides/`. Pricing is managed from

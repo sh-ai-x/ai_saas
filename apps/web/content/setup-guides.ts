@@ -21,6 +21,7 @@ export type SetupGuide = {
   summary: string;
   path: string;
   markdown: string;
+  content: string;
   steps: SetupGuideStep[];
 };
 
@@ -83,6 +84,7 @@ function parseGuide(source: MarkdownSource): SetupGuide {
     summary: metadata.summary ?? "",
     path: source.path,
     markdown,
+    content: body.trim() + "\n",
     steps,
   };
 }
