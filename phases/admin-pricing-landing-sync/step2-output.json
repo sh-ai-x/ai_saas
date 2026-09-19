@@ -1,0 +1,39 @@
+{
+  "exit_code": 0,
+  "timestamp": "2026-09-19T23:05:00+09:00",
+  "checks": [
+    {
+      "command": "DATABASE_URL=postgresql://postgres@localhost:5432/pricing_migrate_test_codex pnpm db:migrate",
+      "exit_code": 0,
+      "evidence": "Fresh isolated PostgreSQL database migrated successfully; seed and auth tables were created."
+    },
+    {
+      "command": "PRICING_DB_INTEGRATION=1 PRICING_TEST_DATABASE_URL=postgresql://postgres@localhost:5432/pricing_migrate_test_codex node --import tsx --test tests/pricing-sync.contract.test.ts",
+      "exit_code": 0,
+      "evidence": "4 tests passed, 0 failed."
+    },
+    {
+      "command": "pnpm test",
+      "exit_code": 0,
+      "evidence": "26 tests, 23 passed, 3 intentional integration skips, 0 failed."
+    },
+    {
+      "command": "pnpm lint",
+      "exit_code": 0,
+      "evidence": "TypeScript noEmit completed successfully."
+    },
+    {
+      "command": "pnpm build",
+      "exit_code": 0,
+      "evidence": "Next.js production build completed; / is marked dynamic (ƒ) and server-rendered on demand."
+    }
+  ],
+  "code_sanity": {
+    "status": "pass",
+    "scope": "apps/web/app/page.tsx, apps/web/lib/pricing/repository.ts, apps/web/tests/pricing-sync.contract.test.ts",
+    "notes": [
+      "PostgreSQL remains the configured source of truth; local fallback behavior was not removed.",
+      "No auth, payment-provider, schema, Docker, or secret/config files were changed."
+    ]
+  }
+}

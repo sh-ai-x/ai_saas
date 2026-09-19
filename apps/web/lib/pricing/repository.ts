@@ -13,7 +13,7 @@ import type {
   ProviderSetting,
 } from "./types";
 
-const { adminAuditEvents, paymentProviderSettings, pricingCatalogSettings, pricingOptions, pricingPlans } = schema;
+const { adminAuditEvents, paymentOrders, paymentProviderSettings, pricingCatalogSettings, pricingOptions, pricingPlans, subscriptions } = schema;
 
 type LocalPricingState = {
   plans: PricingPlan[];
@@ -192,19 +192,41 @@ export async function updatePricingPlan(
   if (!current) return null;
   const options = input.options ?? current.options;
   validatePlanOptions(options, input.billingMode);
+  const normalizedOptions = options.map((option) => ({
+    ...option,
+    id: option.id ?? `option-${crypto.randomUUID()}`,
+    planId,
+  }));
   await db.transaction(async (tx) => {
     await tx.update(pricingPlans).set({ ...toPlanRow(planId, input), updatedAt: new Date() }).where(eq(pricingPlans.id, planId));
-    for (const option of options) {
-      const id = option.id ?? `option-${crypto.randomUUID()}`;
-      const row = toOptionRow({ ...option, id, planId });
-      const existing = current.options.find((candidate) => candidate.id === id);
+    const staleOptionIds = current.options
+      .filter((option) => !normalizedOptions.some((candidate) => candidate.id === option.id))
+      .map((option) => option.id);
+    if (staleOptionIds.length) {
+      const referencedOptionIds = new Set<string>();
+      for (const optionId of staleOptionIds) {
+        const [order] = await tx.select({ id: paymentOrders.id }).from(paymentOrders).where(eq(paymentOrders.pricingOptionId, optionId)).limit(1);
+        const [subscription] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.pricingOptionId, optionId)).limit(1);
+        if (order || subscription) referencedOptionIds.add(optionId);
+      }
+      const removableOptionIds = staleOptionIds.filter((optionId) => !referencedOptionIds.has(optionId));
+      if (removableOptionIds.length) {
+        await tx.delete(pricingOptions).where(inArray(pricingOptions.id, removableOptionIds));
+      }
+      for (const optionId of referencedOptionIds) {
+        await tx.update(pricingOptions).set({ active: false, updatedAt: new Date() }).where(eq(pricingOptions.id, optionId));
+      }
+    }
+    for (const option of normalizedOptions) {
+      const row = toOptionRow(option);
+      const existing = current.options.find((candidate) => candidate.id === option.id);
       if (existing) {
-        await tx.update(pricingOptions).set({ ...row, updatedAt: new Date() }).where(eq(pricingOptions.id, id));
+        await tx.update(pricingOptions).set({ ...row, updatedAt: new Date() }).where(eq(pricingOptions.id, option.id));
       } else {
         await tx.insert(pricingOptions).values(row);
       }
     }
-    await tx.insert(adminAuditEvents).values(auditRow(actorUserId, "pricing.plan.updated", planId, planToAudit(current), planToAudit(input), reason));
+    await tx.insert(adminAuditEvents).values(auditRow(actorUserId, "pricing.plan.updated", planId, planToAudit(current), planToAudit({ ...input, options: normalizedOptions }), reason));
   });
   return (await listPricingCatalog(false)).find((plan) => plan.id === planId) ?? null;
 }

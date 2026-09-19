@@ -1,0 +1,14 @@
+{
+  "exit_code": 1,
+  "command": "node --import tsx --test tests/pricing-sync.contract.test.ts",
+  "cwd": "apps/web",
+  "duration_seconds": 3.1,
+  "timestamp": "2026-09-19T22:55:00+09:00",
+  "stdout": "1 test failed, 2 tests skipped. Assertion: landing route dynamic export was undefined; expected force-dynamic.",
+  "stderr": "",
+  "status": "red",
+  "notes": [
+    "The focused test was run after wiring the worktree to the existing local dependency installation.",
+    "No production source file was changed in step 0; the failure is the intended cache-freshness regression contract."
+  ]
+}
