@@ -17,7 +17,7 @@ Acceptance:
 - REQ-3: Real adapters and mock scenarios share the same inbox, normalized-event, entitlement, ledger, and audit path.
 
 Verification:
-python3 -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
 
 Don't:
 - Do not grant access from a client success redirect.

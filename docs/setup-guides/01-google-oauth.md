@@ -188,8 +188,8 @@ The schema follows the `../mysaas/my-saas` Better Auth + Drizzle shape:
 Install dependencies and migrate the configured Neon branch:
 
 ```bash
-npm ci
-npm run db:migrate
+pnpm install
+pnpm --filter ai-saas-foundation-web db:migrate
 ```
 
 The Drizzle config reads `apps/web/.env.local` for local migration commands.
@@ -211,7 +211,7 @@ Expected tables: `account`, `app_user`, `session`, `verification`.
 Keep the process running in the web app directory:
 
 ```bash
-npm run dev
+pnpm --filter ai-saas-foundation-web dev
 ```
 
 Open [http://localhost:3000/login](http://localhost:3000/login). With live
@@ -282,7 +282,7 @@ regular user; role promotion is an explicit server-side operation.
 | `auth_not_configured` | The server intentionally failed closed because one required live-auth value is missing. Restart after editing `.env.local`. |
 | `/admin` redirects to login | The Google user exists but `app_user.role` is not `admin`/`super_admin`, or the session predates the role change. |
 | `invalid_client` | Client ID/secret belong to a different Google Cloud project or environment. Rotate the secret in the deployment secret store. |
-| OAuth works, but DB migration fails | Run `npm run db:migrate` from `apps/web` and confirm `DATABASE_URL` points to the intended Neon branch. |
+| OAuth works, but DB migration fails | Run `pnpm --filter ai-saas-foundation-web db:migrate` from the repository root and confirm `DATABASE_URL` points to the intended Neon branch. |
 
 ## 10. Production handoff
 

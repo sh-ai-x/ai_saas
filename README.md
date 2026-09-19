@@ -11,18 +11,27 @@ SQLite/PostgreSQL-compatible transactional persistence; provider SDKs are not
 part of the domain. Local Docker uses PostgreSQL 17 only as a development
 companion; the HTTP surface itself is Python standard library code.
 
+## Toolchain
+
+JavaScript dependencies are managed from the repository root with `pnpm` and
+the committed `pnpm-lock.yaml`; do not use `npm install`, `npm ci`, or `npx`.
+The web workspace is selected with `pnpm --filter ai-saas-foundation-web ...`.
+Python dependencies and commands run through the committed `uv.lock`; use
+`uv sync --locked` and `uv run --locked ...` rather than mutating the host
+Python installation with `pip`.
+
 ## Start locally
 
 The safest quick path is a generated process-only secret that is never written
 to Git:
 
 ```bash
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-python3 -m foundation.config \
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+uv run --locked python -m foundation.config \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
-python3 -m lib.intent_integrity --pre ai-saas-foundation
-python3 -m foundation.server \
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m foundation.server \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
 ```
@@ -59,7 +68,7 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
   -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
 ```
 
-`python3 scripts/local-smoke.py` runs this flow automatically. It succeeds on
+`uv run --locked python scripts/local-smoke.py` runs this flow automatically. It succeeds on
 a host without Docker; if Docker Desktop is stopped it records
 `docker=blocked (daemon unavailable)` and does not suggest a paid upgrade.
 
@@ -70,7 +79,7 @@ No cloud account, ALB, NAT gateway, Redis, or paid plan is needed.
 
 ```bash
 cp config/profiles/free-portfolio.example.env .env
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose -f docker/dev/compose.yaml up --build
 ```
 
@@ -124,7 +133,7 @@ plan configuration. The AWS example is intentionally incomplete and should
 fail until an operator supplies its identifiers:
 
 ```bash
-python3 -m foundation.config \
+uv run --locked python -m foundation.config \
   --env-file config/profiles/aws-worker.example.env \
   --profile aws-worker
 ```
@@ -138,8 +147,8 @@ credentials, authorization headers, and tokens.
 Run the deterministic contract suite at any time:
 
 ```bash
-python3 -m foundation.contract_check
-python3 -m unittest discover -s tests -v
+uv run --locked python -m foundation.contract_check
+uv run --locked python -m unittest discover -s tests -v
 ```
 
 The complete local gate, including evaluator evidence and Docker Compose
@@ -150,7 +159,7 @@ skipped.
 Step evidence is compact, valid JSON rather than a raw agent transcript:
 
 ```bash
-python3 scripts/record-step-outputs.py --all
+uv run --locked python scripts/record-step-outputs.py --all
 ```
 
 This writes `phases/ai-saas-foundation/step0-output.json` through

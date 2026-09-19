@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -22,14 +21,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "phases" / "ai-saas-foundation"
+UV_RUN = ("uv", "run", "--locked")
 
 COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
-    0: ((sys.executable, "-m", "foundation.contract_check"),),
-    1: ((sys.executable, "-m", "pytest", "-q", "tests/test_identity_tenant_admin.py"),),
-    2: ((sys.executable, "-m", "pytest", "-q", "tests/test_billing.py"),),
-    3: ((sys.executable, "-m", "pytest", "-q", "tests/test_run_worker_streaming.py"),),
-    4: ((sys.executable, "-m", "pytest", "-q", "tests/test_step4_low_cost.py"),),
-    5: ((sys.executable, "scripts/local-smoke.py"),),
+    0: (UV_RUN + ("python", "-m", "foundation.contract_check"),),
+    1: (UV_RUN + ("pytest", "-q", "tests/test_identity_tenant_admin.py"),),
+    2: (UV_RUN + ("pytest", "-q", "tests/test_billing.py"),),
+    3: (UV_RUN + ("pytest", "-q", "tests/test_run_worker_streaming.py"),),
+    4: (UV_RUN + ("pytest", "-q", "tests/test_step4_low_cost.py"),),
+    5: (UV_RUN + ("python", "scripts/local-smoke.py"),),
 }
 
 

@@ -17,8 +17,8 @@ Generate the secret in the shell, start the Python composition root, and keep
 the terminal open.
 
 ```bash
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-python3 -m foundation.server --env-file config/profiles/free-portfolio.example.env --profile free-portfolio
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+uv run --locked python -m foundation.server --env-file config/profiles/free-portfolio.example.env --profile free-portfolio
 ```
 
 ## 2. Start the web console
@@ -26,9 +26,8 @@ python3 -m foundation.server --env-file config/profiles/free-portfolio.example.e
 The Next.js app proxies same-origin requests to the API.
 
 ```bash
-cd apps/web
-npm install
-npm run dev
+pnpm install
+pnpm --filter ai-saas-foundation-web dev
 # open http://localhost:3000
 ```
 
@@ -62,6 +61,6 @@ login through the Google OAuth guide after configuring the provider.
 
 ```bash
 curl http://127.0.0.1:8080/healthz
-python3 -m foundation.contract_check
+uv run --locked python -m foundation.contract_check
 bash scripts/verify-local.sh
 ```

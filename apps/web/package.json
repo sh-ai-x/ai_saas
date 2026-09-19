@@ -2,6 +2,7 @@
   "name": "ai-saas-foundation-web",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.18.0",
   "scripts": {
     "dev": "next dev --hostname localhost --port 3000",
     "build": "next build",
@@ -9,7 +10,7 @@
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "test:watch": "node --import tsx --test --watch tests/**/*.test.ts",
-    "test:all": "npm run lint && npm run test && npm run build",
+    "test:all": "pnpm lint && pnpm test && pnpm build",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts"
   },

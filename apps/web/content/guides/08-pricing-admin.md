@@ -20,8 +20,8 @@ migration workflow. The migration creates plan policy, purchase options,
 provider settings, order/subscription state, billing inbox, and audit tables.
 
 ```bash
-cd apps/web
-npx drizzle-kit migrate
+pnpm install
+pnpm --filter ai-saas-foundation-web db:migrate
 ```
 
 ## 2. Open the separate admin console
@@ -33,7 +33,7 @@ environment must provide `APP_ENV=production` and configure the server-only
 `ADMIN_API_TOKEN` before token-based admin mutations are allowed.
 
 ```bash
-npm run dev
+pnpm --filter ai-saas-foundation-web dev
 open http://127.0.0.1:3000/admin/pricing
 ```
 

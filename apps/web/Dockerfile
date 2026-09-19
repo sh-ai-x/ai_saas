@@ -6,22 +6,24 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apk add --no-cache libc6-compat
+RUN corepack enable
 
 FROM base AS deps
 
-COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/web/package.json ./apps/web/package.json
+RUN pnpm install --frozen-lockfile --filter ai-saas-foundation-web...
 
 FROM deps AS builder
 
-COPY apps/web/ ./
-RUN npm run build
+COPY apps/web/ ./apps/web/
+RUN pnpm --filter ai-saas-foundation-web build
 
 # This target is used by docker/prod/compose.yaml as a one-shot migration job.
 # It intentionally retains drizzle-kit and the TypeScript source files.
 FROM deps AS migrator
 
-COPY apps/web/ ./
+COPY apps/web/ ./apps/web/
 ENV NODE_ENV=production
 
 FROM base AS runner

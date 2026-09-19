@@ -32,7 +32,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.
 cd "$REPO_ROOT"
 
 echo "=== validate ==="
-if ! python3 scripts/validate.py; then
+if ! uv run --locked python scripts/validate.py; then
   echo "ci-local.sh: validate FAILED" >&2
   exit 1
 fi
@@ -40,7 +40,7 @@ echo ""
 
 echo "=== hooks-json-parity (issue #715) ==="
 if [ -f tests/test_hooks_json_parity.py ]; then
-  if ! python3 -m pytest tests/test_hooks_json_parity.py -v --tb=short; then
+  if ! uv run --locked pytest tests/test_hooks_json_parity.py -v --tb=short; then
     echo "ci-local.sh: hooks-json-parity FAILED — CC vs Codex hook manifests drifted (issue #715)" >&2
     exit 1
   fi

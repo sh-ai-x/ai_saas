@@ -31,8 +31,8 @@ Set `DATABASE_URL` from the linked Neon production branch and apply the
 committed Drizzle migration:
 
 ```bash
-cd apps/web
-npm run db:migrate
+pnpm install
+pnpm --filter ai-saas-foundation-web db:migrate
 ```
 
 The schema includes `pricing_catalog_settings`, `pricing_plans`,

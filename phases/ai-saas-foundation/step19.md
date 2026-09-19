@@ -22,7 +22,7 @@ that the public catalog exposes exactly one billing mode at a time.
 
 ## Acceptance
 
-- Tests are executable with `npm run test` and included in `npm run test:all`.
+- Web tests are executable with `pnpm --filter ai-saas-foundation-web test` and included in `pnpm --filter ai-saas-foundation-web test:all`.
 - Tests do not require paid infrastructure or provider secrets.
 - Production code continues to fail closed when `DATABASE_URL` is absent in
   production; test mode explicitly uses the local seed repository.

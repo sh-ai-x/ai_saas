@@ -58,7 +58,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["npm", "run", "db:migrate"]
+    command: ["pnpm", "--filter", "ai-saas-foundation-web", "db:migrate"]
     restart: "no"
 
   web:

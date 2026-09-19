@@ -14,17 +14,17 @@ testing without external payment credentials.
 Start the foundation API from the repository root first:
 
 ```bash
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-python3 -m foundation.server \
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+uv run --locked python -m foundation.server \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
 ```
 
-Then start the web console in this directory:
+Then, from the repository root, install and start the web console:
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm --filter ai-saas-foundation-web dev
 ```
 
 Open http://localhost:3000 for the public landing page. The user workspace is
@@ -33,7 +33,7 @@ at `/app`, the separate admin console is at `/admin`, and setup guides are at
 `http://localhost:8080`.
 
 ```bash
-FOUNDATION_API_URL=http://localhost:8080 npm run dev
+FOUNDATION_API_URL=http://localhost:8080 pnpm --filter ai-saas-foundation-web dev
 ```
 
 ## Run the web console as a Docker image
@@ -58,15 +58,15 @@ The production build is local-only and does not require Vercel, Neon, Stripe,
 Toss, Lemon Squeezy, or a running Docker daemon:
 
 ```bash
-npm run build
-npm run start
+pnpm --filter ai-saas-foundation-web build
+pnpm --filter ai-saas-foundation-web start
 ```
 
 Run the contract and adapter test suite without provider credentials:
 
 ```bash
-npm run test
-npm run test:all
+pnpm --filter ai-saas-foundation-web test
+pnpm --filter ai-saas-foundation-web test:all
 ```
 
 The tests cover Google auth contracts, exclusive billing-mode publishing, admin authorization,

@@ -16,7 +16,7 @@ Acceptance:
 - REQ-5: Free and AWS worker profiles fail closed on missing or paid-only configuration.
 
 Verification:
-python3 -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
 
 Don't:
 - Do not implement provider-specific payment behavior in the domain.

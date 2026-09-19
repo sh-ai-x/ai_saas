@@ -54,7 +54,7 @@ status, and idempotency key before using the shared billing ledger.
 ## 4. Verify and reconcile
 
 ```bash
-python3 -m unittest tests/test_payment_sandbox_api.py tests/test_billing.py
+uv run --locked python -m unittest tests/test_payment_sandbox_api.py tests/test_billing.py
 ```
 
 Replay is safe: a duplicate event cannot grant credits twice. Unknown orders
