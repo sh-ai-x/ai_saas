@@ -7,7 +7,7 @@ at `/`.
 
 | Category | Guide | Credential boundary |
 |---|---|---|
-| Start | [00-local-foundation.md](00-local-foundation.md) | none required |
+| Start | [00-local-foundation.md](00-local-foundation.md) | none required; process or Docker mode |
 | Auth | [01-google-oauth.md](01-google-oauth.md) | Google client secret: server only |
 | Payments / Toss | [02-payment-toss.md](02-payment-toss.md) | Toss test keys: server only |
 | Payments / Lemon Squeezy | [03-payment-lemonsqueezy.md](03-payment-lemonsqueezy.md) | test API/signing keys: server only |

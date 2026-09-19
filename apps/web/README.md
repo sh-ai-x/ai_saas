@@ -27,14 +27,32 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:3000 for the public landing page. The user workspace is
+Open http://localhost:3000 for the public landing page. The user workspace is
 at `/app`, the separate admin console is at `/admin`, and setup guides are at
 `/guides`. Set `FOUNDATION_API_URL` when the API is not at
-`http://127.0.0.1:8080`.
+`http://localhost:8080`.
 
 ```bash
-FOUNDATION_API_URL=http://127.0.0.1:8080 npm run dev
+FOUNDATION_API_URL=http://localhost:8080 npm run dev
 ```
+
+## Run the web console as a Docker image
+
+From the repository root, the production-shaped Compose stack starts the web
+image, Foundation API, PostgreSQL companion, and Drizzle migration job:
+
+```bash
+cp .env.docker.example .env
+export APP_SECRET_KEY="$(openssl rand -base64 32)"
+docker compose -f docker/prod/compose.yaml up --build
+```
+
+The browser uses `http://localhost:3000`; the Next.js server reaches the API
+at `http://foundation:8080` inside the Compose network. The `web-migrate`
+one-shot service applies the committed Drizzle migrations before the web
+container starts. The default Docker profile is local/demo mode with mock
+payments. Use `WEB_DATABASE_URL` and server-only environment values from a
+secret manager for staging or production.
 
 The production build is local-only and does not require Vercel, Neon, Stripe,
 Toss, Lemon Squeezy, or a running Docker daemon:

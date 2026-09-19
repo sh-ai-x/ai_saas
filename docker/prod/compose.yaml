@@ -1,0 +1,101 @@
+name: ai-saas-foundation
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: foundation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foundation-local-only}
+      POSTGRES_DB: foundation
+    volumes:
+      - foundation_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundation -d foundation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  foundation:
+    build:
+      context: ../..
+      dockerfile: docker/prod/foundation.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DEPLOYMENT_PROFILE: free-portfolio
+      APP_BASE_URL: ${FOUNDATION_PUBLIC_URL:-http://localhost:8080}
+      DATABASE_URL: postgresql://foundation:${POSTGRES_PASSWORD:-foundation-local-only}@postgres:5432/foundation
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY to a generated value}
+      CONTRACT_VERSION: v1
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      MOCK_PAYMENTS_ENABLED: ${MOCK_PAYMENTS_ENABLED:-true}
+      WORKFLOW_PROVIDER: local
+      PAID_INFRASTRUCTURE: "false"
+      AWS_WORKER_ENABLED: "false"
+      RUN_QUOTA_MAX_RUNS: ${RUN_QUOTA_MAX_RUNS:-10}
+      RUN_QUOTA_MAX_UNITS: ${RUN_QUOTA_MAX_UNITS:-100}
+      RUN_QUOTA_PERIOD_SECONDS: ${RUN_QUOTA_PERIOD_SECONDS:-86400}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_SAMPLE_RATE: ${OTEL_SAMPLE_RATE:-0.1}
+      OTEL_EXPORTER: ${OTEL_EXPORTER:-memory}
+      LOCAL_STATE_DB: /var/lib/ai-saas/foundation.sqlite3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - foundation_state:/var/lib/ai-saas
+    ports:
+      - "${FOUNDATION_PORT:-8080}:8080"
+
+  web-migrate:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation:foundation-local-only@postgres:5432/foundation}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: runner
+    environment:
+      APP_ENV: ${WEB_APP_ENV:-local}
+      APP_BASE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation:foundation-local-only@postgres:5432/foundation}
+      FOUNDATION_API_URL: http://foundation:8080
+      ALLOW_LOCAL_ADMIN: ${ALLOW_LOCAL_ADMIN:-true}
+      NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      PAYMENT_PROVIDER: ${WEB_PAYMENT_PROVIDER:-mock}
+      TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      LEMONSQUEEZY_STORE_ID: ${LEMONSQUEEZY_STORE_ID:-}
+      LEMONSQUEEZY_VARIANT_ID: ${LEMONSQUEEZY_VARIANT_ID:-}
+      LEMONSQUEEZY_API_KEY: ${LEMONSQUEEZY_API_KEY:-}
+    depends_on:
+      foundation:
+        condition: service_healthy
+      web-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(() => process.exit(0)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  foundation_postgres_data:
+  foundation_state:

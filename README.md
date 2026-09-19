@@ -78,6 +78,41 @@ Stop and remove the local database volume with `docker compose -f
 docker/dev/compose.yaml down -v` when its disposable development data is no
 longer needed.
 
+## Full Docker web deployment
+
+The complete local stack is also containerized: PostgreSQL, the Foundation API,
+a one-shot Drizzle migration job, and the Next.js web console. The web image
+uses Next.js standalone output and calls the API through the internal
+`foundation:8080` service name.
+
+```bash
+cp .env.docker.example .env
+export APP_SECRET_KEY="$(openssl rand -base64 32)"
+docker compose -f docker/prod/compose.yaml up --build
+```
+
+Open `http://localhost:3000` for the web console and
+`http://localhost:8080/healthz` for the API health check. The default profile
+uses local demo sessions and mock payments. Set `WEB_DATABASE_URL` to the
+Neon connection string and provide the live OAuth/payment secrets through the
+ignored `.env` file when running a staging-like container. The Google callback
+for this local container remains:
+`http://localhost:3000/api/auth/callback/google`.
+
+The `web-migrate` service must complete before `web` starts. This is suitable
+for a single-host portfolio or staging deployment. For multiple web replicas,
+run migrations as a separate release job rather than once per replica.
+
+```bash
+docker compose -f docker/prod/compose.yaml down
+docker compose -f docker/prod/compose.yaml down -v  # also removes local data
+```
+
+The production Compose file is a packaging baseline, not a managed high
+availability platform. Put TLS/WAF at the host or edge, use Neon instead of
+the bundled PostgreSQL service for production data, and move secrets to the
+host's secret manager.
+
 ## Profile checks
 
 `free-portfolio` requires the mock provider, local workflow mode, a generated
