@@ -1,0 +1,25 @@
+{
+  "phase": "admin-pricing-landing-sync",
+  "schema_version": "1.0.0",
+  "worktree": "plan/admin-pricing-landing-sync",
+  "steps": [
+    {
+      "step": 0,
+      "name": "pricing-sync-failing-contracts",
+      "status": "pending",
+      "depends_on": []
+    },
+    {
+      "step": 1,
+      "name": "pricing-sync-implementation",
+      "status": "pending",
+      "depends_on": [0]
+    },
+    {
+      "step": 2,
+      "name": "pricing-sync-verification",
+      "status": "pending",
+      "depends_on": [1]
+    }
+  ]
+}

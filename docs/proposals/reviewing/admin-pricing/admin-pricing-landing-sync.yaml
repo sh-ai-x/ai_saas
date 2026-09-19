@@ -1,0 +1,38 @@
+title: Admin pricing to landing catalog consistency
+status: design-discussion
+date: 2026-09-19
+tags: [admin-pricing-landing-sync, pricing]
+
+before:
+  summary: |
+    Admin pricing writes, public pricing reads, and the landing page are separate paths. Existing tests use the local seed fallback and do not prove that a PostgreSQL update is reflected in every read surface.
+  evidence:
+    - '`apps/web/lib/pricing/repository.ts` updates existing options but does not reconcile options omitted from an update payload.'
+    - '`apps/web/app/api/pricing/route.ts` is force-dynamic while `apps/web/app/page.tsx` is not explicitly dynamic.'
+    - 'Existing pricing tests delete `DATABASE_URL`, so they do not exercise PostgreSQL persistence.'
+
+after:
+  summary: |
+    A failing contract test will define the invariant, the smallest production fix will make the database projection authoritative, and independent PostgreSQL/API/landing verification will prove that all surfaces agree after an admin edit.
+  files:
+    - path: apps/web/tests/pricing-sync.contract.test.ts
+      change: Add red-first admin-to-database-to-public-to-landing consistency coverage.
+    - path: apps/web/lib/pricing/repository.ts
+      change: Reconcile authoritative child options transactionally if the failing contract identifies this as the cause.
+    - path: apps/web/app/page.tsx
+      change: Make landing data freshness explicit only if route caching is part of the reproduced failure.
+
+pros:
+  - 'Protects the full business invariant instead of asserting only that the admin PATCH returned 200.'
+  - 'Keeps PostgreSQL as the source of truth and exposes stale child-option data.'
+  - 'Preserves local fallback behavior while adding a fail-closed real-database path.'
+
+cons:
+  - 'Database-backed tests require an isolated PostgreSQL prerequisite; the test must report a clear setup failure rather than silently falling back.'
+  - 'A fresh landing read may trade some cache reuse for correctness after catalog edits.'
+
+limitations:
+  - 'This proposal does not redesign pricing schema or payment-provider adapters.'
+  - 'It does not validate external payment-provider or Google OAuth credentials.'
+  - 'It cannot repair already-corrupted production rows without a separate data reconciliation operation.'
+

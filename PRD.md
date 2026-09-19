@@ -241,3 +241,70 @@ does not grant admin access, a billing entitlement, or agent permissions.
 - **REQ-23:** The web setup guide documents Google Cloud Console redirect URIs,
   runtime-only secrets, Neon migration, local demo mode, and production
   verification without embedding any secret or real account data.
+
+
+# Current Task PRD — Admin Pricing to Landing Catalog Consistency
+
+## 1. Frame
+
+- **Goal:** Make an admin pricing edit persist to the PostgreSQL pricing tables and become the exact catalog shown by the public landing page on the next read.
+- **Target user:** A SaaS product administrator maintaining plans and prices from /admin/pricing.
+- **Situation:** The administrator can save a pricing value, but the admin view, database rows, public pricing API, and landing page can show different catalogs.
+
+## 2. Validate
+
+### Evidence
+
+1. **Direct incident report** — The user reported that values edited at /admin/pricing do not match the database or landing page (2026-09-19).
+2. **Existing test gap** — apps/web/tests/api-contract.test.ts and apps/web/tests/pricing-repository.test.ts delete DATABASE_URL, so the current suite does not exercise the PostgreSQL write/read path (2026-09-19).
+3. **Independent runtime topology** — Admin pricing, public pricing, and the landing page use separate read paths (apps/web/app/api/admin/pricing, apps/web/app/api/pricing, and apps/web/app/page.tsx), which can drift unless they share a tested projection and cache contract (2026-09-19).
+
+### Quantified value
+
+- LTV_per_user: $240 estimated annual value of a retained paying customer.
+- reachable_users_year1: 25 administrators/customers exposed to the catalog.
+- total_cost: 12 engineering hours × $100/hour = $1,200; no additional infrastructure cost.
+- value_score = ($240 × 25) / $1,200 = 5.0.
+
+These are planning estimates, not revenue claims. The fix clears the required 3.0 threshold because a stale price can directly invalidate conversion and payment expectations.
+
+### Ambiguity loop
+
+- ambiguity_score_0: 10 — The failure could be caused by stale page caching, incomplete option synchronization, or a database/runtime configuration mismatch.
+- ambiguity_score_1: 7 — Code inspection established that admin writes and public reads are separate paths, and the database update path does not remove options omitted from an update payload.
+- ambiguity_score_2: 5 — The landing page is not explicitly force-dynamic, while the public API is; the test plan therefore includes both route-level and rendered landing assertions.
+- ambiguity_score_3: 3 — The acceptance contract is narrowed to one invariant: after an admin update, the persisted database projection, admin reread, public API, and landing props must be identical for active catalog data.
+
+## 3. Non-goals
+
+1. **No pricing schema redesign.** Existing normalized tables and billing-mode semantics remain authoritative; if a schema change is later needed, open a separate migration plan.
+2. **No payment-provider behavior change.** Checkout adapters, provider credentials, and webhook processing are out of scope; reviewers should file a separate billing task for provider changes.
+3. **No admin authorization redesign.** Existing server-side admin guards remain in place; authorization changes must be handled in the auth/RBAC workstream.
+4. **No visual redesign of pricing UI.** The work changes data consistency and cache behavior only; visual changes belong in a separate UI proposal.
+
+## 4. Phase plan
+
+Phase directory: phases/admin-pricing-landing-sync/
+
+| Step | Name | Dependency | Outcome |
+|---:|---|---|---|
+| 0 | pricing-sync-failing-contracts | none | Failing tests reproduce admin → database → public API → landing divergence before production changes. |
+| 1 | pricing-sync-implementation | 0 | The smallest implementation fix makes option persistence and public/landing reads use one current database projection. |
+| 2 | pricing-sync-verification | 1 | Database, route, landing, lint, typecheck, and production build checks prove the invariant and prevent regressions. |
+
+### Dependency DAG
+
+- step1 → step0 (implementation follows the failing contracts)
+- step2 → step1 (verification follows the implementation)
+
+## 5. Acceptance criteria
+
+1. **AC-0:** apps/web/tests/pricing-sync.contract.test.ts contains a red-first regression test that edits a plan through the admin path, reads the persisted rows, then compares admin reread, public API, and landing data; the test fails against the current implementation for the reproduced divergence.
+2. **AC-1:** The implementation makes an admin update authoritative in PostgreSQL, removes or reconciles omitted child options, prevents stale public landing data, and makes the AC-0 test pass without weakening admin guards or billing-mode validation.
+3. **AC-2:** A real-PostgreSQL integration check plus the full web test, lint, typecheck, and production build commands pass; the recorded output contains exit codes and test counts.
+4. **AC-3:** Code sanity review confirms one canonical catalog projection, no duplicated pricing source, no committed secrets, and no unrelated UI/payment/auth refactor.
+
+## 6. Hand-off
+
+The plan is ready for /dev-kit:build in dependency order. The design review artifact is /dev-kit:proposal admin-pricing/admin-pricing-landing-sync. Build must start with the failing contract test, then implement only the smallest fix required by the observed failure, and finish with real PostgreSQL plus full web verification.
+
