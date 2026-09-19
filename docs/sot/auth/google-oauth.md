@@ -45,6 +45,40 @@ session, account, and verification tables are defined in
 - Account linking requires an authenticated user and an explicit confirmation
   when an email already belongs to another account.
 
+## Database contract
+
+The implementation follows the Better Auth + Drizzle shape used by the
+`mysaas` reference. The schema names are intentionally stable so the web
+console, API routes, and future identity service can share a migration:
+
+| Table | Responsibility | Required boundary |
+|---|---|---|
+| `app_user` | Local principal, verified email, display profile, role, ban state | Google subject is not the local primary key; role is server-controlled |
+| `session` | Revocable browser/server session, token, expiry, client metadata | Token is unique, expiring, httpOnly-cookie backed, and never serialized to UI |
+| `account` | External provider binding and provider token metadata | `providerId=google`; stable Google subject in `accountId`; secrets remain server-only |
+| `verification` | Better Auth verification records and expiry | Values are short-lived and never logged or returned |
+
+The `account` table is the identity-linking authority: a changed Google email
+does not create a new local user when the provider subject is unchanged. The
+`app_user.role` value is checked by the admin boundary; email domain or Google
+login status alone is not sufficient for privileged access.
+
+## Runtime profiles
+
+- `local`: demo session and deterministic mock sign-in remain available without
+  Google credentials; no provider redirect is attempted.
+- `test`: callback validation and session contracts use deterministic fixtures;
+  no network token exchange is required.
+- `staging`/`production`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
+  `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` are
+  mandatory. The server returns a configuration error before redirect when any
+  required value is missing.
+
+The production migration must be applied before enabling the callback route.
+The browser receives only the authorization URL, safe session projection, and
+safe error category; authorization codes, ID tokens, access tokens, refresh
+tokens, and client secrets stay server-side.
+
 ## Normal flow
 
 1. User selects Google sign-in.

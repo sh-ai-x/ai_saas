@@ -184,3 +184,60 @@ all prices in a single JSON user record or hardcoded landing-page components.
 - **REQ-18:** The schema-first implementation is verified by typecheck,
   migration/config checks, API contract tests, and a browser smoke path for
   landing → app → admin → pricing mode selection.
+
+## 9. Google login identity and session extension — `mysaas` reference
+
+The next slice adopts the proven identity boundary from
+`../mysaas/my-saas`: Better Auth owns the authorization-code flow and Drizzle
+owns the PostgreSQL tables. Google authentication is identity proof only; it
+does not grant admin access, a billing entitlement, or agent permissions.
+
+### Data-first decisions
+
+- `app_user` is the local principal. The Google subject is never used as the
+  local user primary key and email changes do not create a second identity.
+- `account` stores the provider binding using `providerId = google` and the
+  stable Google subject in `accountId`. Provider access/refresh tokens are
+  server-only fields and are never returned by an API or written to logs.
+- `session` stores revocable, expiring server sessions. Browser auth uses an
+  httpOnly, secure-in-production cookie; agent, billing, and admin routes
+  resolve authorization from the server session.
+- `verification` supports Better Auth's verification contract. OAuth state,
+  redirect URI, issuer, audience, expiry, and callback destination are
+  validated before a session is created.
+- Admin role is stored on `app_user.role` and checked server-side. A Google
+  email is not an admin allowlist by itself; any bootstrap allowlist is a
+  one-time server-side promotion path with an audit event.
+- Local development remains credential-free through the existing demo session
+  profile. Production fails closed unless `BETTER_AUTH_SECRET`,
+  `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+  `DATABASE_URL` are present.
+
+### Phase extension
+
+| Step | Name | Dependency | Outcome |
+|---:|---|---|---|
+| 20 | google-auth-data-model | 19 | Better Auth-compatible user, account, session, verification schema, migration, and auth SOT update |
+| 21 | google-auth-runtime | 20 | Better Auth Drizzle adapter, Google OAuth route handler, session API, and fail-closed environment contract |
+| 22 | google-auth-surfaces | 21 | Google sign-in/sign-out UI, session-aware workspace/admin navigation, and safe callback/error UX |
+| 23 | google-auth-verification | 20–22 | Schema/API/browser verification, callback negative cases, migration evidence, and setup guide |
+
+### New requirements
+
+- **REQ-19:** Drizzle defines `app_user`, `session`, `account`, and
+  `verification` with foreign keys, unique provider/session identities,
+  expiry fields, role state, and no committed credential values.
+- **REQ-20:** A configured Google OAuth flow uses Better Auth's server handler
+  and Drizzle adapter; client code can start sign-in and read only a safe
+  session projection. Missing production credentials fail closed before a
+  provider redirect is issued.
+- **REQ-21:** An authenticated session is required for user workspace actions;
+  admin routes require the server-side admin role or existing protected local
+  test guard. Google login alone never bypasses tenant, billing, or admin
+  authorization.
+- **REQ-22:** Sign-out revokes the server session, callback failures do not
+  create partial users/sessions, and expired/replayed/mismatched callback
+  state returns a safe error without leaking authorization codes or tokens.
+- **REQ-23:** The web setup guide documents Google Cloud Console redirect URIs,
+  runtime-only secrets, Neon migration, local demo mode, and production
+  verification without embedding any secret or real account data.
