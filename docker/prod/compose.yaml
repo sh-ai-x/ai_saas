@@ -40,6 +40,7 @@ services:
       OTEL_SAMPLE_RATE: ${OTEL_SAMPLE_RATE:-0.1}
       OTEL_EXPORTER: ${OTEL_EXPORTER:-memory}
       LOCAL_STATE_DB: /var/lib/ai-saas/foundation.sqlite3
+      UV_CACHE_DIR: /tmp/uv-cache
     depends_on:
       postgres:
         condition: service_healthy
