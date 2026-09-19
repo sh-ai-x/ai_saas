@@ -11,6 +11,14 @@ SQLite/PostgreSQL-compatible transactional persistence; provider SDKs are not
 part of the domain. Local Docker uses PostgreSQL 17 only as a development
 companion; the HTTP surface itself is Python standard library code.
 
+The cloud database baseline is Neon PostgreSQL. The linked project is
+`ai_saas` (`lucky-boat-01406333`) on the `production` branch. Local Docker and
+the process-only profile remain disposable development paths; they do not
+commit or replace the Neon credentials.
+
+See [docs/neon-database.md](docs/neon-database.md) for the repeatable Neon
+setup, environment-variable flow, policy deployment, and connection check.
+
 ## Start locally
 
 The safest quick path is a generated process-only secret that is never written

@@ -28,3 +28,4 @@ __pycache__/
 .dev-kit/logs/
 logs/
 # <<< dev-kit <<<
+.neon
