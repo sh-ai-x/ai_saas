@@ -1,0 +1,18 @@
+[project]
+name = "ai-saas-foundation"
+version = "0.1.0"
+description = "Contract-first AI SaaS foundation runtime"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0,<9.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -18,7 +18,7 @@ existing Chrome or Safari profile. Do not use an embedded browser or commit a
 token.
 
 ```bash
-npm install --global neon@latest
+pnpm add --global neon@latest
 neon auth
 ```
 

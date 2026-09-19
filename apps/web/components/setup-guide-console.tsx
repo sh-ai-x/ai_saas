@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { setupGuides, SetupGuide } from "../content/setup-guides";
 
@@ -41,14 +43,19 @@ function GuidePanel({ guide }: { guide: SetupGuide }) {
           ))}
         </pre>
       </div>
-      <div className="guide-steps">
-        {guide.steps.map((step) => (
-          <article className="guide-step" key={step.title}>
-            <h3>{step.title}</h3>
-            <p>{step.body}</p>
-            {step.code && <pre className="guide-code"><code>{step.code}</code></pre>}
-          </article>
-        ))}
+      <div className="markdown-preview" aria-label={`${guide.title} rendered Markdown`}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children, ...props }) => {
+              const external = href?.startsWith("http://") || href?.startsWith("https://");
+              return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} {...props}>{children}</a>;
+            },
+            table: ({ children }) => <div className="markdown-table-wrap"><table>{children}</table></div>,
+          }}
+        >
+          {guide.content}
+        </ReactMarkdown>
       </div>
     </section>
   );
@@ -56,6 +63,12 @@ function GuidePanel({ guide }: { guide: SetupGuide }) {
 
 export function SetupGuideConsole() {
   const [activeGuideId, setActiveGuideId] = useState("getting-started");
+  useEffect(() => {
+    const requestedGuide = new URLSearchParams(window.location.search).get("guide");
+    if (requestedGuide && setupGuides.some((guide) => guide.id === requestedGuide)) {
+      setActiveGuideId(requestedGuide);
+    }
+  }, []);
   const paymentGuides = useMemo(
     () => setupGuides.filter((guide) => guide.id.startsWith("payment-")),
     [],

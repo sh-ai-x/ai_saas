@@ -1,0 +1,17 @@
+{
+  "exit_code": 0,
+  "stdout": "lint exit 0; drizzle check exit 0; db:generate exit 0 with 12 tables and no schema changes; Neon migration exit 0; read-only Neon query returned account, app_user, session, verification.",
+  "stderr": "",
+  "timestamp": "2026-09-19T11:32:43+0900",
+  "commands": [
+    {"command": "npm run lint", "exit_code": 0, "duration_seconds": 2.556742375},
+    {"command": "npx drizzle-kit check --config drizzle.config.ts", "exit_code": 0, "duration_seconds": 0.686313417},
+    {"command": "npm run db:generate", "exit_code": 0, "duration_seconds": 0.577314542, "tables": 12, "schema_changes": 0},
+    {"command": "npm --prefix apps/web run db:migrate", "exit_code": 0, "duration_seconds": 1.709427834, "database": "Neon production branch"},
+    {"command": "psql information_schema identity-table query", "exit_code": 0, "duration_seconds": 0.448471041, "tables": ["account", "app_user", "session", "verification"]}
+  ],
+  "limitations": [
+    "The migration proves table creation and constraints on Neon but does not perform a live Google account login.",
+    "Provider access and refresh token columns are Better Auth server-owned fields; no token values were seeded or returned."
+  ]
+}

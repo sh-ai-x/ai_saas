@@ -13,13 +13,13 @@ payments, non-sandbox staging payments, unsupported Agent providers, and invalid
 bounds before binding.
 
 ```bash
-python3 -m foundation.config --env-file .env --profile free-portfolio
+uv run --locked python -m foundation.config --env-file .env --profile free-portfolio
 ```
 
 ## 2. Run provider fixtures
 
 ```bash
-python3 -m unittest tests/test_integration_contracts.py tests/test_google_oauth_provider.py tests/test_payment_sandbox_api.py tests/test_agent_provider_runtime.py
+uv run --locked python -m unittest tests/test_integration_contracts.py tests/test_google_oauth_provider.py tests/test_payment_sandbox_api.py tests/test_agent_provider_runtime.py
 ```
 
 Fixtures prove API semantics without spending money or sending prompts to a
@@ -29,7 +29,7 @@ provider.
 
 ```bash
 bash scripts/verify-local.sh
-python3 scripts/record-step-outputs.py --step 12
+uv run --locked python scripts/record-step-outputs.py --step 12
 ```
 
 Step output contains commands, exit codes, duration, and environment notes,

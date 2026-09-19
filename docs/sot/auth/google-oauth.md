@@ -38,20 +38,58 @@ session, account, and verification tables are defined in
 - Redirect URIs are explicit per environment and exact-match validated.
 - The callback validates `state`, issuer, code, redirect URI, and the returned
   identity before creating or linking a local account.
-- A local session is the authorization input for Next.js protected routes,
-  FastAPI agent requests, billing operations, and admin operations.
+- A Google-backed local session is the authorization input for Next.js
+  protected routes, FastAPI agent requests, billing operations, and admin
+  operations. The browser has no mock login fallback.
 - Identity provider subject IDs are stored separately from display email so a
   changed email cannot silently become a different account.
 - Account linking requires an authenticated user and an explicit confirmation
   when an email already belongs to another account.
 
+## Database contract
+
+The implementation follows the Better Auth + Drizzle shape used by the
+`mysaas` reference. The schema names are intentionally stable so the web
+console, API routes, and future identity service can share a migration:
+
+| Table | Responsibility | Required boundary |
+|---|---|---|
+| `app_user` | Local principal, verified email, display profile, role, ban state | Google subject is not the local primary key; role is server-controlled |
+| `session` | Revocable browser/server session, token, expiry, client metadata | Token is unique, expiring, httpOnly-cookie backed, and never serialized to UI |
+| `account` | External provider binding and provider token metadata | `providerId=google`; stable Google subject in `accountId`; secrets remain server-only |
+| `verification` | Better Auth verification records and expiry | Values are short-lived and never logged or returned |
+
+The `account` table is the identity-linking authority: a changed Google email
+does not create a new local user when the provider subject is unchanged. The
+`app_user.role` value is checked by the admin boundary; email domain or Google
+login status alone is not sufficient for privileged access. New Google users
+start as regular users until an explicit server-side role promotion.
+
+## Runtime profiles
+
+- `local`: without Google credentials, the login page shows setup instructions
+  and no session is created. No provider redirect is attempted.
+- `test`: callback validation and session contracts use deterministic fixtures;
+  no network token exchange is required. The local sign-in fixture route is
+  unavailable outside this profile and is never a user-facing login path.
+- `staging`/`production`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
+  `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` are
+  mandatory. The server returns a configuration error before redirect when any
+  required value is missing.
+
+The production migration must be applied before enabling the callback route.
+The browser receives only the authorization URL, safe session projection, and
+safe error category; authorization codes, ID tokens, access tokens, refresh
+tokens, and client secrets stay server-side.
+
 ## Normal flow
 
-1. User selects Google sign-in.
+1. User selects the single Google sign-up/sign-in action.
 2. The server creates an OAuth transaction and redirects to Google.
 3. Google returns an authorization code to the registered callback.
 4. The server exchanges and validates the code.
-5. The identity is linked to an existing local user or a new user is created.
+5. The identity is linked to an existing local user or a new regular user is
+   created.
 6. The session is persisted and the user is redirected to the requested safe
    destination.
 
@@ -77,10 +115,14 @@ scope, or admin privilege. Those are checked by the relevant contracts:
 
 ## Verification evidence
 
-- OAuth callback tests cover valid, replayed, mismatched-state, expired-code,
-  collision, and provider-error cases.
-- Protected route tests prove unauthenticated users cannot create agent runs,
-  mutate billing, or access admin APIs.
+- Deterministic contract tests cover the Google-only login surface, the
+  test-only auth fixture, httpOnly cookie behavior, safe session projection,
+  production fail-closed configuration, local sign-out, and admin denial
+  without a configured session.
+- Better Auth owns provider callback state validation, code exchange, and
+  account persistence. Replay, mismatched-state, expired-code, collision, and
+  provider-outage cases require a configured staging OAuth client and are not
+  claimed as credential-free automated tests.
 - Logs contain correlation IDs and outcome categories, never client secrets or
   raw authorization codes.
 

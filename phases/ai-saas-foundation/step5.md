@@ -16,7 +16,7 @@ infrastructure. The host-local runtime must be usable even when Docker
 Desktop is not running; Docker build/start is an additional environment check.
 
 Acceptance:
-- `python3 scripts/local-smoke.py` succeeds and exercises auth, admin,
+- `uv run --locked python scripts/local-smoke.py` succeeds and exercises auth, admin,
   payment webhook/ledger, durable run execution, and SSE replay.
 - `docker compose --file docker/dev/compose.yaml config` succeeds when the
   Docker CLI is installed; a stopped daemon is recorded as blocked rather than
@@ -26,8 +26,8 @@ Acceptance:
 
 Verification:
 ```bash
-python3 scripts/local-smoke.py
-python3 scripts/record-step-outputs.py --step 5
+uv run --locked python scripts/local-smoke.py
+uv run --locked python scripts/record-step-outputs.py --step 5
 ```
 
 Do not:

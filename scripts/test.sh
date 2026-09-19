@@ -19,10 +19,11 @@ if [ -d "lib" ]; then
   export PYTHONPATH="${REPO_ROOT}/lib${PYTHONPATH:+:$PYTHONPATH}"
 fi
 
-# Make sure pytest is available — install if missing (pinned for reproducibility).
-if ! python3 -c "import pytest" 2>/dev/null; then
-  echo "test.sh: installing pytest (pinned)..."
-  python3 -m pip install --quiet "pytest>=8.0,<9.0"
-fi
-
-python3 -m pytest tests/ -v --tb=short
+# Resolve the locked development environment. Never mutate the host Python
+# installation or install dependencies through pip.
+command -v uv >/dev/null 2>&1 || {
+  echo "test.sh: uv is required; install it from https://docs.astral.sh/uv/" >&2
+  exit 1
+}
+uv sync --locked
+uv run --locked pytest tests/ -v --tb=short

@@ -1,0 +1,16 @@
+{
+  "name": "ai-saas-foundation",
+  "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "scripts": {
+    "web:dev": "pnpm --filter ai-saas-foundation-web dev",
+    "web:build": "pnpm --filter ai-saas-foundation-web build",
+    "web:test": "pnpm --filter ai-saas-foundation-web test:all",
+    "web:db:generate": "pnpm --filter ai-saas-foundation-web db:generate",
+    "web:db:migrate": "pnpm --filter ai-saas-foundation-web db:migrate"
+  },
+  "devDependencies": {
+    "@neon/config": "^1.7.2",
+    "@neon/env": "^1.4.3"
+  }
+}

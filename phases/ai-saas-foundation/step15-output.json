@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "stdout": "npm run lint: exit 0; drizzle-kit check: Everything's fine; Neon db:migrate: migrations applied successfully; Neon read-only query: 8 pricing/billing tables present.",
+  "stderr": "",
+  "duration_seconds": 4.685616501,
+  "timestamp": "2026-09-19T10:22:05+0900",
+  "commands": [
+    {"command": "npm run lint && npx drizzle-kit check --config drizzle.config.ts", "exit_code": 0, "duration_seconds": 2.844809584},
+    {"command": "npm --prefix apps/web run db:migrate", "exit_code": 0, "duration_seconds": 1.840806917}
+  ],
+  "evidence": {
+    "migration": "apps/web/drizzle/0000_loud_salo.sql + idempotent 0001_demonic_pandemic.sql reconciliation",
+    "database": "Neon production branch",
+    "tables": ["admin_audit_events", "billing_events", "payment_orders", "payment_provider_settings", "pricing_catalog_settings", "pricing_options", "pricing_plans", "subscriptions"]
+  }
+}

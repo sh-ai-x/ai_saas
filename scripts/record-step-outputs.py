@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -22,23 +21,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "phases" / "ai-saas-foundation"
+UV_RUN = ("uv", "run", "--locked")
+WEB_RUN = ("pnpm", "--filter", "ai-saas-foundation-web")
 
 COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
-    0: ((sys.executable, "-m", "foundation.contract_check"),),
-    1: ((sys.executable, "-m", "pytest", "-q", "tests/test_identity_tenant_admin.py"),),
-    2: ((sys.executable, "-m", "pytest", "-q", "tests/test_billing.py"),),
-    3: ((sys.executable, "-m", "pytest", "-q", "tests/test_run_worker_streaming.py"),),
-    4: ((sys.executable, "-m", "pytest", "-q", "tests/test_step4_low_cost.py"),),
-    5: ((sys.executable, "scripts/local-smoke.py"),),
-    6: (
-        ("npm", "--prefix", "apps/web", "audit", "--omit=dev", "--audit-level=high"),
-        ("npm", "--prefix", "apps/web", "run", "build"),
-    ),
-    7: ((sys.executable, "-m", "foundation.contract_check"), (sys.executable, "-m", "unittest", "tests/test_integration_contracts.py")),
-    8: ((sys.executable, "-m", "unittest", "tests/test_google_oauth_provider.py"),),
-    9: ((sys.executable, "-m", "unittest", "tests/test_payment_sandbox_api.py"),),
-    10: ((sys.executable, "-m", "unittest", "tests/test_agent_provider_runtime.py"),),
-    11: (("npm", "--prefix", "apps/web", "run", "lint"), ("npm", "--prefix", "apps/web", "run", "build")),
+    0: (UV_RUN + ("python", "-m", "foundation.contract_check"),),
+    1: (UV_RUN + ("pytest", "-q", "tests/test_identity_tenant_admin.py"),),
+    2: (UV_RUN + ("pytest", "-q", "tests/test_billing.py"),),
+    3: (UV_RUN + ("pytest", "-q", "tests/test_run_worker_streaming.py"),),
+    4: (UV_RUN + ("pytest", "-q", "tests/test_step4_low_cost.py"),),
+    5: (UV_RUN + ("python", "scripts/local-smoke.py"),),
+    6: (("pnpm", "audit", "--audit-level", "high"), WEB_RUN + ("build",)),
+    7: (UV_RUN + ("python", "-m", "foundation.contract_check"), UV_RUN + ("python", "-m", "unittest", "tests/test_integration_contracts.py")),
+    8: (UV_RUN + ("python", "-m", "unittest", "tests/test_google_oauth_provider.py"),),
+    9: (UV_RUN + ("python", "-m", "unittest", "tests/test_payment_sandbox_api.py"),),
+    10: (UV_RUN + ("python", "-m", "unittest", "tests/test_agent_provider_runtime.py"),),
+    11: (WEB_RUN + ("lint",), WEB_RUN + ("build",)),
     12: (("bash", "scripts/verify-local.sh"),),
 }
 

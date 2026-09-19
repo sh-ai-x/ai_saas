@@ -6,6 +6,7 @@ import agentProvidersMarkdown from "./guides/04-agent-providers.md";
 import verificationMarkdown from "./guides/05-verification.md";
 import operationsMarkdown from "./guides/06-operations.md";
 import neonDatabaseMarkdown from "./guides/07-neon-database.md";
+import pricingAdminMarkdown from "./guides/08-pricing-admin.md";
 
 export type SetupGuideStep = {
   title: string;
@@ -20,6 +21,7 @@ export type SetupGuide = {
   summary: string;
   path: string;
   markdown: string;
+  content: string;
   steps: SetupGuideStep[];
 };
 
@@ -37,6 +39,7 @@ const markdownSources: MarkdownSource[] = [
   { path: "apps/web/content/guides/05-verification.md", raw: verificationMarkdown },
   { path: "apps/web/content/guides/06-operations.md", raw: operationsMarkdown },
   { path: "apps/web/content/guides/07-neon-database.md", raw: neonDatabaseMarkdown },
+  { path: "apps/web/content/guides/08-pricing-admin.md", raw: pricingAdminMarkdown },
 ];
 
 function parseFrontmatter(raw: string) {
@@ -81,6 +84,7 @@ function parseGuide(source: MarkdownSource): SetupGuide {
     summary: metadata.summary ?? "",
     path: source.path,
     markdown,
+    content: body.trim() + "\n",
     steps,
   };
 }

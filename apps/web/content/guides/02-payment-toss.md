@@ -52,7 +52,7 @@ idempotent ledger path.
 ## 4. Verify and recover
 
 ```bash
-python3 -m unittest tests/test_payment_sandbox_api.py
+uv run --locked python -m unittest tests/test_payment_sandbox_api.py
 ```
 
 Duplicate confirmation or webhook delivery is a no-op. Invalid signatures,

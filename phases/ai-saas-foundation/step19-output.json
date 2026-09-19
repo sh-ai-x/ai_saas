@@ -1,0 +1,19 @@
+{
+  "exit_code": 0,
+  "stdout": "npm run test:all: exit 0; lint and typecheck exit 0; test exit 0 with 13 tests passed across 3 suites; drizzle-kit check exit 0; db:generate exit 0 with 8 tables and no schema changes; build exit 0 with 15 routes generated.",
+  "stderr": "",
+  "timestamp": "2026-09-19T11:08:54+0900",
+  "commands": [
+    {"command": "npm run lint", "exit_code": 0, "duration_seconds": 0.950139875},
+    {"command": "npm run test", "exit_code": 0, "duration_seconds": 0.627804333, "tests": 13, "suites": 3},
+    {"command": "npx drizzle-kit check --config drizzle.config.ts", "exit_code": 0, "duration_seconds": 0.78126525},
+    {"command": "npm run db:generate", "exit_code": 0, "duration_seconds": 0.512015666, "tables": 8, "schema_changes": 0},
+    {"command": "npm run build", "exit_code": 0, "duration_seconds": 7.154357666, "routes": 15}
+  ],
+  "aggregate": {"command": "npm run test:all", "exit_code": 0, "duration_seconds": 8.831088542, "tests": 13, "routes": 15},
+  "limitations": [
+    "Tests use the explicit local seed profile and do not replace Neon production integration tests.",
+    "Sandbox adapter tests prove handoff contracts, not live Toss or Lemon Squeezy entitlement settlement.",
+    "Browser verification uses the local Next server; a provider sandbox account is still required for external redirect certification."
+  ]
+}

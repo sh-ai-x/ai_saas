@@ -1,0 +1,18 @@
+{
+  "exit_code": 0,
+  "stdout": "Identity migration, auth contract tests, browser smoke, guide import, secret scan, and production build passed.",
+  "stderr": "",
+  "timestamp": "2026-09-19T11:34:52+0900",
+  "commands": [
+    {"command": "npm run test:all", "exit_code": 0, "duration_seconds": 13.57388825, "tests": 17},
+    {"command": "npx drizzle-kit check --config drizzle.config.ts", "exit_code": 0},
+    {"command": "npm run db:generate", "exit_code": 0, "tables": 12, "schema_changes": 0},
+    {"command": "npm --prefix apps/web run db:migrate", "exit_code": 0, "database": "Neon production branch"},
+    {"command": "psql identity-table query", "exit_code": 0, "tables": ["account", "app_user", "session", "verification"]}
+  ],
+  "limitations": [
+    "Local demo mode is not Google production certification.",
+    "A staging or production Google Cloud OAuth client is required to verify the external redirect and code exchange.",
+    "No real credentials, authorization codes, access tokens, refresh tokens, or ID tokens were recorded in evidence."
+  ]
+}

@@ -15,7 +15,7 @@ Acceptance:
 - REQ-4: Runs do not double-spend credits, can replay stream state, and recover after an interrupted worker.
 
 Verification:
-python3 -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
 
 Don't:
 - Do not perform unbounded model calls or rely on in-memory worker state.
