@@ -319,8 +319,6 @@ export async function updatePricingPlan(
   reason = "",
 ) {
   validatePlanInput(input, reason);
-  const policy = await getBillingPolicy();
-  if (input.billingMode !== policy.billingMode) throw new Error(`plan billingMode must match active catalog mode: ${policy.billingMode}`);
   const db = getDb();
   if (!db) {
     const current = localState.plans.find((plan) => plan.id === planId);
