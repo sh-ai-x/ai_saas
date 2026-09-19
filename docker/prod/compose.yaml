@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: foundation
     volumes:
       - foundation_postgres_data:/var/lib/postgresql/data
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
