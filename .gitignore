@@ -29,3 +29,5 @@ __pycache__/
 logs/
 # <<< dev-kit <<<
 .neon
+# Codex project MCP configuration contains local OAuth/Bearer credentials.
+.codex/
