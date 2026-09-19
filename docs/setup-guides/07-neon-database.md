@@ -45,6 +45,16 @@ neon link --project-id lucky-boat-01406333 --branch production -y
 This creates the ignored `.neon` context and pulls `DATABASE_URL`,
 `DATABASE_URL_UNPOOLED`, and `NEON_BRANCH` into the ignored `.env.local` file.
 
+For the web app, run the setup command after linking. It copies the Neon URL
+into `apps/web/.env.local`, generates the Better Auth secret if needed,
+validates Google OAuth values, and can apply all Drizzle tables in one step:
+
+```bash
+pnpm web:setup-auth -- --migrate
+```
+
+Add `--link-neon` when the branch has not been linked yet.
+
 ## 4. Apply the repository policy
 
 The committed `neon.ts` deliberately starts with an empty policy so existing
