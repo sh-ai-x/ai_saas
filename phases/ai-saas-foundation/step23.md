@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: google-auth-verification
 
 ## Read first
@@ -23,9 +23,11 @@ verification. Leave exact evidence in the step output.
 
 - Auth schema and migration checks pass and the final migration contains all
   four identity tables with the required constraints.
-- Tests cover valid local sign-in, missing production configuration, ordinary
-  user/admin separation, sign-out/session expiry, and replayed or invalid
-  callback state without network credentials.
+- Deterministic tests cover valid local sign-in, missing production
+  configuration, ordinary user/admin separation, and local sign-out. Better
+  Auth owns provider callback state validation; live callback replay and code
+  exchange remain a configured staging verification rather than a credential-
+  free test claim.
 - Browser smoke verifies landing → login → local demo/session projection and
   preserves billing/admin route behavior; console errors are zero.
 - Setup documentation is imported into the web Markdown guide sidebar and

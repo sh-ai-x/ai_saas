@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "stdout": "Browser smoke passed: /login local demo action redirected to /app; session projection showed Local Demo; sign-out returned to /; landing showed Sign in; final browser console error count was 0.",
+  "stderr": "",
+  "timestamp": "2026-09-19T11:34:52+0900",
+  "browser": {
+    "base_url": "http://127.0.0.1:3013",
+    "routes": ["/login", "/app", "/api/auth/session", "/", "/api/foundation/healthz"],
+    "session_flow": ["local sign-in", "safe session projection", "sign-out", "public landing sign-in state"],
+    "console_errors": 0
+  },
+  "limitations": [
+    "The browser run used the explicit local demo session; it did not call Google's live authorization endpoint.",
+    "The API foundation proxy was restored into this origin/main-based worktree so the existing workspace smoke path returned 200 instead of 404."
+  ]
+}

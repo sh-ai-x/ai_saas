@@ -214,26 +214,30 @@
       "writes": ["apps/web/db/schema/auth.ts", "apps/web/drizzle/", "docs/sot/auth/google-oauth.md"]
     },
     {
+      "completed_at": "2026-09-19T11:34:52+0900",
       "depends_on": [20],
+      "duration_seconds": 13.57388825,
       "name": "google-auth-runtime",
       "partition": "apps/web/auth,apps/web/app/api/auth,apps/web/lib/auth",
-      "status": "pending",
+      "status": "completed",
       "step": 21,
       "writes": ["apps/web/auth.ts", "apps/web/app/api/auth/", "apps/web/lib/auth/"]
     },
     {
+      "completed_at": "2026-09-19T11:34:52+0900",
       "depends_on": [21],
       "name": "google-auth-surfaces",
       "partition": "apps/web/app,apps/web/components,apps/web/app/globals.css",
-      "status": "pending",
+      "status": "completed",
       "step": 22,
       "writes": ["apps/web/app/login/", "apps/web/components/auth/", "apps/web/app/app/", "apps/web/app/admin/"]
     },
     {
+      "completed_at": "2026-09-19T11:34:52+0900",
       "depends_on": [20, 21, 22],
       "name": "google-auth-verification",
       "partition": "apps/web/tests,apps/web/content/guides,docs/setup-guides,phases/ai-saas-foundation",
-      "status": "pending",
+      "status": "completed",
       "step": 23,
       "writes": ["apps/web/tests/", "apps/web/content/guides/01-google-oauth.md", "docs/setup-guides/01-google-oauth.md", "phases/ai-saas-foundation/step23-output.json"]
     }

@@ -111,10 +111,13 @@ scope, or admin privilege. Those are checked by the relevant contracts:
 
 ## Verification evidence
 
-- OAuth callback tests cover valid, replayed, mismatched-state, expired-code,
-  collision, and provider-error cases.
-- Protected route tests prove unauthenticated users cannot create agent runs,
-  mutate billing, or access admin APIs.
+- Deterministic contract tests cover local sign-in, httpOnly cookie behavior,
+  safe session projection, production fail-closed configuration, local
+  sign-out, and admin denial without a configured session.
+- Better Auth owns provider callback state validation, code exchange, and
+  account persistence. Replay, mismatched-state, expired-code, collision, and
+  provider-outage cases require a configured staging OAuth client and are not
+  claimed as credential-free automated tests.
 - Logs contain correlation IDs and outcome categories, never client secrets or
   raw authorization codes.
 

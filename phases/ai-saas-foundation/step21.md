@@ -1,4 +1,4 @@
-Status: pending
+Status: completed
 Name: google-auth-runtime
 
 ## Read first
