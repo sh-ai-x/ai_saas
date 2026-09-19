@@ -108,6 +108,17 @@ pages. The order is intentional: contracts and validators first, then Google
 OAuth, one payment sandbox, one Agent provider, and finally the full
 verification gate. No secret is required for the default local profile.
 
+After saving the Google client values in `apps/web/.env.local`, the live local
+identity setup is one command:
+
+```bash
+pnpm web:setup-auth -- --link-neon --migrate
+```
+
+This links the configured Neon branch, fills the web database URL, creates or
+reuses the Better Auth secret, and applies the Drizzle migrations without
+printing secret values.
+
 ## Docker path
 
 Docker Compose starts the local PostgreSQL companion and the same HTTP surface.

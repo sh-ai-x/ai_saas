@@ -146,14 +146,21 @@ browser address bar, and `BETTER_AUTH_URL`.
 
 ## 4. Create the runtime environment
 
-From the web app directory:
+The repository includes a repeatable setup command. Keep the Google client
+values in `apps/web/.env.local`, authenticate the Neon CLI once, then run this
+from the repository root:
 
 ```bash
-cd apps/web
-cp .env.example .env.local
+pnpm web:setup-auth -- --link-neon --migrate
 ```
 
-Edit `apps/web/.env.local` with the values for the live test:
+The command links the `production` Neon branch, imports its pooled
+`DATABASE_URL`, reuses an existing `BETTER_AUTH_SECRET` or generates one,
+sets the localhost callback configuration, validates the Google values, and
+applies the committed Drizzle migration. It never prints secret values and
+preserves unrelated values already in the file.
+
+The resulting values in `apps/web/.env.local` include:
 
 ```text
 APP_ENV=staging
@@ -165,11 +172,15 @@ GOOGLE_CLIENT_SECRET=<server-only-client-secret>
 NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
 ```
 
-Generate a local secret without committing it:
+To prepare the environment without changing the database, omit `--migrate`:
 
 ```bash
-openssl rand -base64 32
+pnpm web:setup-auth -- --link-neon
 ```
+
+To use a different Neon project or branch, pass `--neon-project-id` and
+`--neon-branch`. The default project is the repository's linked `ai_saas`
+project and the default branch is `production`.
 
 Only `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` is browser-safe. Never put
 `DATABASE_URL`, `BETTER_AUTH_SECRET`, or `GOOGLE_CLIENT_SECRET` in a
