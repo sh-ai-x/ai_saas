@@ -58,11 +58,12 @@ pnpm install
 pnpm --filter ai-saas-foundation-web dev
 ```
 
-Open `http://127.0.0.1:3000` for the product landing and operator console. The
-separate setup guide is at `http://127.0.0.1:3000/guides`. The console demonstrates mock Google login, a
-bounded run with SSE replay, audited admin plan/credit changes, and the
-provider-neutral mock payment adapter. It does not require Vercel, Neon,
-Cloudflare, AWS, Docker, or payment credentials.
+Open `http://localhost:3000` for the product landing and operator console. The
+separate setup guide is at `http://localhost:3000/guides`. The default local
+profile provides the product console, bounded runs with SSE replay, audited
+admin plan/credit changes, and the provider-neutral mock payment adapter. Live
+Google login is intentionally not mocked; `/login` shows the setup notice until
+the staging environment below is configured.
 
 For a production-style local check, use `pnpm --filter ai-saas-foundation-web build`
 and then `pnpm --filter ai-saas-foundation-web start` from the repository root.
@@ -108,16 +109,103 @@ pages. The order is intentional: contracts and validators first, then Google
 OAuth, one payment sandbox, one Agent provider, and finally the full
 verification gate. No secret is required for the default local profile.
 
-After saving the Google client values in `apps/web/.env.local`, the live local
-identity setup is one command:
+### Live Google OAuth + Neon setup
+
+Use this path when you want a real Google login against the Neon database. The
+default local profile remains credential-free. Run all commands from the
+repository root.
+
+#### 1. Install and authenticate the Neon CLI
+
+```bash
+pnpm install
+pnpm add --global neon@latest
+neon auth
+```
+
+Complete the Neon login in the normal browser profile. The setup script uses
+the current repository project (`lucky-boat-01406333`) and `production` branch
+by default. To use another project, pass `--neon-project-id` and
+`--neon-branch` in the final command.
+
+#### 2. Save the Google client values once
+
+Create `apps/web/.env.local` from the example only if it does not exist, then
+add the server-side Google values obtained from Google Cloud:
+
+```bash
+test -f apps/web/.env.local || cp apps/web/.env.example apps/web/.env.local
+```
+
+```dotenv
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-server-only-client-secret
+```
+
+Register this exact callback in Google Cloud:
+`http://localhost:3000/api/auth/callback/google`. Do not use `127.0.0.1`, add
+a trailing slash, or expose `GOOGLE_CLIENT_SECRET` through a `NEXT_PUBLIC_*`
+variable.
+
+#### 3. Link Neon, configure Better Auth, and migrate Drizzle tables
 
 ```bash
 pnpm web:setup-auth -- --link-neon --migrate
 ```
 
-This links the configured Neon branch, fills the web database URL, creates or
-reuses the Better Auth secret, and applies the Drizzle migrations without
-printing secret values.
+The command performs the remaining setup in order:
+
+1. links the Neon `production` branch and receives the ignored root `.env.local`;
+2. copies the pooled `DATABASE_URL` into `apps/web/.env.local`;
+3. copies `DATABASE_URL_UNPOOLED` when Neon provides it;
+4. reuses `BETTER_AUTH_SECRET` or generates a new server-only secret;
+5. sets `APP_ENV=staging`, `BETTER_AUTH_URL`, and the Google-enabled flag;
+6. runs `pnpm --filter ai-saas-foundation-web db:migrate` through Drizzle.
+
+The migration creates or updates the Better Auth identity tables (`app_user`,
+`account`, `session`, `verification`) and the pricing/payment/admin tables.
+The script is idempotent for an already-linked branch, preserves unrelated
+environment variables, writes `.env.local` with restrictive permissions, and
+never prints secret values. To configure without changing the database, omit
+`--migrate`; to use an already-linked branch, omit `--link-neon`.
+
+#### 4. Start and verify the live login
+
+```bash
+pnpm web:dev
+```
+
+Open [http://localhost:3000/login](http://localhost:3000/login) and select
+**Continue with Google**. After the callback, verify that the browser returns
+to `/app`, the session control shows the Google account, and `/admin` is
+available only when that account's persisted `app_user.role` is `admin` or
+`super_admin`.
+
+For a read-only table check, load the app environment in the current shell and
+query only table names:
+
+```bash
+set -a
+source apps/web/.env.local
+set +a
+psql "$DATABASE_URL" -c \
+  "select tablename from pg_tables where schemaname = 'public' and tablename in ('app_user','account','session','verification') order by tablename;"
+```
+
+#### Setup troubleshooting
+
+| Symptom | Resolution |
+|---|---|
+| `web:setup-auth` is not found | Pull the merged `main` branch and run `pnpm install` from the repository root. |
+| `DATABASE_URL` is missing | Run the command with `--link-neon`, confirm Neon CLI authentication, and check the linked branch. |
+| `GOOGLE_CLIENT_ID` or secret is missing | Keep both values in `apps/web/.env.local`; the script fails before rewriting the file when either is absent. |
+| `redirect_uri_mismatch` | Use `http://localhost:3000/api/auth/callback/google` exactly in Google Cloud and `BETTER_AUTH_URL`. |
+| Drizzle reports schema/relation already exists notices | These are idempotent PostgreSQL notices; confirm the final `migrations applied successfully` message. |
+| `auth_not_configured` remains after setup | Stop and restart `pnpm web:dev`; Next.js reads environment variables when the server starts. |
+
+Never commit either `.env.local` file, Neon credentials, Google secrets, or the
+Better Auth secret. The full category-based guides are also rendered at
+`/guides`.
 
 ## Docker path
 
