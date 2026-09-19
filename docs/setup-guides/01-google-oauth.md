@@ -13,8 +13,8 @@ decision; the browser receives only the redirect and safe session projection.
 
 ## 1. Choose the test environment
 
-Use `APP_ENV=staging` for a live Google test, even when the app is running on
-`127.0.0.1`. This makes the admin guard require the persisted server role and
+Use `APP_ENV=staging` for a live Google test while the app runs on
+`http://localhost:3000`. This makes the admin guard require the persisted server role and
 prevents the local demo-admin bypass from being used accidentally.
 
 Use a separate Google OAuth client and Neon branch for each environment when
@@ -22,11 +22,11 @@ possible:
 
 | Environment | Browser URL | Google client | Admin behavior |
 |---|---|---|---|
-| Local demo | `http://127.0.0.1:3000` | none | explicit member/admin demo sessions |
-| Live local test | `http://127.0.0.1:3000` | staging/test client | `app_user.role` required |
+| Local demo | `http://localhost:3000` | none | explicit member/admin demo sessions |
+| Live local test | `http://localhost:3000` | staging/test client | `app_user.role` required |
 | Production | `https://YOUR_DOMAIN` | production client | `app_user.role` required |
 
-Do not mix `localhost` and `127.0.0.1`. Google compares the scheme, host,
+Use `http://localhost:3000` consistently. Google compares the scheme, host,
 port, path, and trailing slash exactly.
 
 The credential-free login page exposes two separate demo identities: **local
@@ -34,26 +34,99 @@ member** can use the workspace but cannot open `/admin`, while **local admin**
 can open the admin console. This separation is useful for testing navigation
 and API denial before Google credentials are configured.
 
-## 2. Configure Google Cloud
+## 2. Configure Google Cloud from the web console
 
-1. Open **Google Cloud Console → APIs & Services** and select or create the
-   project for this environment.
-2. Open **Google Auth Platform → Branding** (or the OAuth consent screen in
-   the older console) and enter the app name, support email, and developer
-   contact email.
-3. Choose **External** for a cross-account test. Keep the publishing status in
-   **Testing** and add every account that will test login under **Audience →
-   Test users**. For an internal Workspace-only app, choose **Internal** only
-   when every tester belongs to that Workspace organization.
-4. Request only the identity scopes needed by this template:
-   `openid`, `email`, and `profile`. Do not add Drive, Calendar, or other
-   sensitive scopes until the product actually uses them.
-5. Under **Clients**, create an OAuth client of type **Web application**.
+Use the Google Cloud Console in a desktop browser. Google is moving the old
+**APIs & Services → OAuth consent screen** flow into **Google Auth Platform**;
+the labels can differ slightly between projects. The required sections are
+still **Branding**, **Audience**, **Data Access**, and **Clients**.
 
-Google's testing mode can restrict access to allow-listed test users, and test
-authorizations can expire. Add the test account before debugging the app. See
-the official [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server)
-and [Google app audience guidance](https://support.google.com/cloud/answer/15549945).
+### 2.1 Create or select the Cloud project
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/).
+2. In the top project selector, click **New project** or select the existing
+   project dedicated to this environment.
+3. Give the project a recognizable name such as `ai-saas-staging` and click
+   **Create**. Keep staging and production in separate projects when possible.
+4. In the left menu, open **Google Auth Platform**. If the console still shows
+   the legacy layout, open **APIs & Services → OAuth consent screen** instead.
+5. If Google shows **Get started** or **Configure**, click it before creating
+   credentials. A client cannot be created until the OAuth app registration is
+   initialized.
+
+### 2.2 Branding: configure the consent screen
+
+Open **Google Auth Platform → Branding** and complete the form. Use the exact
+values below for a first local test; replace the placeholder URLs before
+production:
+
+| Console field | Local/staging value |
+|---|---|
+| App name | The product name shown on the Google consent screen, for example `AI SaaS Foundation` |
+| User support email | An inbox the test user can use to contact the operator |
+| App logo | Optional for local testing; use a product logo that matches the web app in production |
+| App homepage | `http://localhost:3000` for this workspace, or the deployed HTTPS homepage |
+| App privacy policy URL | A public HTTPS URL in production; leave unset only when the console allows a local test to proceed |
+| App terms of service URL | A public HTTPS URL in production; optional during the local test if allowed |
+| Developer contact information | An email monitored for Google configuration and policy notices |
+
+Click **Save** or **Next** after each screen. Review the Google API Services
+User Data Policy and click **Create/Continue** when prompted. Do not claim that
+the app uses Drive, Calendar, or other Google APIs; this template only needs
+Google identity information.
+
+### 2.3 Audience: choose who may sign in
+
+1. Open **Google Auth Platform → Audience**.
+2. Select **External** when the test account is not in the same Google
+   Workspace organization as the Cloud project. Select **Internal** only when
+   every user belongs to the owning Workspace organization.
+3. Keep **Publishing status** as **Testing** for staging.
+4. Under **Test users**, click **Add users**, enter every Google account that
+   will perform the live login, and click **Save**.
+
+For this app's identity-only scopes (`openid`, `email`, `profile`), the test
+user allow-list and warning behavior are less restrictive than for sensitive
+Google API scopes. Still add test users explicitly so the staging procedure
+also works if scopes are expanded later. Do not click **Publish app** until a
+production domain, privacy policy, and review decision are ready.
+
+### 2.4 Data Access: request only identity scopes
+
+1. Open **Google Auth Platform → Data Access**.
+2. Click **Add or remove scopes**.
+3. Select or enter only these OpenID Connect identity scopes:
+   - `openid`
+   - `email`
+   - `profile`
+4. Click **Update**, then **Save**.
+
+Do not add Drive, Calendar, Gmail, or other sensitive/restricted scopes for
+login. A later feature that needs them must update the consent-screen
+justification, privacy policy, security review, and verification plan.
+
+### 2.5 Clients: create the web OAuth client
+
+1. Open **Google Auth Platform → Clients**.
+2. Click **Create client**.
+3. Set **Application type** to **Web application**.
+4. Set the client name to something explicit, such as
+   `ai-saas-staging-localhost-3000`.
+5. Add the exact JavaScript origin and redirect URI from the next section.
+6. Click **Create**.
+7. Copy the **Client ID** immediately. Copy the **Client secret** immediately
+   as well: Google may show/download the secret only at creation time. Store it
+   in `.env.local` or a secret manager, never in browser code or Git.
+
+The web client is a server-side OAuth client in this project because Better
+Auth performs the authorization-code exchange. The browser only starts the
+redirect flow; it must never receive `GOOGLE_CLIENT_SECRET`.
+
+Google's official [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server),
+[consent-screen setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid),
+[audience guidance](https://support.google.com/cloud/answer/15549945), and
+[client management guide](https://support.google.com/cloud/answer/15549257)
+describe the corresponding console screens.
 
 ## 3. Register exact redirect URIs
 
@@ -62,23 +135,12 @@ route, not the `/auth/callback` explanatory UI page.
 
 | Environment | Authorized JavaScript origin | Authorized redirect URI |
 |---|---|---|
-| Live local test | `http://127.0.0.1:3000` | `http://127.0.0.1:3000/api/auth/callback/google` |
+| Live local test | `http://localhost:3000` | `http://localhost:3000/api/auth/callback/google` |
 | Production | `https://YOUR_DOMAIN` | `https://YOUR_DOMAIN/api/auth/callback/google` |
 
-The redirect URI must match exactly. A URI registered with `localhost`, port
-`3013`, a trailing slash, or a different scheme does not authorize a request
-sent to `127.0.0.1:3000`.
-
-If port `3000` is already occupied, run the current workspace on `3013` and
-register this additional exact pair instead:
-
-```text
-BETTER_AUTH_URL=http://127.0.0.1:3013
-http://127.0.0.1:3013/api/auth/callback/google
-```
-
-Start it with `npm run dev -- --port 3013`, then open
-`http://127.0.0.1:3013/login`.
+The redirect URI must match exactly. Register `localhost`, not `127.0.0.1`,
+and do not add a trailing slash. Keep the same origin in Google Cloud, the
+browser address bar, and `BETTER_AUTH_URL`.
 
 ## 4. Create the runtime environment
 
@@ -94,7 +156,7 @@ Edit `apps/web/.env.local` with the values for the live test:
 ```text
 APP_ENV=staging
 DATABASE_URL=<Neon production-or-staging connection string>
-BETTER_AUTH_URL=http://127.0.0.1:3000
+BETTER_AUTH_URL=http://localhost:3000
 BETTER_AUTH_SECRET=<long random server-only secret>
 GOOGLE_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=<server-only-client-secret>
@@ -151,7 +213,7 @@ Keep the process running in the web app directory:
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login). The button
+Open [http://localhost:3000/login](http://localhost:3000/login). The button
 must say **Continue with Google**. If it says **Use local demo session**, the
 server did not load all five live-auth values or the public feature flag is
 still false.
