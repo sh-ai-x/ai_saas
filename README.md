@@ -286,6 +286,20 @@ uv run --locked python -m foundation.contract_check
 uv run --locked python -m unittest discover -s tests -v
 ```
 
+Run the web HTTP E2E suite with a disposable `APP_ENV=test` Next.js server:
+
+```bash
+pnpm web:e2e
+```
+
+This covers the public/login pages, Google OAuth fail-closed behavior, the
+test-only signup/login/logout fixture, session revocation, member versus admin
+authorization, admin subscription catalog creation and one-time/subscription
+policy switching, invalid checkout responses, Toss and Lemon Squeezy sandbox
+handoffs, and a JSON 503 response when the Foundation API is unavailable. The
+fixture never exists outside `APP_ENV=test`, and the payment assertions only
+use test credentials and never grant a live entitlement.
+
 The complete local gate, including evaluator evidence and Docker Compose
 configuration validation, is `scripts/verify-local.sh`. It does not require a
 cloud account; if Docker is unavailable it reports the Compose check as
@@ -313,7 +327,10 @@ test-only; `TossPaymentsAdapter` and `LemonSqueezyAdapter` verify raw webhook
 requests and normalize provider statuses before the shared transaction applies
 effects. Select exactly one provider with `PAYMENT_PROVIDER`; production
 rejects the mock provider. Access is granted only from a verified, persisted
-provider event, never from a client success redirect.
+provider event, never from a client success redirect. The web E2E suite checks
+provider-neutral checkout context and secret redaction; the Python suite checks
+Toss confirmation idempotency, amount matching, webhook signatures, and Lemon
+Squeezy JSON:API/webhook normalization.
 
 ## Identity and privileged operations
 

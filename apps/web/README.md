@@ -67,12 +67,20 @@ Run the contract and adapter test suite without provider credentials:
 ```bash
 pnpm --filter ai-saas-foundation-web test
 pnpm --filter ai-saas-foundation-web test:all
+pnpm web:e2e
 ```
 
 The tests cover Google auth contracts, exclusive billing-mode publishing, admin authorization,
 checkout rejection for the inactive mode, pricing validation, provider
-conflicts, and mock/Toss/Lemon Squeezy adapter handoffs. They use the explicit
-`APP_ENV=test` local seed profile and never grant live entitlements.
+conflicts, and mock/Toss/Lemon Squeezy adapter handoffs. `pnpm web:e2e`
+starts a disposable Next.js server on port `3015` and exercises the real HTTP
+routes for Google fail-closed behavior, test-only signup/login/logout, session
+revocation, member/admin authorization, subscription policy transitions,
+checkout validation, sandbox provider selection, and Foundation API outage
+handling. It uses the explicit `APP_ENV=test` local seed profile and never
+grants live entitlements. A real Google account callback and provider-hosted
+payment page remain manual staging smoke checks because they require external
+browser credentials and must never be automated with a stored user account.
 
 The `/guides` route contains the category sidebar for local startup, Google
 OAuth, separate Toss and Lemon Squeezy sandbox payment guides,

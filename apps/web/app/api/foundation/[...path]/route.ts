@@ -40,12 +40,20 @@ async function proxy(request: NextRequest, context: RouteContext) {
       ? undefined
       : await request.arrayBuffer();
 
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    body,
-    cache: "no-store",
-  } as RequestInit);
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body,
+      cache: "no-store",
+    } as RequestInit);
+  } catch {
+    return NextResponse.json(
+      { error: "foundation_unavailable", message: "Foundation API is unavailable." },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
 
   const responseHeaders = new Headers();
   const responseType = upstream.headers.get("content-type");
