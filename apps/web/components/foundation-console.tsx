@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -76,35 +76,44 @@ export function FoundationConsole() {
   const [activity, setActivity] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const log = useCallback((entry: string) => {
     setActivity((current) => [`${new Date().toLocaleTimeString()} · ${entry}`, ...current].slice(0, 8));
   }, []);
 
-  const refresh = useCallback(async () => {
-    try {
-      const [healthResult, balanceResult, agentResult, paymentResult] = await Promise.all([
-        api<JsonRecord>("/healthz"),
-        api<JsonRecord>("/v1/billing/balance"),
-        api<JsonRecord>("/v1/agent/providers"),
-        api<JsonRecord>("/v1/billing/providers"),
-      ]);
-      setHealth(String(healthResult.status ?? "ok"));
-      setBalance(balanceResult);
-      setAgent(agentResult);
-      setPayment(paymentResult);
+  const refresh = useCallback(() => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const request = (async () => {
       try {
-        const nextSession = await api<JsonRecord>("/v1/auth/session");
-        setSession(nextSession);
-        if (typeof nextSession.tenant_id === "string") setTenantId(nextSession.tenant_id);
-      } catch {
-        setSession(null);
+        const [healthResult, balanceResult, agentResult, paymentResult] = await Promise.all([
+          api<JsonRecord>("/healthz"),
+          api<JsonRecord>("/v1/billing/balance"),
+          api<JsonRecord>("/v1/agent/providers"),
+          api<JsonRecord>("/v1/billing/providers"),
+        ]);
+        setHealth(String(healthResult.status ?? "ok"));
+        setBalance(balanceResult);
+        setAgent(agentResult);
+        setPayment(paymentResult);
+        try {
+          const nextSession = await api<JsonRecord>("/v1/auth/session");
+          setSession(nextSession);
+          if (typeof nextSession.tenant_id === "string") setTenantId(nextSession.tenant_id);
+        } catch {
+          setSession(null);
+        }
+        setError("");
+      } catch (requestError) {
+        setHealth("offline");
+        setError(formatError(requestError));
       }
-      setError("");
-    } catch (requestError) {
-      setHealth("offline");
-      setError(formatError(requestError));
-    }
+    })();
+    const trackedRequest = request.finally(() => {
+      if (refreshInFlight.current === trackedRequest) refreshInFlight.current = null;
+    });
+    refreshInFlight.current = trackedRequest;
+    return trackedRequest;
   }, []);
 
   useEffect(() => {
