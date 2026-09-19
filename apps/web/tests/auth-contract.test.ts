@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 import { getTableName } from "drizzle-orm";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { GET as getAuthCatchAll } from "@/app/api/auth/[...all]/route";
 import { GET as getFoundation } from "@/app/api/foundation/[...path]/route";
@@ -9,12 +11,12 @@ import { GET as getSession } from "@/app/api/auth/session/route";
 import { POST as localSignIn } from "@/app/api/auth/local/sign-in/route";
 import { POST as localSignOut } from "@/app/api/auth/local/sign-out/route";
 import { schema } from "@/db";
+import { GoogleLoginForm } from "@/components/auth/google-login-form";
 import { requireAdmin } from "@/lib/admin-guard";
 import { localDemoSession, localMemberSession, localSessionCookie } from "@/lib/auth/local-session";
 
 const originalEnv = {
   appEnv: process.env.APP_ENV,
-  allowLocalAdmin: process.env.ALLOW_LOCAL_ADMIN,
   databaseUrl: process.env.DATABASE_URL,
   betterAuthSecret: process.env.BETTER_AUTH_SECRET,
   betterAuthUrl: process.env.BETTER_AUTH_URL,
@@ -24,7 +26,6 @@ const originalEnv = {
 
 function setLocalEnv() {
   process.env.APP_ENV = "test";
-  process.env.ALLOW_LOCAL_ADMIN = "true";
   delete process.env.DATABASE_URL;
   delete process.env.BETTER_AUTH_SECRET;
   delete process.env.BETTER_AUTH_URL;
@@ -35,7 +36,6 @@ function setLocalEnv() {
 function restoreEnv() {
   for (const [key, value] of Object.entries({
     APP_ENV: originalEnv.appEnv,
-    ALLOW_LOCAL_ADMIN: originalEnv.allowLocalAdmin,
     DATABASE_URL: originalEnv.databaseUrl,
     BETTER_AUTH_SECRET: originalEnv.betterAuthSecret,
     BETTER_AUTH_URL: originalEnv.betterAuthUrl,
@@ -58,7 +58,7 @@ describe("Google auth and session contracts", () => {
     assert.equal(getTableName(schema.verifications), "verification");
   });
 
-  it("creates a local demo session with an httpOnly cookie and exposes a safe projection", async () => {
+  it("creates a test fixture session with an httpOnly cookie and exposes a safe projection", async () => {
     const signIn = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", { method: "POST", body: "{}" }));
     assert.equal(signIn.status, 200);
     const setCookie = signIn.headers.get("set-cookie") ?? "";
@@ -75,7 +75,7 @@ describe("Google auth and session contracts", () => {
     assert.equal("refreshToken" in body.session, false);
   });
 
-  it("keeps local member sessions out of admin authorization", async () => {
+  it("keeps regular-user fixture sessions out of admin authorization", async () => {
     const signIn = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -114,13 +114,30 @@ describe("Google auth and session contracts", () => {
     assert.equal((await response.json()).error, "auth_not_configured");
   });
 
+  it("keeps Google as the only user-facing sign-up and sign-in path", () => {
+    const configured = renderToStaticMarkup(createElement(GoogleLoginForm, { googleConfigured: true, callbackURL: "/app" }));
+    assert.match(configured, /Continue with Google/);
+    assert.doesNotMatch(configured, /local|mock/i);
+
+    const unconfigured = renderToStaticMarkup(createElement(GoogleLoginForm, { googleConfigured: false, callbackURL: "/app" }));
+    assert.match(unconfigured, /Open Google OAuth setup guide/);
+    assert.doesNotMatch(unconfigured, /member|admin session/i);
+  });
+
+  it("does not expose the local demo sign-in route outside test runtime", async () => {
+    process.env.APP_ENV = "local";
+    const response = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", { method: "POST" }));
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error, "test_auth_only");
+    setLocalEnv();
+  });
+
   it("revokes the local cookie and never accepts local fallback in production", async () => {
     const signedOut = await localSignOut();
     assert.equal(signedOut.status, 200);
     assert.match(signedOut.headers.get("set-cookie") ?? "", /Expires=Thu, 01 Jan 1970/i);
 
     process.env.APP_ENV = "production";
-    delete process.env.ALLOW_LOCAL_ADMIN;
     const session = await getSession(new NextRequest("http://127.0.0.1:3012/api/auth/session", {
       headers: { cookie: `${localSessionCookie}=${localDemoSession.session.id}` },
     }));

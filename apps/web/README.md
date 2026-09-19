@@ -1,13 +1,13 @@
 # web-console
 
 This is the local Next.js 15 App Router console for the AI SaaS foundation.
-It is intentionally provider-free: browser requests go through the same-origin
-`/api/foundation/*` Route Handler proxy to the local Python composition root.
-The UI exercises mock Google auth, tenant-scoped admin operations, mock payment
-webhooks, durable runs, and SSE replay without cloud credentials. When a
-sandbox provider is configured, Toss is handed to its browser SDK with
-server-created order context, while Lemon Squeezy opens its hosted checkout;
-credits are still granted only by the signed provider event path.
+Browser requests go through the same-origin `/api/foundation/*` Route Handler
+proxy to the local Python composition root. Google OAuth is the only
+user-facing sign-up/sign-in path: the first Google authorization creates a
+regular account and existing accounts sign in. Admin access is decided by the
+persisted `app_user.role`, never by a separate admin login. Mock payment
+webhooks, durable runs, and SSE replay remain available for local contract
+testing without external payment credentials.
 
 ## Run locally
 
@@ -69,7 +69,7 @@ npm run test
 npm run test:all
 ```
 
-The tests cover exclusive billing-mode publishing, admin authorization,
+The tests cover Google auth contracts, exclusive billing-mode publishing, admin authorization,
 checkout rejection for the inactive mode, pricing validation, provider
 conflicts, and mock/Toss/Lemon Squeezy adapter handoffs. They use the explicit
 `APP_ENV=test` local seed profile and never grant live entitlements.

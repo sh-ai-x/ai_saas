@@ -6,8 +6,8 @@ import { getSafeSession } from "@/lib/auth/session";
 /**
  * Admin APIs accept either a server-provisioned bearer token or a
  * server-resolved Better Auth session with an admin role. There is no
- * credential-free local bypass: local demos must use the explicit admin
- * session cookie.
+ * credential-free local bypass. Automated auth fixtures are available only
+ * in APP_ENV=test; live users are always resolved from Google-backed data.
  */
 export async function requireAdmin(request: NextRequest) {
   const expected = process.env.ADMIN_API_TOKEN;

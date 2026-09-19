@@ -7,11 +7,14 @@ import { localSessionCookie, localSessionForId, type SafeAuthSession } from "./l
 
 export async function getSafeSession(request?: NextRequest): Promise<SafeAuthSession | null> {
   if (!isGoogleAuthConfigured()) {
-    if (!["local", "test"].includes(authRuntimeProfile())) {
-      throw new Error("Google auth is not configured for this environment");
+    if (authRuntimeProfile() === "test") {
+      const cookie = request?.cookies.get(localSessionCookie)?.value ?? (await cookies()).get(localSessionCookie)?.value;
+      return localSessionForId(cookie);
     }
-    const cookie = request?.cookies.get(localSessionCookie)?.value ?? (await cookies()).get(localSessionCookie)?.value;
-    return localSessionForId(cookie);
+    if (authRuntimeProfile() === "local") {
+      return null;
+    }
+    throw new Error("Google auth is not configured for this environment");
   }
 
   const auth = getAuth();

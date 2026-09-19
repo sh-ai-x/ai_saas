@@ -7,7 +7,9 @@ summary: Run the complete process or Docker vertical slice before enabling exter
 # Local foundation
 
 Run the web console, API, durable run, admin audit, and mock payment path with
-no cloud account. Choose either process mode or the full Docker mode.
+no cloud account. Choose either process mode or the full Docker mode. The
+browser login remains Google-only; without OAuth credentials the login page
+shows setup instructions instead of a mock member/admin login.
 
 ## 1. Process mode
 
@@ -46,6 +48,10 @@ stack with `docker compose -f docker/prod/compose.yaml down`; add `-v` only
 when disposable local data should be removed.
 
 ## 3. Verify the contract
+
+Use the health endpoint, bounded run, audited admin change, and mock payment
+before introducing external credentials. Validate real account creation and
+login through the Google OAuth guide after configuring the provider.
 
 ```bash
 curl http://localhost:8080/healthz

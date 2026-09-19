@@ -38,8 +38,9 @@ session, account, and verification tables are defined in
 - Redirect URIs are explicit per environment and exact-match validated.
 - The callback validates `state`, issuer, code, redirect URI, and the returned
   identity before creating or linking a local account.
-- A local session is the authorization input for Next.js protected routes,
-  FastAPI agent requests, billing operations, and admin operations.
+- A Google-backed local session is the authorization input for Next.js
+  protected routes, FastAPI agent requests, billing operations, and admin
+  operations. The browser has no mock login fallback.
 - Identity provider subject IDs are stored separately from display email so a
   changed email cannot silently become a different account.
 - Account linking requires an authenticated user and an explicit confirmation
@@ -66,12 +67,11 @@ start as regular users until an explicit server-side role promotion.
 
 ## Runtime profiles
 
-- `local`: demo session and deterministic mock sign-in remain available without
-  Google credentials; no provider redirect is attempted. Local member and
-  local admin demo sessions are separate, and only the latter can pass the
-  admin role boundary.
+- `local`: without Google credentials, the login page shows setup instructions
+  and no session is created. No provider redirect is attempted.
 - `test`: callback validation and session contracts use deterministic fixtures;
-  no network token exchange is required.
+  no network token exchange is required. The local sign-in fixture route is
+  unavailable outside this profile and is never a user-facing login path.
 - `staging`/`production`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
   `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` are
   mandatory. The server returns a configuration error before redirect when any
@@ -84,11 +84,12 @@ tokens, and client secrets stay server-side.
 
 ## Normal flow
 
-1. User selects Google sign-in.
+1. User selects the single Google sign-up/sign-in action.
 2. The server creates an OAuth transaction and redirects to Google.
 3. Google returns an authorization code to the registered callback.
 4. The server exchanges and validates the code.
-5. The identity is linked to an existing local user or a new user is created.
+5. The identity is linked to an existing local user or a new regular user is
+   created.
 6. The session is persisted and the user is redirected to the requested safe
    destination.
 
@@ -114,9 +115,10 @@ scope, or admin privilege. Those are checked by the relevant contracts:
 
 ## Verification evidence
 
-- Deterministic contract tests cover local sign-in, httpOnly cookie behavior,
-  safe session projection, production fail-closed configuration, local
-  sign-out, and admin denial without a configured session.
+- Deterministic contract tests cover the Google-only login surface, the
+  test-only auth fixture, httpOnly cookie behavior, safe session projection,
+  production fail-closed configuration, local sign-out, and admin denial
+  without a configured session.
 - Better Auth owns provider callback state validation, code exchange, and
   account persistence. Replay, mismatched-state, expired-code, collision, and
   provider-outage cases require a configured staging OAuth client and are not

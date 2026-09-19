@@ -73,7 +73,6 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation:foundation-local-only@postgres:5432/foundation}
       FOUNDATION_API_URL: http://foundation:8080
-      ALLOW_LOCAL_ADMIN: ${ALLOW_LOCAL_ADMIN:-true}
       NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

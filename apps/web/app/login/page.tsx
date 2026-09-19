@@ -16,10 +16,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="auth-card">
         <a className="auth-back" href="/">← Public landing</a>
         <p className="eyebrow accent">IDENTITY / SERVER SESSION</p>
-        <h1>Sign in to the foundation.</h1>
-        <p>Google proves identity. Tenant, billing, agent, and admin permissions remain server-side.</p>
+        <h1>Sign up or sign in with Google.</h1>
+        <p>Google is the only account entry point. Your first authorization creates a regular account; existing accounts sign in. Tenant, billing, agent, and admin permissions remain server-side.</p>
         <GoogleLoginForm googleConfigured={googleConfigured} callbackURL={callbackURL} />
-        <p className="auth-note">{googleConfigured ? `Google OAuth is configured. You will return to ${callbackURL}.` : "Local profile: choose a member or admin demo session. Admin routes require the admin session."}</p>
+        <p className="auth-note">{googleConfigured ? `Google OAuth is configured. You will return to ${callbackURL}.` : "Google OAuth is not configured for this environment. Configure it from the setup guide; no local or mock login is available."}</p>
       </div>
     </main>
   );

@@ -11,7 +11,6 @@ import { getBillingPolicy, listPricingCatalog, setBillingMode } from "@/lib/pric
 import { localDemoSession, localSessionCookie } from "@/lib/auth/local-session";
 
 process.env.APP_ENV = "test";
-process.env.ALLOW_LOCAL_ADMIN = "true";
 process.env.FOUNDATION_API_URL = "http://127.0.0.1:9";
 delete process.env.DATABASE_URL;
 
@@ -42,7 +41,6 @@ describe("pricing and admin API contracts", () => {
   after(async () => {
     await setBillingMode("subscription", "api-test", "restore subscription catalog after API contract tests");
     process.env.APP_ENV = "test";
-    process.env.ALLOW_LOCAL_ADMIN = "true";
     delete process.env.ADMIN_API_TOKEN;
   });
 

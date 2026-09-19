@@ -14,7 +14,7 @@ async function configuredHandler(request: NextRequest) {
 
 async function handle(request: NextRequest) {
   if (!isGoogleAuthConfigured()) {
-    return NextResponse.json({ error: "auth_not_configured", message: "Use local demo sign-in or configure Google OAuth." }, { status: 503 });
+    return NextResponse.json({ error: "auth_not_configured", message: "Configure Google OAuth before using the authentication API." }, { status: 503 });
   }
   try {
     return await configuredHandler(request);

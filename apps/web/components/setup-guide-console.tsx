@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { setupGuides, SetupGuide } from "../content/setup-guides";
 
@@ -56,6 +56,12 @@ function GuidePanel({ guide }: { guide: SetupGuide }) {
 
 export function SetupGuideConsole() {
   const [activeGuideId, setActiveGuideId] = useState("getting-started");
+  useEffect(() => {
+    const requestedGuide = new URLSearchParams(window.location.search).get("guide");
+    if (requestedGuide && setupGuides.some((guide) => guide.id === requestedGuide)) {
+      setActiveGuideId(requestedGuide);
+    }
+  }, []);
   const paymentGuides = useMemo(
     () => setupGuides.filter((guide) => guide.id.startsWith("payment-")),
     [],

@@ -6,33 +6,35 @@ summary: Configure Google Cloud, Neon, Better Auth, and a repeatable live-login 
 ---
 # Google OAuth Live Setup
 
-This guide enables a real Google authorization-code flow for the web app. It
-is intentionally separate from the credential-free local demo session. The
-server owns the OAuth code exchange, provider tokens, session cookie, and role
-decision; the browser receives only the redirect and safe session projection.
+This guide enables the real Google authorization-code flow for the web app.
+Google is the only user-facing account entry point: the first successful
+authorization creates the account, and later authorizations sign in to that
+account. The server owns the OAuth code exchange, provider tokens, session
+cookie, and role decision; the browser receives only the redirect and safe
+session projection. There is no local or mock login fallback.
 
 ## 1. Choose the test environment
 
 Use `APP_ENV=staging` for a live Google test while the app runs on
-`http://localhost:3000`. This makes the admin guard require the persisted server role and
-prevents the local demo-admin bypass from being used accidentally.
+`http://localhost:3000`. This makes the admin guard require the persisted
+server role and keeps the test-only auth fixture unavailable.
 
 Use a separate Google OAuth client and Neon branch for each environment when
 possible:
 
 | Environment | Browser URL | Google client | Admin behavior |
 |---|---|---|---|
-| Local demo | `http://localhost:3000` | none | explicit member/admin demo sessions |
+| Local without OAuth | `http://localhost:3000` | none | setup notice; no login fallback |
 | Live local test | `http://localhost:3000` | staging/test client | `app_user.role` required |
 | Production | `https://YOUR_DOMAIN` | production client | `app_user.role` required |
 
 Use `http://localhost:3000` consistently. Google compares the scheme, host,
 port, path, and trailing slash exactly.
 
-The credential-free login page exposes two separate demo identities: **local
-member** can use the workspace but cannot open `/admin`, while **local admin**
-can open the admin console. This separation is useful for testing navigation
-and API denial before Google credentials are configured.
+The login page always exposes one Google action. A regular Google account can
+use the user workspace, while an account whose persisted `app_user.role` is
+`admin` or `super_admin` can open `/admin`. Email address, Google Workspace
+domain, or which button was clicked never grants admin access.
 
 ## 2. Configure Google Cloud from the web console
 
@@ -161,7 +163,6 @@ BETTER_AUTH_SECRET=<long random server-only secret>
 GOOGLE_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=<server-only-client-secret>
 NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
-ALLOW_LOCAL_ADMIN=false
 ```
 
 Generate a local secret without committing it:
@@ -213,14 +214,10 @@ Keep the process running in the web app directory:
 npm run dev
 ```
 
-Open [http://localhost:3000/login](http://localhost:3000/login). The button
-must say **Continue with Google**. If it says **Use local demo session**, the
-server did not load all five live-auth values or the public feature flag is
-still false.
-
-Without live credentials, the page instead shows **Use local member session**
-and **Use local admin session**. Use the member session to verify that `/app`
-does not show an Admin link and that `/admin` redirects back to login.
+Open [http://localhost:3000/login](http://localhost:3000/login). With live
+configuration, the only action must say **Continue with Google**. Without live
+configuration, the page must show a Google OAuth setup notice and link to this
+guide; it must not expose member/admin demo buttons.
 
 ## 7. Execute the live login test
 
@@ -281,7 +278,7 @@ regular user; role promotion is an explicit server-side operation.
 |---|---|
 | `redirect_uri_mismatch` | Browser origin, port, path, scheme, and trailing slash match the Google client exactly. |
 | `access_denied` or test-user warning | Add the account under Google Cloud **Audience → Test users** or publish the app when ready. |
-| Button says local demo | `APP_ENV`, `BETTER_AUTH_URL`, database, Google client values, and `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` were not loaded by the web process. |
+| Google setup notice remains | `APP_ENV`, `BETTER_AUTH_URL`, database, Google client values, and `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` were not loaded by the web process. |
 | `auth_not_configured` | The server intentionally failed closed because one required live-auth value is missing. Restart after editing `.env.local`. |
 | `/admin` redirects to login | The Google user exists but `app_user.role` is not `admin`/`super_admin`, or the session predates the role change. |
 | `invalid_client` | Client ID/secret belong to a different Google Cloud project or environment. Rotate the secret in the deployment secret store. |
@@ -297,6 +294,7 @@ production client secrets separate. Google's [production readiness guidance](htt
 and [policy compliance guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance)
 describe the publishing and verification requirements.
 
-For credential-free development, remove the live values and use the explicit
-local demo button. That mode is not evidence of a successful Google OAuth
-exchange.
+For credential-free development, remove the live values and use the setup
+notice only. Automated contract tests may use an `APP_ENV=test` fixture, but
+that route is not exposed as a user-facing login and is not evidence of a
+successful Google OAuth exchange.

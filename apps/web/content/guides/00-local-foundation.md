@@ -7,7 +7,9 @@ summary: Run the complete no-credential vertical slice before enabling external 
 # Local foundation
 
 Run the web console, API, durable run, admin audit, and mock payment path with
-no cloud account. Choose either process mode or the full Docker mode.
+no cloud account. Choose either process mode or the full Docker mode. The
+browser login remains Google-only; without OAuth credentials the login page
+shows setup instructions instead of a mock member/admin login.
 
 ## 1. Start the API
 
@@ -54,8 +56,9 @@ For a live Google test, set `WEB_DATABASE_URL`, `BETTER_AUTH_SECRET`,
 
 ## 4. Verify the contract
 
-Use the health endpoint, local mock login, bounded run, audited admin change,
-and mock payment before introducing external credentials.
+Use the health endpoint, bounded run, audited admin change, and mock payment
+before introducing external credentials. Validate real account creation and
+login through the Google OAuth guide after configuring the provider.
 
 ```bash
 curl http://127.0.0.1:8080/healthz

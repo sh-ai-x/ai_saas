@@ -26,10 +26,11 @@ npx drizzle-kit migrate
 
 ## 2. Open the separate admin console
 
-Run the web app, then open `http://127.0.0.1:3000/admin`. Local mode allows the
-explicit local admin guard. A deployed environment must set
-`ALLOW_LOCAL_ADMIN=false`, provide `APP_ENV=production`, and configure the
-server-only `ADMIN_API_TOKEN` before admin mutations are allowed.
+Run the web app, authenticate with Google, then open
+`http://127.0.0.1:3000/admin`. The admin layout checks the persisted
+`app_user.role`; only `admin` and `super_admin` can enter. A deployed
+environment must provide `APP_ENV=production` and configure the server-only
+`ADMIN_API_TOKEN` before token-based admin mutations are allowed.
 
 ```bash
 npm run dev
