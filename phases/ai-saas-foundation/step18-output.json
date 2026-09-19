@@ -1,0 +1,15 @@
+{
+  "exit_code": 0,
+  "stdout": "npm run lint: exit 0; npm run build: exit 0; Next generated 15 routes including /, /app, /billing, /admin, /admin/pricing, /admin/payments, and pricing/admin API routes; secret scan passed.",
+  "stderr": "",
+  "duration_seconds": 8.6620625,
+  "timestamp": "2026-09-19T10:22:05+0900",
+  "commands": [
+    {"command": "npm run lint && npm run build", "exit_code": 0, "duration_seconds": 8.6620625}
+  ],
+  "limitations": [
+    "Local seed fallback is explicit and is not a production database.",
+    "Mock/sandbox checkout proves adapter flow but not live provider certification.",
+    "Do not run next dev and next build concurrently against the same .next directory."
+  ]
+}

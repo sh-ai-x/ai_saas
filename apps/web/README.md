@@ -1,5 +1,59 @@
 # web-console
 
-The Next.js `mysaas` surface is the web-console owner. In this
-foundation step it remains a logical module: browser requests use the versioned
-REST/SSE contracts and do not mutate identity or billing tables directly.
+This is the local Next.js 15 App Router console for the AI SaaS foundation.
+It is intentionally provider-free: browser requests go through the same-origin
+`/api/foundation/*` Route Handler proxy to the local Python composition root.
+The UI exercises mock Google auth, tenant-scoped admin operations, mock payment
+webhooks, durable runs, and SSE replay without cloud credentials. When a
+sandbox provider is configured, Toss is handed to its browser SDK with
+server-created order context, while Lemon Squeezy opens its hosted checkout;
+credits are still granted only by the signed provider event path.
+
+## Run locally
+
+Start the foundation API from the repository root first:
+
+```bash
+export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+python3 -m foundation.server \
+  --env-file config/profiles/free-portfolio.example.env \
+  --profile free-portfolio
+```
+
+Then start the web console in this directory:
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://127.0.0.1:3000 for the public landing page. The user workspace is
+at `/app`, the separate admin console is at `/admin`, and setup guides are at
+`/guides`. Set `FOUNDATION_API_URL` when the API is not at
+`http://127.0.0.1:8080`.
+
+```bash
+FOUNDATION_API_URL=http://127.0.0.1:8080 npm run dev
+```
+
+The production build is local-only and does not require Vercel, Neon, Stripe,
+Toss, Lemon Squeezy, or a running Docker daemon:
+
+```bash
+npm run build
+npm run start
+```
+
+The `/guides` route contains the category sidebar for local startup, Google
+OAuth, separate Toss and Lemon Squeezy sandbox payment guides,
+OpenAI/Anthropic/Gemini Agent providers, verification, and operations. Each
+guide is imported at build time from the Markdown files in
+`apps/web/content/guides/*.md`, displayed as a read-only Markdown editor with
+line numbers, and linked back to the operator console. The database group
+contains the Neon PostgreSQL setup guide, including safe `.env.local`/`.neon`
+handling and read-only connection verification. The same source is mirrored as
+canonical documentation under `docs/setup-guides/`. Pricing is managed from
+`/admin/pricing` through Drizzle/Neon tables and supports one-time, monthly,
+and yearly options. Provider settings are managed from `/admin/payments`; the
+local fallback is explicitly labeled and production fails closed without
+`DATABASE_URL`.

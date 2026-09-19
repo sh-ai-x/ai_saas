@@ -1,0 +1,13 @@
+{
+  "exit_code": 0,
+  "stdout": "catalog=200 switch=200 one-time-catalog=200 subscription-rejected=409 one-time-checkout=201 restore=200; exclusive mode API and checkout assertions passed.",
+  "stderr": "",
+  "duration_seconds": 2.258068292,
+  "timestamp": "2026-09-19T10:22:05+0900",
+  "evidence": {
+    "active_policy": "subscription restored after test",
+    "one_time_catalog": "option-lifetime-onetime only",
+    "rejected_mixed_mode": "subscription option rejected while one_time policy active",
+    "checkout": "server-resolved option returned mode and amount; no client amount accepted"
+  }
+}

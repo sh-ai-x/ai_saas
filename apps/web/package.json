@@ -1,0 +1,32 @@
+{
+  "name": "ai-saas-foundation-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "lint": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config drizzle.config.ts"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.1",
+    "drizzle-orm": "^0.45.2",
+    "next": "15.5.25",
+    "postgres": "^3.4.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/react": "19.1.2",
+    "@types/react-dom": "19.1.2",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "5.8.3"
+  },
+  "overrides": {
+    "postcss": "8.5.28"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "exit_code": 0,
+  "stdout": "/=200 /app=200 /admin=200 /admin/pricing=200 /admin/payments=200 /billing=200 /guides=200 pricing-api=200; public landing, user app, admin, billing, and guide surfaces verified.",
+  "stderr": "",
+  "duration_seconds": 2.777603833,
+  "timestamp": "2026-09-19T10:22:05+0900",
+  "browser_evidence": [
+    "Playwright loaded public landing on http://127.0.0.1:3012/ with subscription catalog and $290 annual option.",
+    "Playwright loaded /admin/pricing and exposed Starter/Pro plan rows and one-time/subscription-aware editor.",
+    "Playwright loaded /billing after policy switch and showed One payment. No renewal. with $79.00.",
+    "browser console errors: 0 on final local browser checks"
+  ]
+}
