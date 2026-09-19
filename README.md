@@ -231,8 +231,7 @@ uses Next.js standalone output and calls the API through the internal
 
 ```bash
 cp .env.docker.example .env
-export APP_SECRET_KEY="$(openssl rand -base64 32)"
-docker compose -f docker/prod/compose.yaml up --build
+pnpm docker:local
 ```
 
 Open `http://localhost:3000` for the web console and
@@ -244,6 +243,13 @@ Compose PostgreSQL uses trust authentication and does not require
 the local default `WEB_DATABASE_URL` or set it to the intended Neon connection
 string. The Google callback for this local container remains:
 `http://localhost:3000/api/auth/callback/google`.
+
+`pnpm docker:local` always reads the root `.env`, rebuilds the images, and
+force-recreates the containers. This is important after changing Google OAuth
+or database settings because an existing container keeps its old environment.
+If `APP_SECRET_KEY` is blank, the script generates an ephemeral value for that
+run; set a persistent value in `.env` when session continuity across restarts
+matters. The script can be run from any directory inside this repository.
 
 The `web-migrate` service must complete before `web` starts. This is suitable
 for a single-host portfolio or staging deployment. For multiple web replicas,
