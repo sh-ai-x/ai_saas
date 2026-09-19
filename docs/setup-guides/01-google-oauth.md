@@ -22,12 +22,17 @@ possible:
 
 | Environment | Browser URL | Google client | Admin behavior |
 |---|---|---|---|
-| Local demo | `http://127.0.0.1:3000` | none | deterministic demo admin |
+| Local demo | `http://127.0.0.1:3000` | none | explicit member/admin demo sessions |
 | Live local test | `http://127.0.0.1:3000` | staging/test client | `app_user.role` required |
 | Production | `https://YOUR_DOMAIN` | production client | `app_user.role` required |
 
 Do not mix `localhost` and `127.0.0.1`. Google compares the scheme, host,
 port, path, and trailing slash exactly.
+
+The credential-free login page exposes two separate demo identities: **local
+member** can use the workspace but cannot open `/admin`, while **local admin**
+can open the admin console. This separation is useful for testing navigation
+and API denial before Google credentials are configured.
 
 ## 2. Configure Google Cloud
 
@@ -151,6 +156,10 @@ must say **Continue with Google**. If it says **Use local demo session**, the
 server did not load all five live-auth values or the public feature flag is
 still false.
 
+Without live credentials, the page instead shows **Use local member session**
+and **Use local admin session**. Use the member session to verify that `/app`
+does not show an Admin link and that `/admin` redirects back to login.
+
 ## 7. Execute the live login test
 
 1. Open `/login` in the same browser origin as `BETTER_AUTH_URL`.
@@ -201,7 +210,8 @@ where email = '<your-test-email>';
 
 Open `/admin` after the new session is established. A Google login without
 `app_user.role` set to `admin` or `super_admin` must be denied. Email domain
-alone never grants admin access.
+alone never grants admin access. A newly created Google user starts as a
+regular user; role promotion is an explicit server-side operation.
 
 ## 9. Troubleshooting
 

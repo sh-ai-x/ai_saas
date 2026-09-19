@@ -196,6 +196,8 @@ footer { justify-content: space-between; margin-top: 38px; padding-top: 18px; bo
 .user-app-page { min-height: 100vh; }
 .user-app-nav { width: min(1120px, calc(100% - 48px)); margin: 0 auto; border-bottom: 1px solid var(--line); padding: 21px 0; }
 .user-app-nav > div { gap: 18px; }
+.role-badge, .workspace-scope { border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px; color: var(--muted); font: 9px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+.workspace-scope { color: var(--accent); }
 .user-app-page .console-page { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
 .user-app-page .console-column { width: 100%; }
 .user-app-page .topbar { border-bottom: 0; padding-top: 21px; }

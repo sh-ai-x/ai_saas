@@ -8,6 +8,7 @@ import { GET as getAdminPolicy, PATCH as patchAdminPolicy } from "@/app/api/admi
 import { GET as getAdminPricing, POST as postAdminPricing } from "@/app/api/admin/pricing/route";
 import { GET as getAdminProviders, PATCH as patchAdminProvider } from "@/app/api/admin/payment-providers/route";
 import { getBillingPolicy, listPricingCatalog, setBillingMode } from "@/lib/pricing/repository";
+import { localDemoSession, localSessionCookie } from "@/lib/auth/local-session";
 
 process.env.APP_ENV = "test";
 process.env.ALLOW_LOCAL_ADMIN = "true";
@@ -16,7 +17,13 @@ delete process.env.DATABASE_URL;
 
 type NextRequestInit = ConstructorParameters<typeof NextRequest>[1];
 
-const request = (url: string, init?: NextRequestInit) => new NextRequest(`http://127.0.0.1:3012${url}`, init);
+const request = (url: string, init?: NextRequestInit) => new NextRequest(`http://127.0.0.1:3012${url}`, {
+  ...init,
+  headers: {
+    cookie: `${localSessionCookie}=${localDemoSession.session.id}`,
+    ...(init?.headers ?? {}),
+  },
+});
 const json = (body: unknown, init?: NextRequestInit) => request("/", {
   ...init,
   headers: { "content-type": "application/json", ...(init?.headers ?? {}) },

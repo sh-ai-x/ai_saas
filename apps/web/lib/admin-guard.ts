@@ -4,16 +4,12 @@ import { NextRequest } from "next/server";
 import { getSafeSession } from "@/lib/auth/session";
 
 /**
- * Local admin mode is intentionally explicit and is never accepted in
- * production. A deployed admin API uses a server-provisioned bearer token
- * until the Better Auth session is wired to this route group.
+ * Admin APIs accept either a server-provisioned bearer token or a
+ * server-resolved Better Auth session with an admin role. There is no
+ * credential-free local bypass: local demos must use the explicit admin
+ * session cookie.
  */
 export async function requireAdmin(request: NextRequest) {
-  const appEnv = process.env.APP_ENV ?? "local";
-  if ((appEnv === "local" || appEnv === "test") && process.env.ALLOW_LOCAL_ADMIN !== "false") {
-    return { actorUserId: "local-admin" };
-  }
-
   const expected = process.env.ADMIN_API_TOKEN;
   const received = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (expected && received) {

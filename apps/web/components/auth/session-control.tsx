@@ -29,7 +29,7 @@ export function SessionControl() {
   if (!session) return <a className="button button-quiet" href="/login">Sign in</a>;
   return (
     <span className="session-control">
-      <span>{session.user.name}</span>
+      <span>{session.user.name} · {session.user.role}</span>
       <button type="button" onClick={signOut}>Sign out</button>
     </span>
   );

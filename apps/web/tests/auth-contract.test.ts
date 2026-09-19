@@ -4,12 +4,13 @@ import { NextRequest } from "next/server";
 import { getTableName } from "drizzle-orm";
 
 import { GET as getAuthCatchAll } from "@/app/api/auth/[...all]/route";
+import { GET as getFoundation } from "@/app/api/foundation/[...path]/route";
 import { GET as getSession } from "@/app/api/auth/session/route";
 import { POST as localSignIn } from "@/app/api/auth/local/sign-in/route";
 import { POST as localSignOut } from "@/app/api/auth/local/sign-out/route";
 import { schema } from "@/db";
 import { requireAdmin } from "@/lib/admin-guard";
-import { localDemoSession, localSessionCookie } from "@/lib/auth/local-session";
+import { localDemoSession, localMemberSession, localSessionCookie } from "@/lib/auth/local-session";
 
 const originalEnv = {
   appEnv: process.env.APP_ENV,
@@ -58,7 +59,7 @@ describe("Google auth and session contracts", () => {
   });
 
   it("creates a local demo session with an httpOnly cookie and exposes a safe projection", async () => {
-    const signIn = await localSignIn();
+    const signIn = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", { method: "POST", body: "{}" }));
     assert.equal(signIn.status, 200);
     const setCookie = signIn.headers.get("set-cookie") ?? "";
     assert.match(setCookie, new RegExp(`${localSessionCookie}=${localDemoSession.session.id}`));
@@ -72,6 +73,39 @@ describe("Google auth and session contracts", () => {
     assert.equal((body.session.user as Record<string, unknown>).email, "demo@example.test");
     assert.equal("accessToken" in body.session, false);
     assert.equal("refreshToken" in body.session, false);
+  });
+
+  it("keeps local member sessions out of admin authorization", async () => {
+    const signIn = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    }));
+    assert.equal(signIn.status, 200);
+    assert.match(signIn.headers.get("set-cookie") ?? "", new RegExp(`${localSessionCookie}=${localMemberSession.session.id}`));
+
+    const session = await getSession(new NextRequest("http://127.0.0.1:3012/api/auth/session", {
+      headers: { cookie: `${localSessionCookie}=${localMemberSession.session.id}` },
+    }));
+    const body = await session.json() as { session: { user: { role: string } } };
+    assert.equal(body.session.user.role, "member");
+    await assert.rejects(
+      () => requireAdmin(new NextRequest("http://127.0.0.1:3012/api/admin", {
+        headers: { cookie: `${localSessionCookie}=${localMemberSession.session.id}` },
+      })),
+      /admin authorization denied/,
+    );
+  });
+
+  it("returns 403 when a member reaches the foundation admin proxy", async () => {
+    const response = await getFoundation(
+      new NextRequest("http://127.0.0.1:3012/api/foundation/v1/admin/users", {
+        headers: { cookie: `${localSessionCookie}=${localMemberSession.session.id}` },
+      }),
+      { params: Promise.resolve({ path: ["v1", "admin", "users"] }) },
+    );
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).error, "admin authorization denied");
   });
 
   it("returns a safe not-configured response instead of starting OAuth locally", async () => {

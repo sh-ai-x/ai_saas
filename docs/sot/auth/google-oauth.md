@@ -61,12 +61,15 @@ console, API routes, and future identity service can share a migration:
 The `account` table is the identity-linking authority: a changed Google email
 does not create a new local user when the provider subject is unchanged. The
 `app_user.role` value is checked by the admin boundary; email domain or Google
-login status alone is not sufficient for privileged access.
+login status alone is not sufficient for privileged access. New Google users
+start as regular users until an explicit server-side role promotion.
 
 ## Runtime profiles
 
 - `local`: demo session and deterministic mock sign-in remain available without
-  Google credentials; no provider redirect is attempted.
+  Google credentials; no provider redirect is attempted. Local member and
+  local admin demo sessions are separate, and only the latter can pass the
+  admin role boundary.
 - `test`: callback validation and session contracts use deterministic fixtures;
   no network token exchange is required.
 - `staging`/`production`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,

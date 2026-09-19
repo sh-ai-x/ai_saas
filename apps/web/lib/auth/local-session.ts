@@ -30,7 +30,27 @@ export const localDemoSession: SafeAuthSession = {
   },
 };
 
+export const localMemberSession: SafeAuthSession = {
+  user: {
+    id: "demo-member",
+    name: "Local Member",
+    email: "member@example.test",
+    image: null,
+    role: "member",
+  },
+  session: {
+    id: "demo-member-session",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  },
+};
+
+export function localSessionForId(sessionId: string | undefined): SafeAuthSession | null {
+  if (sessionId === localDemoSession.session.id) return localDemoSession;
+  if (sessionId === localMemberSession.session.id) return localMemberSession;
+  return null;
+}
+
 export async function readLocalSession(): Promise<SafeAuthSession | null> {
   const jar = await cookies();
-  return jar.get(localSessionCookie)?.value === localDemoSession.session.id ? localDemoSession : null;
+  return localSessionForId(jar.get(localSessionCookie)?.value);
 }

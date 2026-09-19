@@ -1,4 +1,6 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+import { requireAdmin } from "@/lib/admin-guard";
 
 const foundationApiUrl =
   process.env.FOUNDATION_API_URL ?? "http://127.0.0.1:8080";
@@ -7,6 +9,14 @@ type RouteContext = { params: Promise<{ path: string[] }> };
 
 async function proxy(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
+  const isAdminPath = path[0] === "v1" && path[1] === "admin";
+  if (isAdminPath) {
+    try {
+      await requireAdmin(request);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "admin authorization required" }, { status: 403 });
+    }
+  }
   const target = `${foundationApiUrl.replace(/\/$/, "")}/${path.join("/")}${
     request.nextUrl.search
   }`;

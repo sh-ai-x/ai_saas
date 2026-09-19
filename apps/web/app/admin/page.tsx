@@ -1,3 +1,5 @@
+import { AdminOperationsConsole } from "@/components/admin-operations-console";
+
 export default function AdminPage() {
   return (
     <div className="admin-page">
@@ -7,6 +9,7 @@ export default function AdminPage() {
         <a className="admin-card" href="/admin/payments"><span className="eyebrow">02 / PAYMENTS</span><strong>Provider settings</strong><p>Choose mock, Toss, or Lemon Squeezy with one-live-provider enforcement and safe public identifiers.</p><span className="card-link">Open settings →</span></a>
         <a className="admin-card" href="/guides"><span className="eyebrow">03 / OPERATIONS</span><strong>Setup guides</strong><p>Follow imported Markdown guides for Neon, Google OAuth, sandbox payment, Agent, and verification setup.</p><span className="card-link">Read guides →</span></a>
       </section>
+      <AdminOperationsConsole />
       <section className="admin-callout"><p className="eyebrow accent">DATA BOUNDARY</p><h2>Neon is the source of truth.</h2><p>Drizzle owns the relational pricing schema. Local mode uses an explicit seed fallback only when `DATABASE_URL` is absent and `APP_ENV` is not production. Provider secrets stay in runtime environment or a secret manager.</p></section>
     </div>
   );
