@@ -14,7 +14,8 @@ Acceptance:
   login setup, Agent setup, and payment setup pages.
 - Browser verification confirms that `/` and `/guides` are separate, the
   Markdown source editor renders imported guide files, the payment group has
-  Toss and Lemon Squeezy child pages, and the active source can be copied.
+  Toss and Lemon Squeezy child pages, the database group has a Neon PostgreSQL
+  child page, and the active source can be copied.
 - Step outputs are valid JSON and contain commands, exit codes, and environment
   notes without secret values.
 

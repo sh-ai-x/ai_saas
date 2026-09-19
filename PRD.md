@@ -78,6 +78,7 @@ provider is enabled only after its configuration validator passes.
 | 10 | agent-provider-runtime | 7 | Provider-neutral model port with OpenAI, Anthropic, and Gemini HTTP adapters, bounded usage, redaction, and run integration |
 | 11 | setup-guide-console | 8–10 | Dedicated `/guides` Markdown editor, hierarchical left sidebar with separate Toss/Lemon Squeezy pages, environment examples, and a link back to the console |
 | 12 | integration-e2e-verification | 8–11 | Contract, config, adapter, API, browser, and sandbox fixture verification with step output evidence |
+| 13 | neon-production-database | 7, 12 | Linked Neon production branch, committed policy, ignored connection env flow, read-only connectivity evidence, and web setup guide |
 
 ### Real integration constraints
 
@@ -113,3 +114,7 @@ provider is enabled only after its configuration validator passes.
   category-based setup guides for local, Google, separate Toss and Lemon
   Squeezy payments, Agent, verification, and operations; the sidebar links the
   guides back to the `/` console without breaking the local profile.
+- **REQ-11:** The cloud database setup uses the linked Neon PostgreSQL
+  production branch with no committed credentials; `neon.ts`, policy plan/
+  deploy, read-only connectivity, ignored env injection, and a web-visible
+  Markdown setup guide are reproducible.

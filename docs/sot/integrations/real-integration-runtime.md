@@ -42,6 +42,10 @@ Lemon Squeezy, OpenAI, Anthropic, or Gemini directly.
   production. Both live providers cannot be configured together.
 - `AGENT_PROVIDER=local` is deterministic. External providers require a
   runtime API key plus explicit model, output, and timeout bounds.
+- Neon PostgreSQL is the durable cloud database baseline. The linked
+  `production` branch receives the repository policy from `neon.ts`; `.neon`
+  and `.env.local` remain ignored. The free local profile may use disposable
+  local storage and must not require Neon credentials to run.
 
 ## API sequence
 
@@ -68,4 +72,6 @@ the parser derives sidebar metadata and step previews from the imported
 document. The product landing/operator console remains at `/`; the guide
 editor is a separate `/guides` route. Its payment group has separate Toss and
 Lemon Squeezy child documents so provider semantics are not collapsed into one
-ambiguous setup page.
+ambiguous setup page. Its database group has a separate Neon PostgreSQL child
+document covering authentication, linking, policy deploy, env injection, and
+read-only verification.

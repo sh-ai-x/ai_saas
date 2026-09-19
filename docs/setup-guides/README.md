@@ -14,6 +14,7 @@ at `/`.
 | Agent | [04-agent-providers.md](04-agent-providers.md) | model API key: server only |
 | Verify | [05-verification.md](05-verification.md) | deterministic fixtures first |
 | Operate | [06-operations.md](06-operations.md) | managed secret store in deployment |
+| Database / Neon | [07-neon-database.md](07-neon-database.md) | Neon connection values: ignored env only |
 
 The local profile is intentionally complete without external credentials. Move
 to a real integration only after the API contract and fixture tests pass.

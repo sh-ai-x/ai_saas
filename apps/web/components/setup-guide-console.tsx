@@ -60,8 +60,15 @@ export function SetupGuideConsole() {
     () => setupGuides.filter((guide) => guide.id.startsWith("payment-")),
     [],
   );
+  const databaseGuides = useMemo(
+    () => setupGuides.filter((guide) => guide.id.startsWith("database-")),
+    [],
+  );
   const standaloneGuides = useMemo(
-    () => setupGuides.filter((guide) => !guide.id.startsWith("payment-")),
+    () =>
+      setupGuides.filter(
+        (guide) => !guide.id.startsWith("payment-") && !guide.id.startsWith("database-"),
+      ),
     [],
   );
   const activeGuide = useMemo(
@@ -81,6 +88,14 @@ export function SetupGuideConsole() {
               <span>{guide.category}</span><strong>{guide.title}</strong>
             </button>
           ))}
+          <div className="guide-nav-group">
+            <p className="guide-nav-group-label">DATABASE</p>
+            {databaseGuides.map((guide) => (
+              <button className={`guide-nav-item guide-nav-child ${activeGuideId === guide.id ? "is-active" : ""}`} key={guide.id} onClick={() => setActiveGuideId(guide.id)} aria-current={activeGuideId === guide.id ? "page" : undefined}>
+                <span>DATABASE</span><strong>{guide.title}</strong>
+              </button>
+            ))}
+          </div>
           <div className="guide-nav-group">
             <p className="guide-nav-group-label">PAYMENTS</p>
             {paymentGuides.map((guide) => (

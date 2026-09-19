@@ -135,6 +135,14 @@
       "started_at": "2026-09-19T07:32:24+0900",
       "status": "completed",
       "step": 12
+    },
+    {
+      "completed_at": "2026-09-19T08:58:00+0900",
+      "depends_on": [7, 12],
+      "duration_seconds": 0,
+      "name": "neon-production-database",
+      "status": "completed",
+      "step": 13
     }
   ]
 }

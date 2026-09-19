@@ -5,6 +5,7 @@ import lemonSqueezyPaymentsMarkdown from "./guides/03-payment-lemonsqueezy.md";
 import agentProvidersMarkdown from "./guides/04-agent-providers.md";
 import verificationMarkdown from "./guides/05-verification.md";
 import operationsMarkdown from "./guides/06-operations.md";
+import neonDatabaseMarkdown from "./guides/07-neon-database.md";
 
 export type SetupGuideStep = {
   title: string;
@@ -35,6 +36,7 @@ const markdownSources: MarkdownSource[] = [
   { path: "apps/web/content/guides/04-agent-providers.md", raw: agentProvidersMarkdown },
   { path: "apps/web/content/guides/05-verification.md", raw: verificationMarkdown },
   { path: "apps/web/content/guides/06-operations.md", raw: operationsMarkdown },
+  { path: "apps/web/content/guides/07-neon-database.md", raw: neonDatabaseMarkdown },
 ];
 
 function parseFrontmatter(raw: string) {
