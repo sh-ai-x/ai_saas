@@ -172,6 +172,20 @@ GOOGLE_CLIENT_SECRET=<server-only-client-secret>
 NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
 ```
 
+When the web app runs through Docker Compose, copy the same server-side values
+to the ignored root `.env`. Docker does not automatically read
+`apps/web/.env.local`. Start the stack from the repository root with:
+
+```bash
+pnpm docker:local
+```
+
+This command explicitly loads the root `.env`, rebuilds the web image, and
+force-recreates the containers. Without recreating the web container, a
+previously empty Google configuration remains in its process environment and
+the login page intentionally shows the setup guide instead of the Google
+button.
+
 To prepare the environment without changing the database, omit `--migrate`:
 
 ```bash
@@ -290,6 +304,7 @@ regular user; role promotion is an explicit server-side operation.
 | `redirect_uri_mismatch` | Browser origin, port, path, scheme, and trailing slash match the Google client exactly. |
 | `access_denied` or test-user warning | Add the account under Google Cloud **Audience → Test users** or publish the app when ready. |
 | Google setup notice remains | `APP_ENV`, `BETTER_AUTH_URL`, database, Google client values, and `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` were not loaded by the web process. |
+| Google setup notice remains in Docker | Put the values in the root `.env` and run `pnpm docker:local`; changing `apps/web/.env.local` alone does not update an existing container. |
 | `auth_not_configured` | The server intentionally failed closed because one required live-auth value is missing. Restart after editing `.env.local`. |
 | `/admin` redirects to login | The Google user exists but `app_user.role` is not `admin`/`super_admin`, or the session predates the role change. |
 | `invalid_client` | Client ID/secret belong to a different Google Cloud project or environment. Rotate the secret in the deployment secret store. |

@@ -43,8 +43,7 @@ image, Foundation API, PostgreSQL companion, and Drizzle migration job:
 
 ```bash
 cp .env.docker.example .env
-export APP_SECRET_KEY="$(openssl rand -base64 32)"
-docker compose -f docker/prod/compose.yaml up --build
+pnpm docker:local
 ```
 
 The browser uses `http://localhost:3000`; the Next.js server reaches the API
@@ -55,6 +54,8 @@ payments. Local Compose PostgreSQL uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For live Google login, fill the server-only
 Better Auth and Google values in the ignored root `.env`; `apps/web/.env.local`
 is used by process-mode commands, not automatically by Docker Compose.
+`pnpm docker:local` explicitly loads the root `.env`, rebuilds the images, and
+force-recreates the containers so changed OAuth values are applied.
 
 The production build is local-only and does not require Vercel, Neon, Stripe,
 Toss, Lemon Squeezy, or a running Docker daemon:

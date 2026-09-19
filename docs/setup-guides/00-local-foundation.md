@@ -37,8 +37,7 @@ Neon, Google, Toss, or Lemon Squeezy credentials in its default local mode.
 
 ```bash
 cp .env.docker.example .env
-export APP_SECRET_KEY="$(openssl rand -base64 32)"
-docker compose -f docker/prod/compose.yaml up --build
+pnpm docker:local
 ```
 
 Open [http://localhost:3000](http://localhost:3000). The API is available at
@@ -49,7 +48,10 @@ when disposable local data should be removed.
 The local Compose PostgreSQL service uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For a real Google login, fill the server-only
 Better Auth and Google values in the ignored root `.env`; the Docker service
-does not automatically load `apps/web/.env.local`.
+does not automatically load `apps/web/.env.local`. The `docker:local` command
+always reads the root `.env`, rebuilds, and force-recreates the stack so
+changes to OAuth or database settings reach the containers. If
+`APP_SECRET_KEY` is blank, it generates an ephemeral value for that run.
 
 ## 3. Verify the contract
 
