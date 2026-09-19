@@ -34,6 +34,12 @@ class ConfigurationTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             validate_profile(values)
 
+    def test_short_secret_fails_closed(self) -> None:
+        values = valid_free()
+        values["APP_SECRET_KEY"] = "x" * 31
+        with self.assertRaises(ConfigError):
+            validate_profile(values)
+
     def test_paid_resource_fails_closed(self) -> None:
         values = {**valid_free(), "REDIS_URL": "redis://paid"}
         with self.assertRaises(ConfigError):
