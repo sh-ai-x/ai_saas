@@ -1,0 +1,20 @@
+{
+  "commands": [
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -m unittest tests/test_payment_sandbox_api.py",
+      "duration_seconds": 0.097,
+      "exit_code": 0,
+      "stderr": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.009s\n\nOK\n",
+      "stdout": ""
+    }
+  ],
+  "duration_seconds": 0.097,
+  "environment_note": "Provider integration evidence uses deterministic HTTP fixtures. Sandbox credentials are required only for the documented external smoke step; no credential value is recorded in this output.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.009s\n\nOK\n",
+  "stdout": "",
+  "step": 9,
+  "timestamp": "2026-09-18T22:32:15.741300+00:00"
+}

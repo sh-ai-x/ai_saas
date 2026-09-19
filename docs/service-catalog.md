@@ -31,6 +31,13 @@ Lemon Squeezy, and mock adapter implementations are not part of this step and
 must not be imported by domain modules. A service may not write another
 service's tables directly.
 
+The web console is intentionally a thin local boundary. Its Next.js route
+handler proxies same-origin requests to the composition root, while the
+browser only owns presentation state and demo input. Identity, tenant scope,
+run durability, credit reservation, webhook verification, and admin audit
+records remain server-owned. This preserves the logical MSA ownership model
+without physically splitting the free-portfolio deployment.
+
 ## Deployment profiles
 
 `free-portfolio` is the default: one web/application process, local or managed

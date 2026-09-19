@@ -166,6 +166,24 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(create_status, 403)
         self.assertEqual(create_response["error"], "authorization_denied")  # type: ignore[index]
 
+    def test_agent_api_and_provider_status_route_use_the_existing_run_contract(self) -> None:
+        provider_status, provider = self.request("GET", "/v1/agent/providers")
+        self.assertEqual(provider_status, 200)
+        self.assertEqual(provider["provider"], "local")  # type: ignore[index]
+        execute_status, run = self.request(
+            "POST",
+            "/v1/agent/execute",
+            {
+                "tenant_id": "demo-tenant",
+                "input": {"message": "agent api"},
+                "idempotency_key": "agent-api-test-001",
+                "trace_id": "agent-api-trace-001",
+            },
+        )
+        self.assertEqual(execute_status, 201)
+        self.assertEqual(run["state"], "completed")  # type: ignore[index]
+        self.assertEqual(run["result"]["output"], "Local echo: agent api")  # type: ignore[index]
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ build/
 coverage/
 __pycache__/
 *.py[cod]
+*.tsbuildinfo
 
 # >>> dev-kit >>>
 # dev-kit runtime artifacts (auto-installed by `dev-kit:ci-setup`; issue #202).

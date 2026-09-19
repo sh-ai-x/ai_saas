@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from .base import generic_checkout_response, header, json_request, normalized, parse_json, parse_time, verify_hmac
+from ..errors import InvalidWebhook
 from ..models import CheckoutRequest, CheckoutResponse, NormalizedEvent
 
 
@@ -18,12 +19,18 @@ class LemonSqueezyAdapter:
         *,
         api_key: str | None = None,
         webhook_secret: str,
+        store_id: str | None = None,
+        variant_id: str | None = None,
+        redirect_url: str = "",
         base_url: str = "https://api.lemonsqueezy.com",
         test_mode: bool = False,
         request_json: Callable[..., dict[str, Any]] = json_request,
     ) -> None:
         self._api_key = api_key or ""
         self._webhook_secret = webhook_secret
+        self._store_id = str(store_id or "")
+        self._variant_id = str(variant_id or "")
+        self._redirect_url = redirect_url
         self._base_url = base_url.rstrip("/")
         self._test_mode = test_mode
         self._request_json = request_json
@@ -31,11 +38,28 @@ class LemonSqueezyAdapter:
     def create_checkout(self, request: CheckoutRequest) -> CheckoutResponse:
         if not self._api_key:
             raise RuntimeError("Lemon Squeezy API key is not configured")
+        if not self._store_id or not self._variant_id:
+            raise RuntimeError("Lemon Squeezy store and variant IDs are not configured")
+        attributes: dict[str, object] = {
+            "test_mode": self._test_mode,
+            "checkout_data": {"custom": {"order_id": request.order_id, "tenant_id": request.tenant_id}},
+        }
+        if self._redirect_url:
+            attributes["product_options"] = {"redirect_url": self._redirect_url}
         value = self._request_json(
             "POST",
             f"{self._base_url}/v1/checkouts",
             {"Authorization": f"Bearer {self._api_key}", "Accept": "application/vnd.api+json", "Content-Type": "application/vnd.api+json"},
-            {"data": {"type": "checkouts", "attributes": {"custom_data": {"order_id": request.order_id, "plan_id": request.plan_id}, "product_id": request.plan_id}}},
+            {
+                "data": {
+                    "type": "checkouts",
+                    "attributes": attributes,
+                    "relationships": {
+                        "store": {"data": {"type": "stores", "id": self._store_id}},
+                        "variant": {"data": {"type": "variants", "id": self._variant_id}},
+                    },
+                }
+            },
         )
         data = value.get("data") if isinstance(value.get("data"), dict) else value
         attributes = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
@@ -48,6 +72,12 @@ class LemonSqueezyAdapter:
         meta = value.get("meta") if isinstance(value.get("meta"), dict) else {}
         data = value.get("data") if isinstance(value.get("data"), dict) else {}
         attributes = data.get("attributes") if isinstance(data.get("attributes"), dict) else {}
+        store_id = str(attributes.get("store_id") or "")
+        variant_id = str(attributes.get("variant_id") or "")
+        if self._store_id and store_id != self._store_id:
+            raise InvalidWebhook("Lemon Squeezy store does not match the configured store")
+        if self._variant_id and variant_id != self._variant_id:
+            raise InvalidWebhook("Lemon Squeezy variant does not match the configured variant")
         custom = meta.get("custom_data") if isinstance(meta.get("custom_data"), dict) else {}
         event_type = str(meta.get("event_name") or header(headers, "x-event-name") or "subscription.updated")
         event_id = str(data.get("id") or meta.get("event_id") or "")

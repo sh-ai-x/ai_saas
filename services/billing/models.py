@@ -58,6 +58,17 @@ class CheckoutResponse:
     provider_reference: str
     checkout_url: str
     test_mode: bool
+    # Opaque, non-secret browser handoff data owned by the adapter.
+    checkout_context: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "provider": self.provider,
+            "provider_reference": self.provider_reference,
+            "checkout_url": self.checkout_url,
+            "test_mode": self.test_mode,
+            "checkout_context": dict(self.checkout_context),
+        }
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,19 @@
+{
+  "$id": "https://ai-saas.foundation/contracts/rest/v1/payment-provider-status.json",
+  "version": "v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "provider", "sandbox", "mock_enabled"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "provider": {"enum": ["mock", "toss", "lemon-squeezy"]},
+    "sandbox": {"type": "boolean"},
+    "mock_enabled": {"type": "boolean"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "provider": "mock",
+    "sandbox": true,
+    "mock_enabled": true
+  }
+}

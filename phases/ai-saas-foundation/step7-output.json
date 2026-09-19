@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -m foundation.contract_check",
+      "duration_seconds": 0.192,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "PASS validated 17 versioned JSON contracts\nPASS validated provider registry\nPASS validated free-portfolio profile and fail-closed negatives\nPASS validated aws-worker profile and fail-closed negatives\nPASS validated interruptible ARM64 Fargate Spot RunTask contract\nPASS validated Google callback and one-time state\nPASS validated tenant RBAC denial\nPASS validated reason-required admin mutation and audit snapshots\nPASS validated REQ-3 provider adapters share inbox, normalized-event, entitlement, ledger, and audit path\nPASS validated durable run idempotency, reservation, checkpoint, recovery, and replay\n"
+    },
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -m unittest tests/test_integration_contracts.py",
+      "duration_seconds": 0.06,
+      "exit_code": 0,
+      "stderr": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK\n",
+      "stdout": ""
+    }
+  ],
+  "duration_seconds": 0.253,
+  "environment_note": "Provider integration evidence uses deterministic HTTP fixtures. Sandbox credentials are required only for the documented external smoke step; no credential value is recorded in this output.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK\n",
+  "stdout": "PASS validated 17 versioned JSON contracts\nPASS validated provider registry\nPASS validated free-portfolio profile and fail-closed negatives\nPASS validated aws-worker profile and fail-closed negatives\nPASS validated interruptible ARM64 Fargate Spot RunTask contract\nPASS validated Google callback and one-time state\nPASS validated tenant RBAC denial\nPASS validated reason-required admin mutation and audit snapshots\nPASS validated REQ-3 provider adapters share inbox, normalized-event, entitlement, ledger, and audit path\nPASS validated durable run idempotency, reservation, checkpoint, recovery, and replay\n\n",
+  "step": 7,
+  "timestamp": "2026-09-18T22:32:15.458960+00:00"
+}
