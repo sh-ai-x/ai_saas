@@ -5,7 +5,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: foundation
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foundation-local-only}
+      POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: foundation
     volumes:
       - foundation_postgres_data:/var/lib/postgresql/data
@@ -25,7 +25,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       DEPLOYMENT_PROFILE: free-portfolio
       APP_BASE_URL: ${FOUNDATION_PUBLIC_URL:-http://localhost:8080}
-      DATABASE_URL: postgresql://foundation:${POSTGRES_PASSWORD:-foundation-local-only}@postgres:5432/foundation
+      DATABASE_URL: postgresql://foundation@postgres:5432/foundation
       APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY to a generated value}
       CONTRACT_VERSION: v1
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
@@ -40,6 +40,7 @@ services:
       OTEL_SAMPLE_RATE: ${OTEL_SAMPLE_RATE:-0.1}
       OTEL_EXPORTER: ${OTEL_EXPORTER:-memory}
       LOCAL_STATE_DB: /var/lib/ai-saas/foundation.sqlite3
+      UV_CACHE_DIR: /tmp/uv-cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,7 +55,7 @@ services:
       dockerfile: apps/web/Dockerfile
       target: migrator
     environment:
-      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation:foundation-local-only@postgres:5432/foundation}
+      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation@postgres:5432/foundation}
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,9 +72,9 @@ services:
       APP_BASE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
-      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation:foundation-local-only@postgres:5432/foundation}
+      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation@postgres:5432/foundation}
       FOUNDATION_API_URL: http://foundation:8080
-      NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+      NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-true}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       PAYMENT_PROVIDER: ${WEB_PAYMENT_PROVIDER:-mock}

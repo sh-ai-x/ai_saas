@@ -2,7 +2,7 @@
 const nextConfig = {
   poweredByHeader: false,
   output: "standalone",
-  outputFileTracingRoot: new URL(".", import.meta.url).pathname,
+  outputFileTracingRoot: new URL("../..", import.meta.url).pathname,
   webpack(config) {
     config.module.rules.push({
       test: /\.md$/,

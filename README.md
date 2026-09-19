@@ -237,10 +237,12 @@ docker compose -f docker/prod/compose.yaml up --build
 
 Open `http://localhost:3000` for the web console and
 `http://localhost:8080/healthz` for the API health check. The default profile
-uses mock payments, while the browser has no local/mock login fallback. Set
-`WEB_DATABASE_URL` to the Neon connection string and provide the live
-Google OAuth/payment secrets through the ignored `.env` file when running a
-staging-like container. The Google callback for this local container remains:
+uses mock payments, while the browser has no local/mock login fallback. Local
+Compose PostgreSQL uses trust authentication and does not require
+`POSTGRES_PASSWORD`. For live Google login, fill `BETTER_AUTH_SECRET`,
+`GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the ignored root `.env`; use
+the local default `WEB_DATABASE_URL` or set it to the intended Neon connection
+string. The Google callback for this local container remains:
 `http://localhost:3000/api/auth/callback/google`.
 
 The `web-migrate` service must complete before `web` starts. This is suitable
