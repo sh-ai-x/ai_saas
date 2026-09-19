@@ -1,0 +1,31 @@
+{
+  "$id": "https://ai-saas.foundation/contracts/rest/v1/agent-execute.json",
+  "version": "v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "tenant_id", "project_id", "idempotency_key", "trace_id", "input"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "trace_id": {"type": "string", "minLength": 8},
+    "input": {"type": "object"},
+    "reserve_units": {"type": "integer"},
+    "max_steps": {"type": "integer"},
+    "max_model_calls": {"type": "integer"},
+    "max_runtime_seconds": {"type": "number"}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "tenant_id": "demo-tenant",
+    "project_id": "demo-project",
+    "idempotency_key": "agent-run-12345678",
+    "trace_id": "agent-trace-12345678",
+    "input": {"message": "hello"},
+    "reserve_units": 1,
+    "max_steps": 1,
+    "max_model_calls": 1,
+    "max_runtime_seconds": 30
+  }
+}

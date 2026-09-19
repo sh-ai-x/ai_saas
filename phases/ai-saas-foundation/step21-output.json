@@ -1,0 +1,13 @@
+{
+  "exit_code": 0,
+  "stdout": "Better Auth route, Drizzle adapter, local session fallback, production fail-closed configuration, and admin session guard compiled; aggregate lint/test/build passed.",
+  "stderr": "",
+  "timestamp": "2026-09-19T11:34:52+0900",
+  "commands": [
+    {"command": "npm run test:all", "exit_code": 0, "duration_seconds": 13.57388825, "tests": 17, "suites": 4, "generated_pages": 11}
+  ],
+  "limitations": [
+    "No live Google token exchange is performed in deterministic tests.",
+    "Production role enforcement is wired to the Better Auth session and requires a real configured database/provider environment."
+  ]
+}

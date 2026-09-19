@@ -1,0 +1,135 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import { setupGuides, SetupGuide } from "../content/setup-guides";
+
+function GuidePanel({ guide }: { guide: SetupGuide }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyMarkdown() {
+    try {
+      await navigator.clipboard.writeText(guide.markdown);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <section className="guide-panel">
+      <div className="guide-heading">
+        <p className="eyebrow accent">SETUP GUIDE / {guide.category}</p>
+        <h2>{guide.title}</h2>
+        <p>{guide.summary}</p>
+      </div>
+      <div className="markdown-editor" aria-label={`${guide.title} Markdown source`}>
+        <div className="markdown-toolbar">
+          <span className="markdown-path">{guide.path}</span>
+          <span className="markdown-mode">MARKDOWN · READ ONLY</span>
+          <button className="markdown-copy" type="button" onClick={copyMarkdown}>
+            {copied ? "Copied" : "Copy markdown"}
+          </button>
+        </div>
+        <pre className="markdown-source">
+          {guide.markdown.split("\n").map((line, index) => (
+            <span className="markdown-line" key={`${index}-${line}`}>
+              <span className="line-number">{String(index + 1).padStart(2, "0")}</span>
+              <span>{line || " "}</span>
+            </span>
+          ))}
+        </pre>
+      </div>
+      <div className="markdown-preview" aria-label={`${guide.title} rendered Markdown`}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children, ...props }) => {
+              const external = href?.startsWith("http://") || href?.startsWith("https://");
+              return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} {...props}>{children}</a>;
+            },
+            table: ({ children }) => <div className="markdown-table-wrap"><table>{children}</table></div>,
+          }}
+        >
+          {guide.content}
+        </ReactMarkdown>
+      </div>
+    </section>
+  );
+}
+
+export function SetupGuideConsole() {
+  const [activeGuideId, setActiveGuideId] = useState("getting-started");
+  useEffect(() => {
+    const requestedGuide = new URLSearchParams(window.location.search).get("guide");
+    if (requestedGuide && setupGuides.some((guide) => guide.id === requestedGuide)) {
+      setActiveGuideId(requestedGuide);
+    }
+  }, []);
+  const paymentGuides = useMemo(
+    () => setupGuides.filter((guide) => guide.id.startsWith("payment-")),
+    [],
+  );
+  const databaseGuides = useMemo(
+    () => setupGuides.filter((guide) => guide.id.startsWith("database-")),
+    [],
+  );
+  const standaloneGuides = useMemo(
+    () =>
+      setupGuides.filter(
+        (guide) => !guide.id.startsWith("payment-") && !guide.id.startsWith("database-"),
+      ),
+    [],
+  );
+  const activeGuide = useMemo(
+    () => setupGuides.find((guide) => guide.id === activeGuideId) ?? setupGuides[0],
+    [activeGuideId],
+  );
+
+  return (
+    <main className="app-shell">
+      <aside className="guide-sidebar" aria-label="Setup guide navigation">
+        <a className="sidebar-home" href="/">← Operator console</a>
+        <div className="sidebar-brand"><span className="brand-mark">AI</span><div><p className="eyebrow">FOUNDATION</p><strong>Setup guides</strong></div></div>
+        <p className="sidebar-caption">Provider setup and verification</p>
+        <nav className="guide-nav">
+          {standaloneGuides.map((guide) => (
+            <button className={`guide-nav-item ${activeGuideId === guide.id ? "is-active" : ""}`} key={guide.id} onClick={() => setActiveGuideId(guide.id)} aria-current={activeGuideId === guide.id ? "page" : undefined}>
+              <span>{guide.category}</span><strong>{guide.title}</strong>
+            </button>
+          ))}
+          <div className="guide-nav-group">
+            <p className="guide-nav-group-label">DATABASE</p>
+            {databaseGuides.map((guide) => (
+              <button className={`guide-nav-item guide-nav-child ${activeGuideId === guide.id ? "is-active" : ""}`} key={guide.id} onClick={() => setActiveGuideId(guide.id)} aria-current={activeGuideId === guide.id ? "page" : undefined}>
+                <span>DATABASE</span><strong>{guide.title}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="guide-nav-group">
+            <p className="guide-nav-group-label">PAYMENTS</p>
+            {paymentGuides.map((guide) => (
+              <button className={`guide-nav-item guide-nav-child ${activeGuideId === guide.id ? "is-active" : ""}`} key={guide.id} onClick={() => setActiveGuideId(guide.id)} aria-current={activeGuideId === guide.id ? "page" : undefined}>
+                <span>PAYMENT</span><strong>{guide.title}</strong>
+              </button>
+            ))}
+          </div>
+        </nav>
+        <div className="sidebar-note"><span className="status-dot" /> Secrets stay server-side<br /><small>Sandbox first · one provider at a time</small></div>
+      </aside>
+
+      <section className="console-column">
+        <header className="guide-topbar">
+          <div><p className="eyebrow accent">DOCUMENTATION / MARKDOWN</p><h1>Integration setup guides</h1></div>
+          <a className="button button-quiet" href="/">Open operator console</a>
+        </header>
+        <div className="content-wrap">
+          <GuidePanel guide={activeGuide} />
+        </div>
+      </section>
+    </main>
+  );
+}

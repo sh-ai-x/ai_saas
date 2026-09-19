@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import hmac
 import json
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
@@ -42,11 +43,18 @@ class FoundationHandler(BaseHTTPRequestHandler):
     def runtime(self) -> LocalRuntime:
         return self.server.runtime  # type: ignore[attr-defined]
 
-    def _json(self, status: int, payload: Mapping[str, object]) -> None:
+    def _json(
+        self,
+        status: int,
+        payload: Mapping[str, object],
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> None:
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -64,7 +72,7 @@ class FoundationHandler(BaseHTTPRequestHandler):
     def _error(self, status: int, code: str, message: str) -> None:
         self._json(status, {"error": code, "message": message})
 
-    def _body(self) -> dict[str, Any]:
+    def _raw_body(self) -> bytes:
         raw_length = self.headers.get("Content-Length", "0")
         try:
             length = int(raw_length)
@@ -72,7 +80,10 @@ class FoundationHandler(BaseHTTPRequestHandler):
             raise ValueError("invalid content length") from exc
         if length < 0 or length > MAX_BODY_BYTES:
             raise ValueError("request body is too large")
-        raw = self.rfile.read(length)
+        return self.rfile.read(length)
+
+    @staticmethod
+    def _decode_body(raw: bytes) -> dict[str, Any]:
         try:
             value = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -81,8 +92,14 @@ class FoundationHandler(BaseHTTPRequestHandler):
             raise ValueError("request body must be a JSON object")
         return value
 
+    def _body(self) -> dict[str, Any]:
+        return self._decode_body(self._raw_body())
+
     def _tenant(self) -> str:
-        return self.headers.get("X-Tenant-Id", DEMO_TENANT_ID)
+        supplied = self.headers.get("X-Tenant-Id")
+        if supplied:
+            return supplied
+        return self.runtime.session.active_tenant_id or DEMO_TENANT_ID
 
     def _request_tenant(self, expected: str | None = None) -> str:
         tenant_id = self._tenant()
@@ -92,7 +109,11 @@ class FoundationHandler(BaseHTTPRequestHandler):
         return tenant_id
 
     def _session(self):
-        session_id = self.headers.get("X-Session-Id", "demo-session")
+        session_id = self.headers.get("X-Session-Id")
+        if not session_id:
+            cookie = SimpleCookie()
+            cookie.load(self.headers.get("Cookie", ""))
+            session_id = cookie.get("foundation_session").value if cookie.get("foundation_session") else "demo-session"
         if session_id != self.runtime.session.session_id:
             raise AuthorizationDenied("session access denied")
         return self.runtime.identity.authenticate(self.runtime.session)
@@ -131,6 +152,31 @@ class FoundationHandler(BaseHTTPRequestHandler):
             self._request_tenant(self.runtime.session.active_tenant_id)
             self._session()
             self._json(200, self.runtime.auth_payload())
+            return
+        if path == "/v1/agent/providers":
+            self._json(
+                200,
+                {
+                    "contract_version": "v1",
+                    "provider": self.runtime.config.agent_provider,
+                    "model": self.runtime.config.agent_model,
+                    "max_output_tokens": self.runtime.config.agent_max_output_tokens,
+                    "timeout_seconds": self.runtime.config.agent_timeout_seconds,
+                    "configured": self.runtime.config.agent_provider == "local"
+                    or bool(self.runtime.values.get("AGENT_API_KEY", "").strip()),
+                },
+            )
+            return
+        if path == "/v1/billing/providers":
+            self._json(
+                200,
+                {
+                    "contract_version": "v1",
+                    "provider": self.runtime.config.payment_provider,
+                    "sandbox": self.runtime.config.payment_sandbox,
+                    "mock_enabled": self.runtime.config.mock_payments_enabled,
+                },
+            )
             return
         if path == "/v1/auth/google/start":
             self._json(200, self.runtime.start_google())
@@ -196,9 +242,76 @@ class FoundationHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         if path == "/v1/auth/google/callback":
-            if self.runtime.config.app_env not in {"local", "test"}:
+            if self.runtime.config.auth_provider != "google" and self.runtime.config.app_env not in {"local", "test"}:
                 raise AuthorizationDenied("local Google callback is disabled")
-            self._json(200, self.runtime.complete_google(self._body()))
+            result = self.runtime.complete_google(self._body())
+            self._json(
+                200,
+                result,
+                {"Set-Cookie": f"foundation_session={result['session_id']}; HttpOnly; Path=/; SameSite=Lax"},
+            )
+            return
+        if path.startswith("/v1/billing/webhooks/"):
+            provider_id = path.removeprefix("/v1/billing/webhooks/").strip("/")
+            raw_body = self._raw_body()
+            result = self.runtime.billing.receive_webhook(
+                provider_id,
+                raw_body,
+                {key.lower(): value for key, value in self.headers.items()},
+            )
+            self._json(
+                200,
+                {
+                    "contract_version": "v1",
+                    "provider": result.provider,
+                    "provider_event_id": result.provider_event_id,
+                    "status": result.status,
+                    "applied": result.applied,
+                },
+            )
+            return
+        if path == "/v1/billing/toss/confirm":
+            if self.runtime.config.payment_provider != "toss":
+                raise AuthorizationDenied("Toss payment is not enabled")
+            payload = self._body()
+            tenant_id = self._request_tenant()
+            order_id = str(payload.get("order_id") or "")
+            order = self.runtime.billing_store.order(order_id)
+            if order.tenant_id != tenant_id:
+                raise TenantMismatch("tenant access denied")
+            amount_minor = int(payload.get("amount_minor", -1))
+            result = self.runtime.billing.confirm_payment(
+                order_id=order_id,
+                provider_reference=str(payload.get("payment_key") or ""),
+                amount_minor=amount_minor,
+                idempotency_key=str(payload.get("idempotency_key") or f"confirm-{order_id}"),
+            )
+            self._json(
+                200,
+                {
+                    "contract_version": "v1",
+                    "provider": result.provider,
+                    "provider_event_id": result.provider_event_id,
+                    "status": result.status,
+                    "applied": result.applied,
+                },
+            )
+            return
+        if path == "/v1/agent/execute":
+            payload = self._body()
+            payload = {
+                **payload,
+                "contract_version": "v1",
+                "tenant_id": payload.get("tenant_id") or self._request_tenant(),
+                "project_id": payload.get("project_id") or "agent-project",
+                "idempotency_key": payload.get("idempotency_key") or f"agent-{uuid_hex()}",
+                "trace_id": payload.get("trace_id") or f"agent-trace-{uuid_hex()}",
+                "input": payload.get("input") or {"message": payload.get("message", "")},
+            }
+            request_tenant = self._request_tenant()
+            if str(payload["tenant_id"]) != request_tenant:
+                raise TenantMismatch("tenant access denied")
+            self._json(201, self.runtime.create_run(payload))
             return
         if path == "/v1/runs":
             payload = self._body()
@@ -227,7 +340,7 @@ class FoundationHandler(BaseHTTPRequestHandler):
                 account_id=str(payload.get("account_id") or "demo-account"),
                 plan_id=str(payload.get("plan_id") or "pro"),
                 amount_minor=int(payload.get("amount_minor", 1000)),
-                currency=str(payload.get("currency") or "USD"),
+                currency=str(payload.get("currency") or ("KRW" if self.runtime.config.payment_provider == "toss" else "USD")),
                 credit_grant=int(payload.get("credit_grant", 10)),
                 idempotency_key=str(payload["idempotency_key"]),
             )
@@ -240,6 +353,7 @@ class FoundationHandler(BaseHTTPRequestHandler):
                     "provider_reference": checkout.provider_reference,
                     "checkout_url": checkout.checkout_url,
                     "test_mode": checkout.test_mode,
+                    "checkout_context": dict(checkout.checkout_context),
                 },
             )
             return

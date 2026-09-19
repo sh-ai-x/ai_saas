@@ -9,6 +9,7 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
 node_modules/
 dist/
 build/
@@ -16,6 +17,7 @@ build/
 coverage/
 __pycache__/
 *.py[cod]
+*.tsbuildinfo
 
 # >>> dev-kit >>>
 # dev-kit runtime artifacts (auto-installed by `dev-kit:ci-setup`; issue #202).
@@ -28,3 +30,6 @@ __pycache__/
 .dev-kit/logs/
 logs/
 # <<< dev-kit <<<
+.neon
+# Codex project MCP configuration contains local OAuth/Bearer credentials.
+.codex/

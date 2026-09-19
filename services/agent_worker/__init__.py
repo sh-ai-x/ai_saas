@@ -2,6 +2,7 @@
 
 from .boundary import FargateSpotBoundary
 from .runtime import ApprovalRequired, BoundedWorker, ModelResult, WorkerInterrupted
+from .providers import AgentProviderError, DeterministicAgentModel, HttpAgentModel, build_agent_model
 from .workflow import BoundedInngestWorkflow
 
 __all__ = [
@@ -11,4 +12,8 @@ __all__ = [
     "FargateSpotBoundary",
     "ModelResult",
     "WorkerInterrupted",
+    "AgentProviderError",
+    "DeterministicAgentModel",
+    "HttpAgentModel",
+    "build_agent_model",
 ]

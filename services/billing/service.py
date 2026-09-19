@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Callable, Mapping
 
@@ -54,3 +55,32 @@ class BillingService:
         provider = self._providers.require(provider_id, "webhook.verify")
         event = provider.verify_and_normalize_event(raw_body, headers)
         return self._store.process_event(event, raw_body, dict(headers))
+
+    def confirm_payment(
+        self,
+        *,
+        order_id: str,
+        provider_reference: str,
+        amount_minor: int,
+        idempotency_key: str,
+    ) -> ProcessingResult:
+        order = self._store.order(order_id)
+        if order.provider != self._active_provider or order.amount_minor != amount_minor:
+            raise ValueError("payment confirmation does not match the pending order")
+        if order.status == "succeeded":
+            return ProcessingResult(
+                self._active_provider,
+                f"confirm-{provider_reference}",
+                False,
+                "succeeded",
+            )
+        provider = self._providers.require(self._active_provider, "payment.confirm")
+        confirmer = getattr(provider, "confirm_payment_event", None)
+        if confirmer is None:
+            raise ValueError("active payment provider requires webhook completion")
+        event = confirmer(provider_reference, order_id, amount_minor, idempotency_key)
+        return self._store.process_event(
+            event,
+            json.dumps(event.as_dict(), sort_keys=True).encode("utf-8"),
+            {"x-confirmation-idempotency-key": idempotency_key},
+        )

@@ -15,7 +15,7 @@ Acceptance:
 - REQ-2: Google, tenant, admin, and audit contracts are executable and deny unauthorized or cross-tenant operations.
 
 Verification:
-python3 -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
 
 Don't:
 - Do not trust email alone as admin authorization.

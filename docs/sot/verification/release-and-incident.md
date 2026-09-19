@@ -77,9 +77,9 @@ Recovery must prefer replayable durable events over manual database edits.
 
 The `free-portfolio` profile has a host-local verification path that does not
 require a cloud account or a running Docker daemon. Run
-`python3 scripts/local-smoke.py` to exercise mock Google callback validation,
-tenant-scoped admin mutations, the shared credit ledger, mock signed payment
-webhooks, durable run execution, and replayable SSE. Then run
+`python3 scripts/local-smoke.py` to exercise deterministic Google callback
+contract validation, tenant-scoped admin mutations, the shared credit ledger,
+mock signed payment webhooks, durable run execution, and replayable SSE. Then run
 `python3 scripts/record-step-outputs.py --all` to atomically write compact,
 valid `step<N>-output.json` evidence with real exit codes, stdout, stderr, and
 durations.

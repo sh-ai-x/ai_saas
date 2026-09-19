@@ -1,0 +1,35 @@
+{
+  "step": 14,
+  "name": "sandbox-checkout-handoff",
+  "status": "completed",
+  "evidence": {
+    "implementation": [
+      "Toss checkout_context contains browser-safe client key, amount, order, success URL, and fail URL",
+      "Toss browser flow invokes the V2 SDK and confirms only through the server callback route",
+      "Lemon Squeezy checkout uses store/variant JSON:API relationships and checkout_data.custom",
+      "Lemon redirect is informational; signed webhook remains authoritative"
+    ],
+    "tests": {
+      "python_unittest": "93 passed",
+      "toss_handoff_secret_exclusion": "passed",
+      "lemon_store_variant_relationships": "passed",
+      "lemon_variant_mismatch_rejection": "passed"
+    },
+    "configuration": {
+      "toss": ["TOSS_CLIENT_KEY", "TOSS_SECRET_KEY", "TOSS_SUCCESS_URL", "TOSS_FAIL_URL"],
+      "lemon_squeezy": ["LEMONSQUEEZY_API_KEY", "LEMONSQUEEZY_STORE_ID", "LEMONSQUEEZY_VARIANT_ID", "LEMONSQUEEZY_WEBHOOK_SECRET"]
+    },
+    "security": {
+      "server_secrets_in_checkout_context": false,
+      "redirect_grants_entitlement": false
+    },
+    "browser": {
+      "landing_route": "/",
+      "guides_route": "/guides",
+      "toss_guide": "visible",
+      "lemon_squeezy_guide": "visible",
+      "neon_guide": "visible",
+      "runtime_error_overlay": false
+    }
+  }
+}

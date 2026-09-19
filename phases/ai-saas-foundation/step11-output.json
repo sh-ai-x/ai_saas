@@ -1,0 +1,27 @@
+{
+  "commands": [
+    {
+      "command": "npm --prefix apps/web run lint",
+      "duration_seconds": 1.463,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "\n> ai-saas-foundation-web@0.1.0 lint\n> tsc --noEmit\n\n"
+    },
+    {
+      "command": "npm --prefix apps/web run build",
+      "duration_seconds": 6.985,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "\n> ai-saas-foundation-web@0.1.0 build\n> next build\n\n   \u25b2 Next.js 15.5.25\n\n   Creating an optimized production build ...\n \u2713 Compiled successfully in 624ms\n   Linting and checking validity of types ...\n   Collecting page data ...\n   Generating static pages (0/5) ...\n   Generating static pages (1/5) \n   Generating static pages (2/5) \n   Generating static pages (3/5) \n \u2713 Generating static pages (5/5)\n   Finalizing page optimization ...\n   Collecting build traces ...\n\nRoute (app)                                 Size  First Load JS\n\u250c \u25cb /                                    7.31 kB         110 kB\n\u251c \u25cb /_not-found                            995 B         104 kB\n\u251c \u0192 /api/foundation/[...path]              123 B         103 kB\n\u2514 \u0192 /auth/callback                         123 B         103 kB\n+ First Load JS shared by all             103 kB\n  \u251c chunks/255-37e0f0325134c4d7.js       46.4 kB\n  \u251c chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB\n  \u2514 other shared chunks (total)          1.89 kB\n\n\n\u25cb  (Static)   prerendered as static content\n\u0192  (Dynamic)  server-rendered on demand\n\n"
+    }
+  ],
+  "duration_seconds": 8.448,
+  "environment_note": "Provider integration evidence uses deterministic HTTP fixtures. Sandbox credentials are required only for the documented external smoke step; no credential value is recorded in this output.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "\n",
+  "stdout": "\n> ai-saas-foundation-web@0.1.0 lint\n> tsc --noEmit\n\n\n\n> ai-saas-foundation-web@0.1.0 build\n> next build\n\n   \u25b2 Next.js 15.5.25\n\n   Creating an optimized production build ...\n \u2713 Compiled successfully in 624ms\n   Linting and checking validity of types ...\n   Collecting page data ...\n   Generating static pages (0/5) ...\n   Generating static pages (1/5) \n   Generating static pages (2/5) \n   Generating static pages (3/5) \n \u2713 Generating static pages (5/5)\n   Finalizing page optimization ...\n   Collecting build traces ...\n\nRoute (app)                                 Size  First Load JS\n\u250c \u25cb /                                    7.31 kB         110 kB\n\u251c \u25cb /_not-found                            995 B         104 kB\n\u251c \u0192 /api/foundation/[...path]              123 B         103 kB\n\u2514 \u0192 /auth/callback                         123 B         103 kB\n+ First Load JS shared by all             103 kB\n  \u251c chunks/255-37e0f0325134c4d7.js       46.4 kB\n  \u251c chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB\n  \u2514 other shared chunks (total)          1.89 kB\n\n\n\u25cb  (Static)   prerendered as static content\n\u0192  (Dynamic)  server-rendered on demand\n\n",
+  "step": 11,
+  "timestamp": "2026-09-18T22:32:24.381913+00:00"
+}

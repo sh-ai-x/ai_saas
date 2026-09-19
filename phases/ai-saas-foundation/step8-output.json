@@ -1,0 +1,20 @@
+{
+  "commands": [
+    {
+      "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -m unittest tests/test_google_oauth_provider.py",
+      "duration_seconds": 0.078,
+      "exit_code": 0,
+      "stderr": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK\n",
+      "stdout": ""
+    }
+  ],
+  "duration_seconds": 0.078,
+  "environment_note": "Provider integration evidence uses deterministic HTTP fixtures. Sandbox credentials are required only for the documented external smoke step; no credential value is recorded in this output.",
+  "exit_code": 0,
+  "phase": "ai-saas-foundation",
+  "schema_version": "1.0.0",
+  "stderr": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK\n",
+  "stdout": "",
+  "step": 8,
+  "timestamp": "2026-09-18T22:32:15.590385+00:00"
+}

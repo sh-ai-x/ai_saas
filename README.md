@@ -11,18 +11,35 @@ SQLite/PostgreSQL-compatible transactional persistence; provider SDKs are not
 part of the domain. Local Docker uses PostgreSQL 17 only as a development
 companion; the HTTP surface itself is Python standard library code.
 
+## Toolchain
+
+JavaScript dependencies are managed from the repository root with `pnpm` and
+the committed `pnpm-lock.yaml`; do not use `npm install`, `npm ci`, or `npx`.
+The web workspace is selected with `pnpm --filter ai-saas-foundation-web ...`.
+Python dependencies and commands run through the committed `uv.lock`; use
+`uv sync --locked` and `uv run --locked ...` rather than mutating the host
+Python installation with `pip`.
+
+The cloud database baseline is Neon PostgreSQL. The linked project is
+`ai_saas` (`lucky-boat-01406333`) on the `production` branch. Local Docker and
+the process-only profile remain disposable development paths; they do not
+commit or replace the Neon credentials.
+
+See [docs/neon-database.md](docs/neon-database.md) for the repeatable Neon
+setup, environment-variable flow, policy deployment, and connection check.
+
 ## Start locally
 
 The safest quick path is a generated process-only secret that is never written
 to Git:
 
 ```bash
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-python3 -m foundation.config \
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+uv run --locked python -m foundation.config \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
-python3 -m lib.intent_integrity --pre ai-saas-foundation
-python3 -m foundation.server \
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m foundation.server \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
 ```
@@ -30,6 +47,25 @@ python3 -m foundation.server \
 In another terminal, check `http://127.0.0.1:8080/healthz`,
 `/v1/contracts`, or `/v1/runs/demo/events`. The server validates all required
 settings before binding a port and never prints secret values.
+
+### Web console
+
+The local browser console lives in `apps/web` and talks to the same API through
+a same-origin Next.js proxy. Start the API first, then run:
+
+```bash
+pnpm install
+pnpm --filter ai-saas-foundation-web dev
+```
+
+Open `http://127.0.0.1:3000` for the product landing and operator console. The
+separate setup guide is at `http://127.0.0.1:3000/guides`. The console demonstrates mock Google login, a
+bounded run with SSE replay, audited admin plan/credit changes, and the
+provider-neutral mock payment adapter. It does not require Vercel, Neon,
+Cloudflare, AWS, Docker, or payment credentials.
+
+For a production-style local check, use `pnpm --filter ai-saas-foundation-web build`
+and then `pnpm --filter ai-saas-foundation-web start` from the repository root.
 
 The local server includes a complete deterministic vertical slice:
 
@@ -59,9 +95,18 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
   -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
 ```
 
-`python3 scripts/local-smoke.py` runs this flow automatically. It succeeds on
+`uv run --locked python scripts/local-smoke.py` runs this flow automatically. It succeeds on
 a host without Docker; if Docker Desktop is stopped it records
 `docker=blocked (daemon unavailable)` and does not suggest a paid upgrade.
+
+## Real integration setup guides
+
+The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
+and rendered on the dedicated `/guides` route as a Markdown editor with a
+hierarchical sidebar. Payment setup is split into `Toss` and `Lemon Squeezy`
+pages. The order is intentional: contracts and validators first, then Google
+OAuth, one payment sandbox, one Agent provider, and finally the full
+verification gate. No secret is required for the default local profile.
 
 ## Docker path
 
@@ -70,13 +115,48 @@ No cloud account, ALB, NAT gateway, Redis, or paid plan is needed.
 
 ```bash
 cp config/profiles/free-portfolio.example.env .env
-export APP_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose -f docker/dev/compose.yaml up --build
 ```
 
 Stop and remove the local database volume with `docker compose -f
 docker/dev/compose.yaml down -v` when its disposable development data is no
 longer needed.
+
+## Full Docker web deployment
+
+The complete local stack is also containerized: PostgreSQL, the Foundation API,
+a one-shot Drizzle migration job, and the Next.js web console. The web image
+uses Next.js standalone output and calls the API through the internal
+`foundation:8080` service name.
+
+```bash
+cp .env.docker.example .env
+export APP_SECRET_KEY="$(openssl rand -base64 32)"
+docker compose -f docker/prod/compose.yaml up --build
+```
+
+Open `http://localhost:3000` for the web console and
+`http://localhost:8080/healthz` for the API health check. The default profile
+uses mock payments, while the browser has no local/mock login fallback. Set
+`WEB_DATABASE_URL` to the Neon connection string and provide the live
+Google OAuth/payment secrets through the ignored `.env` file when running a
+staging-like container. The Google callback for this local container remains:
+`http://localhost:3000/api/auth/callback/google`.
+
+The `web-migrate` service must complete before `web` starts. This is suitable
+for a single-host portfolio or staging deployment. For multiple web replicas,
+run migrations as a separate release job rather than once per replica.
+
+```bash
+docker compose -f docker/prod/compose.yaml down
+docker compose -f docker/prod/compose.yaml down -v  # also removes local data
+```
+
+The production Compose file is a packaging baseline, not a managed high
+availability platform. Put TLS/WAF at the host or edge, use Neon instead of
+the bundled PostgreSQL service for production data, and move secrets to the
+host's secret manager.
 
 ## Profile checks
 
@@ -89,7 +169,7 @@ plan configuration. The AWS example is intentionally incomplete and should
 fail until an operator supplies its identifiers:
 
 ```bash
-python3 -m foundation.config \
+uv run --locked python -m foundation.config \
   --env-file config/profiles/aws-worker.example.env \
   --profile aws-worker
 ```
@@ -103,8 +183,8 @@ credentials, authorization headers, and tokens.
 Run the deterministic contract suite at any time:
 
 ```bash
-python3 -m foundation.contract_check
-python3 -m unittest discover -s tests -v
+uv run --locked python -m foundation.contract_check
+uv run --locked python -m unittest discover -s tests -v
 ```
 
 The complete local gate, including evaluator evidence and Docker Compose
@@ -115,12 +195,13 @@ skipped.
 Step evidence is compact, valid JSON rather than a raw agent transcript:
 
 ```bash
-python3 scripts/record-step-outputs.py --all
+uv run --locked python scripts/record-step-outputs.py --all
 ```
 
 This writes `phases/ai-saas-foundation/step0-output.json` through
-`step5-output.json` with the real command exit code, stdout, stderr, and
-duration. Docker availability is preserved as an explicit environment note.
+`step12-output.json` with the real command exit code, stdout, stderr, and
+duration. Docker availability and browser-console verification are preserved
+as explicit environment notes.
 
 See [docs/service-catalog.md](docs/service-catalog.md) for ownership and
 [`packages/contracts/`](packages/contracts/) for the v1 wire contracts.

@@ -1,0 +1,23 @@
+{
+  "$id": "https://ai-saas.foundation/contracts/rest/v1/auth-google-start.json",
+  "version": "v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "provider", "mode", "state", "redirect_uri", "authorization_url"],
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "provider": {"const": "google"},
+    "mode": {"enum": ["local-mock", "authorization-code"]},
+    "state": {"type": "string", "minLength": 8},
+    "redirect_uri": {"type": "string", "minLength": 8},
+    "authorization_url": {"type": "string", "minLength": 8}
+  },
+  "x-example": {
+    "contract_version": "v1",
+    "provider": "google",
+    "mode": "local-mock",
+    "state": "local-state-12345678",
+    "redirect_uri": "http://127.0.0.1:3000/auth/callback",
+    "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?state=local-state-12345678"
+  }
+}

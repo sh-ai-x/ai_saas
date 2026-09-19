@@ -20,6 +20,14 @@ checkpointed and retryable execution.
 4. `run-worker-streaming`
 5. `low-cost-deployment-observability`
 6. `docker-daemon-local-verification` — follow-up tracked in [Issue #3](https://github.com/sh-ai-x/ai_saas/issues/3), blocks final local Docker evidence before human merge of [PR #2](https://github.com/sh-ai-x/ai_saas/pull/2)
+7. `pricing-data-model` — Drizzle/Neon schema and normalized catalog first
+8. `public-app-admin-surfaces` — separate landing, user app, and admin console
+9. `payment-mode-adapters` — one-time/subscription checkout through adapters
+10. `pricing-verification` — API, schema, and browser evidence
+
+The current build worktree is `plan/admin-pricing-foundation`. Steps 15–18 are
+the active extension; they depend on the completed Neon and sandbox handoff
+steps above.
 
 ## Build constraints
 

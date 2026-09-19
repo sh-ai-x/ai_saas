@@ -15,7 +15,7 @@ Acceptance:
 - REQ-5: Free mode never silently creates paid resources; AWS worker mode is interruptible, checkpointed, and auditable.
 
 Verification:
-python3 -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
 
 Don't:
 - Do not provision or require paid Cloudflare/Vercel plans, ALB, NAT, or always-on ECS.

@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -22,14 +21,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "phases" / "ai-saas-foundation"
+UV_RUN = ("uv", "run", "--locked")
+WEB_RUN = ("pnpm", "--filter", "ai-saas-foundation-web")
 
 COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
-    0: ((sys.executable, "-m", "foundation.contract_check"),),
-    1: ((sys.executable, "-m", "pytest", "-q", "tests/test_identity_tenant_admin.py"),),
-    2: ((sys.executable, "-m", "pytest", "-q", "tests/test_billing.py"),),
-    3: ((sys.executable, "-m", "pytest", "-q", "tests/test_run_worker_streaming.py"),),
-    4: ((sys.executable, "-m", "pytest", "-q", "tests/test_step4_low_cost.py"),),
-    5: ((sys.executable, "scripts/local-smoke.py"),),
+    0: (UV_RUN + ("python", "-m", "foundation.contract_check"),),
+    1: (UV_RUN + ("pytest", "-q", "tests/test_identity_tenant_admin.py"),),
+    2: (UV_RUN + ("pytest", "-q", "tests/test_billing.py"),),
+    3: (UV_RUN + ("pytest", "-q", "tests/test_run_worker_streaming.py"),),
+    4: (UV_RUN + ("pytest", "-q", "tests/test_step4_low_cost.py"),),
+    5: (UV_RUN + ("python", "scripts/local-smoke.py"),),
+    6: (("pnpm", "audit", "--audit-level", "high"), WEB_RUN + ("build",)),
+    7: (UV_RUN + ("python", "-m", "foundation.contract_check"), UV_RUN + ("python", "-m", "unittest", "tests/test_integration_contracts.py")),
+    8: (UV_RUN + ("python", "-m", "unittest", "tests/test_google_oauth_provider.py"),),
+    9: (UV_RUN + ("python", "-m", "unittest", "tests/test_payment_sandbox_api.py"),),
+    10: (UV_RUN + ("python", "-m", "unittest", "tests/test_agent_provider_runtime.py"),),
+    11: (WEB_RUN + ("lint",), WEB_RUN + ("build",)),
+    12: (("bash", "scripts/verify-local.sh"),),
 }
 
 
@@ -90,6 +98,18 @@ def record(step: int) -> int:
             "Host-local vertical slice and Compose-independent checks pass. "
             "Docker build/start is recorded by local-smoke.py when a daemon is available."
         )
+    if step == 6:
+        document["environment_note"] = (
+            "The Next.js console is a local same-origin proxy over the foundation API. "
+            "Browser verification covers mock Google login, SSE run replay, admin mutation, "
+            "and mock payment ledger application."
+        )
+    if step >= 7:
+        document["environment_note"] = (
+            "Provider integration evidence uses deterministic HTTP fixtures. "
+            "Sandbox credentials are required only for the documented external smoke step; "
+            "no credential value is recorded in this output."
+        )
     write_atomic(OUTPUT_DIR / f"step{step}-output.json", document)
     print(f"step{step}: exit={exit_code} duration={document['duration_seconds']}s")
     return exit_code
@@ -97,12 +117,12 @@ def record(step: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Record valid local phase step output JSON")
-    parser.add_argument("--step", type=int, choices=range(6))
+    parser.add_argument("--step", type=int, choices=range(13))
     parser.add_argument("--all", action="store_true")
     args = parser.parse_args()
     if not args.all and args.step is None:
         parser.error("provide --step N or --all")
-    steps = range(6) if args.all else (args.step,)
+    steps = range(13) if args.all else (args.step,)
     exit_code = 0
     for step in steps:
         exit_code = record(int(step)) or exit_code

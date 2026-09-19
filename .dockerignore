@@ -1,0 +1,13 @@
+.git
+.worktrees
+.dev-kit
+.codex
+.claude
+.venv
+node_modules
+**/node_modules
+apps/web/.next
+apps/web/.env*
+*.py[cod]
+__pycache__
+.DS_Store
