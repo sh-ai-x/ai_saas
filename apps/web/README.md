@@ -51,8 +51,10 @@ The browser uses `http://localhost:3000`; the Next.js server reaches the API
 at `http://foundation:8080` inside the Compose network. The `web-migrate`
 one-shot service applies the committed Drizzle migrations before the web
 container starts. The default Docker profile is local/demo mode with mock
-payments. Use `WEB_DATABASE_URL` and server-only environment values from a
-secret manager for staging or production.
+payments. Local Compose PostgreSQL uses trust authentication and does not
+require `POSTGRES_PASSWORD`. For live Google login, fill the server-only
+Better Auth and Google values in the ignored root `.env`; `apps/web/.env.local`
+is used by process-mode commands, not automatically by Docker Compose.
 
 The production build is local-only and does not require Vercel, Neon, Stripe,
 Toss, Lemon Squeezy, or a running Docker daemon:

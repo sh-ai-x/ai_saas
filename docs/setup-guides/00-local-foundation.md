@@ -46,6 +46,11 @@ Open [http://localhost:3000](http://localhost:3000). The API is available at
 stack with `docker compose -f docker/prod/compose.yaml down`; add `-v` only
 when disposable local data should be removed.
 
+The local Compose PostgreSQL service uses trust authentication and does not
+require `POSTGRES_PASSWORD`. For a real Google login, fill the server-only
+Better Auth and Google values in the ignored root `.env`; the Docker service
+does not automatically load `apps/web/.env.local`.
+
 ## 3. Verify the contract
 
 Use the health endpoint, bounded run, audited admin change, and mock payment
