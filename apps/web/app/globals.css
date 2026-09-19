@@ -146,6 +146,19 @@ footer { justify-content: space-between; margin-top: 38px; padding-top: 18px; bo
 .landing-links { gap: 18px; }
 .landing-links a:not(.button), .user-app-nav a:not(.brand) { color: var(--muted); font-size: 12px; text-decoration: none; }
 .landing-links a:not(.button):hover, .user-app-nav a:not(.brand):hover { color: var(--accent); }
+.session-control { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); font-size: 12px; }
+.session-control button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; padding: 0; }
+.session-control button:hover { color: var(--accent); }
+.session-control.muted { color: var(--muted); }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: radial-gradient(circle at 50% 0%, #152134 0%, var(--bg) 48%); }
+.auth-card { width: min(460px, 100%); border: 1px solid var(--line); background: rgba(16, 23, 35, .92); padding: 34px; box-shadow: 0 26px 80px rgba(0,0,0,.26); }
+.auth-back { color: var(--muted); display: inline-block; margin-bottom: 52px; text-decoration: none; font-size: 12px; }
+.auth-card h1 { max-width: 360px; font-size: clamp(34px, 8vw, 56px); line-height: .98; margin: 14px 0 18px; }
+.auth-card > p:not(.eyebrow):not(.auth-note) { color: var(--muted); line-height: 1.7; }
+.auth-actions { margin-top: 28px; }
+.auth-actions .button { width: 100%; justify-content: center; }
+.auth-note { color: var(--muted); font-size: 11px; line-height: 1.6; margin-top: 20px; }
+.form-error { color: #ff9d9d; font-size: 12px; margin-top: 12px; }
 .landing-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 60px; align-items: end; padding: 122px 0 96px; }
 .landing-copy h1 { margin-top: 16px; font-size: clamp(52px, 8vw, 106px); line-height: .9; letter-spacing: -.085em; font-weight: 600; }
 .landing-copy h1 em { color: var(--accent); font-style: normal; }

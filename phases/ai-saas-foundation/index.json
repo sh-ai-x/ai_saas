@@ -204,10 +204,12 @@
       "writes": ["apps/web/tests/", "apps/web/package.json", "apps/web/package-lock.json"]
     },
     {
+      "completed_at": "2026-09-19T11:32:43+0900",
       "depends_on": [19],
+      "duration_seconds": 5.978269209,
       "name": "google-auth-data-model",
       "partition": "apps/web/db,apps/web/drizzle,docs/sot/auth",
-      "status": "pending",
+      "status": "completed",
       "step": 20,
       "writes": ["apps/web/db/schema/auth.ts", "apps/web/drizzle/", "docs/sot/auth/google-oauth.md"]
     },

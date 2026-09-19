@@ -1,12 +1,12 @@
 import { PricingCatalog } from "@/components/pricing-catalog";
 import type { BillingMode, PricingPlan } from "@/lib/pricing/types";
 
-export function PublicLanding({ plans, source, billingMode }: { plans: PricingPlan[]; source: string; billingMode: BillingMode }) {
+export function PublicLanding({ plans, source, billingMode, sessionControl }: { plans: PricingPlan[]; source: string; billingMode: BillingMode; sessionControl?: React.ReactNode }) {
   return (
     <main className="landing-page">
       <nav className="landing-nav">
         <a className="brand landing-brand" href="/"><span className="brand-mark">AI</span><span><small>FOUNDATION</small><strong>Substrate</strong></span></a>
-        <div className="landing-links"><a href="/guides">Setup guides</a><a href="/app">Open workspace</a><a className="button button-primary" href="/admin">Admin console</a></div>
+        <div className="landing-links"><a href="/guides">Setup guides</a><a href="/app">Open workspace</a>{sessionControl ?? <a className="button button-primary" href="/login">Sign in</a>}<a className="button button-primary" href="/admin">Admin console</a></div>
       </nav>
       <section className="landing-hero">
         <div className="landing-copy"><p className="eyebrow accent">AI PRODUCT FOUNDATION / v1</p><h1>Build the product.<br /><em>Keep the substrate.</em></h1><p>Auth, tenant boundaries, agent runs, sandbox billing, and operational contracts for shipping a serious AI SaaS without repeating the same first six weeks.</p><div className="landing-actions"><a className="button button-primary" href="/app">Try the workspace</a><a className="button button-quiet" href="/guides">Read setup guides</a></div></div>

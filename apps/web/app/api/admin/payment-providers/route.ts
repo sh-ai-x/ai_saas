@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    requireAdmin(request);
+    await requireAdmin(request);
     return NextResponse.json({ providers: await listProviderSettings() });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "admin authorization required" }, { status: 403 });
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { actorUserId } = requireAdmin(request);
+    const { actorUserId } = await requireAdmin(request);
     const body = (await request.json()) as {
       provider?: PricingProvider;
       enabled?: boolean;

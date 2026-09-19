@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+import { SessionControl } from "@/components/auth/session-control";
+import { isGoogleAuthConfigured } from "@/lib/auth/config";
+import { getSafeSession } from "@/lib/auth/session";
+
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  if (isGoogleAuthConfigured()) {
+    const session = await getSafeSession();
+    if (!session || !["admin", "super_admin"].includes(session.user.role)) redirect("/login?next=/admin");
+  }
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -14,7 +23,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <a href="/billing">User billing<span>DYNAMIC CATALOG</span></a>
           <a href="/guides">Setup guides<span>DOCUMENTATION</span></a>
         </nav>
-        <div className="sidebar-note"><span className="status-dot" /> Local admin guard<br /><small>Production requires ADMIN_API_TOKEN</small></div>
+        <div className="sidebar-note"><span className="status-dot" /> {isGoogleAuthConfigured() ? "Google session guard" : "Local admin guard"}<br /><small>{isGoogleAuthConfigured() ? "Server role required" : "Production requires Google admin role"}</small><SessionControl /></div>
       </aside>
       <section className="admin-content">{children}</section>
     </main>

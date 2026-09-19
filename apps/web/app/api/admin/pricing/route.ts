@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    requireAdmin(request);
+    await requireAdmin(request);
     return NextResponse.json({ plans: await listPricingCatalog(false) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "admin authorization required" }, { status: 403 });
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { actorUserId } = requireAdmin(request);
+    const { actorUserId } = await requireAdmin(request);
     const body = (await request.json()) as { reason?: string; plan?: Parameters<typeof createPricingPlan>[0] };
     if (!body.plan) throw new Error("plan is required");
     const plan = await createPricingPlan(body.plan, actorUserId, body.reason ?? "");

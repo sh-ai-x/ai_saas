@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const { actorUserId } = requireAdmin(request);
+    const { actorUserId } = await requireAdmin(request);
     const { id } = await context.params;
     const body = (await request.json()) as { reason?: string; plan?: Parameters<typeof updatePricingPlan>[1] };
     if (!body.plan) throw new Error("plan is required");
