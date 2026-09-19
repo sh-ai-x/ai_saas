@@ -1,25 +1,35 @@
 {
   "phase": "admin-pricing-landing-sync",
   "schema_version": "1.0.0",
-  "worktree": "plan/admin-pricing-landing-sync",
   "steps": [
     {
-      "step": 0,
+      "depends_on": [],
       "name": "pricing-sync-failing-contracts",
-      "status": "pending",
-      "depends_on": []
+      "completed_at": "2026-09-19T22:55:00+0900",
+      "duration_seconds": 317.0,
+      "status": "completed",
+      "step": 0
     },
     {
-      "step": 1,
+      "depends_on": [
+        0
+      ],
+      "completed_at": "2026-09-19T23:02:00+0900",
+      "duration_seconds": 7.0,
       "name": "pricing-sync-implementation",
-      "status": "pending",
-      "depends_on": [0]
+      "status": "completed",
+      "step": 1
     },
     {
-      "step": 2,
+      "depends_on": [
+        1
+      ],
+      "completed_at": "2026-09-19T23:05:00+0900",
+      "duration_seconds": 180.0,
       "name": "pricing-sync-verification",
-      "status": "pending",
-      "depends_on": [1]
+      "status": "completed",
+      "step": 2
     }
-  ]
+  ],
+  "worktree": "plan/admin-pricing-landing-sync"
 }

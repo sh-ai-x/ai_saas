@@ -1,0 +1,17 @@
+{
+  "exit_code": 0,
+  "command": "PRICING_DB_INTEGRATION=1 PRICING_TEST_DATABASE_URL=postgresql://postgres@localhost:5432/pricing_migrate_test_codex node --import tsx --test tests/pricing-sync.contract.test.ts",
+  "cwd": "apps/web",
+  "duration_seconds": 1.5,
+  "timestamp": "2026-09-19T23:02:00+09:00",
+  "stdout": "4 tests passed, 0 failed. The isolated PostgreSQL path verified admin PATCH, pricing_plans/pricing_options rows, admin API, public API, and HomePage props; the omitted yearly option was absent after the update and referenced history was preserved by deactivation.",
+  "stderr": "",
+  "root_cause": [
+    "The PostgreSQL update path upserted submitted options but left omitted child options behind.",
+    "The root landing route did not declare force-dynamic and could be prerendered from a build-time seed."
+  ],
+  "fix": [
+    "Delete stale child option rows transactionally before upserting the authoritative option list.",
+    "Declare the landing page force-dynamic so runtime PostgreSQL data is read on demand."
+  ]
+}
