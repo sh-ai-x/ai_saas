@@ -1,0 +1,16 @@
+profile: local-lite
+provider_mode: fake
+state_store: sqlite
+network: disabled
+long_lived_processes:
+  - name: control-api
+    command: python3 -m services.control_api
+  - name: nginx
+    command: nginx -c infra/nginx/local-lite.conf
+limits:
+  plan_only_total_model_tokens: 20000
+  verify_total_model_tokens: 41000
+  per_call_input_tokens: 8000
+  primary_model_calls: 5
+  retry_calls: 1
+
