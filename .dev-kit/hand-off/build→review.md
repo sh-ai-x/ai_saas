@@ -38,29 +38,35 @@
 
 ## Verification
 
-- Focused test: `python3 -m pytest -q tests/test_proposal_verified_change_agent.py` → `5 passed`
-- Compile check: `python3 -m compileall -q agent_platform services project_packs` → exit `0`
-- Parent full suite: `python3 -m pytest -q` → `139 passed`
+- Focused tests: `uv run --locked python -m pytest -q tests/test_proposal_verified_change_agent.py tests/test_runtime_boundaries.py` → `13 passed`
+- Compile check: `uv run --locked python -m compileall -q agent_platform services project_packs` → exit `0`
+- Parent full suite: `uv run --locked python -m pytest -q` → `146 passed`
 - Static secret scan on the new slice: pass
 - Kernel import-boundary check: pass
 - Applied proposal HTML safety check: pass
 
 ## Implemented boundary
 
-The slice includes kernel contracts/SQLite ledger/token budget/cache/redaction,
-replaceable Proposal Project Pack, explicit LangChain/LangGraph boundaries,
-redacted LangSmith adapter seam, approval/resume workflow, deterministic
-sandbox and signed delivery ports, evaluation report helpers, Local Lite
-profile, Nginx SSE configuration, and focused security/conformance tests.
+The implementation includes kernel contracts/SQLite ledger/token
+budget/cache/redaction, replaceable Proposal Project Pack, optional real
+LangChain structured-output and LangGraph checkpoint/interrupt adapters,
+redacted LangSmith SDK telemetry, authenticated HTTP/SSE control API,
+approval/resume workflow, disposable allowlisted subprocess verification,
+atomic redacted review artifacts, signed delivery ports, evaluation report
+helpers, Local Lite profile, Nginx routing, and focused security/conformance
+tests.
 
 ## Review notes
 
 - The existing foundation/pricing proposal and handoff artifacts were removed;
   the accepted Proposal-to-Verified-Change proposal is the only active product
   design record.
-- The implementation is intentionally offline-first. Real provider credentials,
-  merge/deploy, external API actions, and production sandbox isolation remain
-  separate authorized follow-up work.
+- The implementation is credential-free by default. A real provider is enabled
+  only with the optional LangChain extra and external credentials; merge/deploy
+  and external API actions remain outside the signed manual delivery boundary.
+- The Local Lite subprocess verifier is bounded and disposable but is not the
+  production isolation boundary; untrusted high-impact execution still belongs
+  in a dedicated worker VM/container.
 - The build runner's pre-build intent-integrity report was absent and therefore
   emitted its documented soft warning; no high-severity report was present.
 

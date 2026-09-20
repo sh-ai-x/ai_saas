@@ -414,3 +414,40 @@ The Local Lite declarations are in `infra/profiles/local-lite/profile.yaml`
 and `infra/nginx/local-lite.conf`. They describe at most two long-lived
 processes and do not require Docker, PostgreSQL, Redis, a vector database, or a
 local model server.
+
+### Run the control API
+
+The new workflow is also executable over HTTP. It uses SQLite and the fake
+provider by default:
+
+```bash
+AGENT_STATE_DB=.local/proposal.sqlite \
+AGENT_REPOSITORY_ROOT=. \
+python3 -m services.control_api
+```
+
+Set `AGENT_SANDBOX_MODE=process` to run the declared compile/test command in a
+disposable allowlisted copy. The default deterministic mode is the smallest
+8GB-safe demo path; process mode is still a local boundary, not a substitute
+for a production VM/worker isolation policy.
+
+Local requests must send `X-Tenant-ID`. Production-style requests must set
+`CONTROL_API_TOKEN_SECRET` and send the signed bearer token produced by
+`TenantAuthenticator.issue`; raw tenant IDs are not accepted in that mode.
+`POST /v1/runs` creates a plan or an approval-paused verification run,
+`POST /v1/runs/<run_id>/resume` resumes it, and
+`GET /v1/runs/<run_id>/events` replays JSON or SSE events.
+
+For the real Lang* runtime, install the optional extra and provide the model
+credential outside the repository:
+
+```bash
+uv sync --locked --extra langchain
+AGENT_PROVIDER_MODE=langchain OPENAI_API_KEY=... python3 -m services.control_api
+```
+
+The OpenAI model is wrapped by LangChain structured output; LangGraph owns the
+interrupt/checkpoint runtime when installed; and LangSmith is enabled only
+when `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` are present. All three
+remain behind kernel-owned policy, metering, redaction, and terminal-state
+checks.

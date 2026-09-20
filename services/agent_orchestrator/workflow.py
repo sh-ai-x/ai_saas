@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
@@ -17,6 +17,7 @@ from agent_platform.storage import InvalidApproval, KernelStore
 from project_packs.proposal_to_verified_change.pack import PromptInjectionDetected, ProposalToVerifiedChangePack
 
 from .graph import NODE_NAMES
+from .langgraph_runtime import LangGraphRuntime
 from .model_port import FakeStructuredModel, PromptContextAdapter, StructuredModelPort
 
 
@@ -41,6 +42,8 @@ class ProposalVerifiedWorkflow:
         sandbox: Any | None = None,
         delivery: Any | None = None,
         tracer: Any | None = None,
+        graph_runtime: LangGraphRuntime | None = None,
+        artifact_store: Any | None = None,
     ) -> None:
         self.store = store
         self.pack = pack
@@ -49,6 +52,8 @@ class ProposalVerifiedWorkflow:
         self.sandbox = sandbox
         self.delivery = delivery
         self.tracer = tracer
+        self.graph_runtime = graph_runtime
+        self.artifact_store = artifact_store
         self.prompt_adapter = PromptContextAdapter()
 
     def run(
@@ -163,16 +168,22 @@ class ProposalVerifiedWorkflow:
             return self._finish_failed(run_id, tenant_id, requirements, evidence, plan, values, "deterministic tests failed")
         self._checkpoint(run_id, tenant_id, "evaluate", values)
         report = self._report(run_id, "verified", requirements, evidence, plan, latency_ms=0, usage=self.store.usage(run_id, tenant_id), approval_bypass=0, secret_leakage=0, prompt_injection=0)
+        artifact = self._persist_artifact(run_id, requirements, evidence, plan, report)
         self.store.save_report(report, tenant_id)
         self._checkpoint(run_id, tenant_id, "report", values)
         self._event(run_id, tenant_id, "delivery.prepared", {"approval_token_id": consumed.token_id, "artifact_hash": self._artifact_hash(plan)})
+        if artifact:
+            self._event(run_id, tenant_id, "artifact.persisted", artifact)
         run = self.store.transition(run_id, tenant_id, "verified", payload={"plan_id": plan.plan_id, "report_persisted": True})
         return RunOutcome(run, requirements, evidence, plan, consumed, self.store.report(run_id, tenant_id))
 
     def _finish_plan_only(self, run_id: str, tenant_id: str, requirements: tuple[Any, ...], evidence: tuple[EvidenceReference, ...], plan: Plan, values: dict[str, Any], reason: str | None) -> RunOutcome:
         report = self._report(run_id, "plan_only", requirements, evidence, plan, latency_ms=0, usage=self.store.usage(run_id, tenant_id), approval_bypass=0, secret_leakage=0, prompt_injection=0, reason=reason)
+        artifact = self._persist_artifact(run_id, requirements, evidence, plan, report)
         self.store.save_report(report, tenant_id)
         self._checkpoint(run_id, tenant_id, "report", values)
+        if artifact:
+            self._event(run_id, tenant_id, "artifact.persisted", artifact)
         run = self.store.transition(run_id, tenant_id, "plan_only", payload={"plan_id": plan.plan_id, "report_persisted": True, "reason": reason or "plan-only requested"})
         return RunOutcome(run, requirements, evidence, plan, None, self.store.report(run_id, tenant_id))
 
@@ -198,6 +209,23 @@ class ProposalVerifiedWorkflow:
 
         return build_release_report(run_id=run_id, status=status, requirements=requirements, evidence=evidence, plan=plan, usage=usage, latency_ms=latency_ms, approval_bypass=approval_bypass, secret_leakage=secret_leakage, prompt_injection=prompt_injection, reason=reason)
 
+    def _persist_artifact(self, run_id: str, requirements: tuple[Any, ...], evidence: tuple[EvidenceReference, ...], plan: Plan, report: ReleaseReport) -> Mapping[str, Any] | None:
+        if self.artifact_store is None:
+            return None
+        try:
+            artifact = self.artifact_store.write(
+                run_id,
+                {
+                    "requirements": [asdict(item) for item in requirements],
+                    "evidence": [asdict(item) for item in evidence],
+                    "plan": asdict(plan),
+                    "report": asdict(report),
+                },
+            )
+        except OSError as exc:
+            raise ValueError("review artifact could not be persisted") from exc
+        return {"artifact_id": artifact.artifact_id, "path": artifact.path, "digest": artifact.digest, "bytes_written": artifact.bytes_written}
+
     def _outcome(self, run: RunLifecycle, checkpoint: Mapping[str, Any] | None) -> RunOutcome:
         if not checkpoint:
             return RunOutcome(run)
@@ -206,6 +234,8 @@ class ProposalVerifiedWorkflow:
 
     def _checkpoint(self, run_id: str, tenant_id: str, node: str, values: Mapping[str, Any]) -> None:
         self.store.save_checkpoint(run_id, tenant_id, node, values)
+        if self.graph_runtime is not None:
+            self.graph_runtime.checkpoint(redact(values), thread_id=run_id, node=node)
 
     def _event(self, run_id: str, tenant_id: str, event: str, payload: Mapping[str, Any]) -> None:
         self.store.append_event(run_id, tenant_id, event, payload)
