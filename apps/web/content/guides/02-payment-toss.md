@@ -73,6 +73,9 @@ cp .env.docker.example .env
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
 
 export PAYMENT_SANDBOX=true
+export PAYMENT_PROVIDER=toss
+export MOCK_PAYMENTS_ENABLED=false
+export WEB_PAYMENT_PROVIDER=toss
 export TOSS_CLIENT_KEY="test_ck_your_matching_client_key"
 export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
 export TOSS_SUCCESS_URL="http://localhost:3000/payments/toss/success"
@@ -84,6 +87,11 @@ The `APP_SECRET_KEY` must be a generated value with at least 32 characters.
 Without it, the Foundation container exits with:
 `APP_SECRET_KEY must be a generated value with at least 32 characters`.
 Never use a placeholder such as `change-me`.
+
+When Toss test credentials are present, the Compose services must select Toss
+and disable mock payments together. Otherwise the Foundation service rejects
+the configuration because live-provider credentials cannot be combined with
+the mock provider.
 
 For Docker Compose, put the exported values in the ignored root `.env` file
 or run Compose with those variables present:
@@ -165,6 +173,7 @@ amount, status, and idempotency, then marks the pending order succeeded.
 | Symptom | Check |
 |---|---|
 | `APP_SECRET_KEY` rejected | Generate `openssl rand -hex 32` and restart Compose. |
+| `MOCK_PAYMENTS_ENABLED` conflicts with Toss | Set `PAYMENT_PROVIDER=toss`, `WEB_PAYMENT_PROVIDER=toss`, and `MOCK_PAYMENTS_ENABLED=false` while using Toss test keys. |
 | `toss mcp unknown` | Use the exact server/package name `tosspayments-integration-guide` / `@tosspayments/integration-guide-mcp`; restart the MCP client. |
 | Admin enable returns missing-key error | Set both `TOSS_CLIENT_KEY` and `TOSS_SECRET_KEY` in the web runtime; the pair must be `test_` keys when `PAYMENT_SANDBOX=true`. |
 | Checkout says currency must be KRW | Edit the active Toss pricing option in Admin pricing; do not convert the amount in the browser. |

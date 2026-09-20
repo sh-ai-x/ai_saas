@@ -22,6 +22,9 @@ combine keys from different stores, commit them, put the secret in
 export TOSS_CLIENT_KEY="test_ck_your_client_key"
 export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
 export PAYMENT_SANDBOX=true
+export PAYMENT_PROVIDER=toss
+export MOCK_PAYMENTS_ENABLED=false
+export WEB_PAYMENT_PROVIDER=toss
 ```
 
 ## 2. Connect the official Toss Integration Guide MCP
@@ -60,6 +63,13 @@ export TOSS_BILLING_SUCCESS_URL="http://localhost:3000/payments/toss/billing-suc
 export TOSS_FAIL_URL="http://localhost:3000/payments/toss/fail"
 docker compose -f docker/prod/compose.yaml up --build
 ```
+
+The provider variables are required when Toss credentials are present:
+`PAYMENT_PROVIDER=toss` selects the Foundation provider, `WEB_PAYMENT_PROVIDER=toss`
+selects the web adapter, and `MOCK_PAYMENTS_ENABLED=false` prevents the mock/live
+configuration conflict. The admin enable action still persists the provider
+setting and audit event; the environment variables only supply the sandbox
+runtime and credentials.
 
 Open [http://localhost:3000/guides?guide=payment-toss](http://localhost:3000/guides?guide=payment-toss).
 The Foundation health endpoint is [http://localhost:8080/healthz](http://localhost:8080/healthz).
@@ -112,6 +122,9 @@ idempotency checks.
   sandbox charge only.
 - `UNAUTHORIZED_KEY`: re-copy a matching client/secret pair from the same
   Developer Center test store.
+- `MOCK_PAYMENTS_ENABLED` conflict: use `PAYMENT_PROVIDER=toss`,
+  `WEB_PAYMENT_PROVIDER=toss`, and `MOCK_PAYMENTS_ENABLED=false` with Toss
+  credentials.
 - Missing-key admin error: both `TOSS_CLIENT_KEY` and `TOSS_SECRET_KEY` must be
   present in the web runtime and start with `test_` while sandbox is enabled.
 - Currency error: edit the active option to Toss/KRW in `/admin/pricing`.
