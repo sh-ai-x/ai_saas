@@ -1,29 +1,13 @@
-[
-  {
-    "cycle": 1,
-    "stage": "plan",
-    "status": "converged",
-    "evidence_count": 3,
-    "value_score": 5.0,
-    "ambiguity_score": 3,
-    "narrowed_delta": [3, 2, 2],
-    "dedup_metric": "no-identical-ambiguity-cycle",
-    "user_interrupt": false,
-    "safety_valve": 8,
-    "phase": "admin-pricing-landing-sync"
-  },
-  {
-    "cycle": 2,
-    "stage": "plan",
-    "status": "converged",
-    "evidence_count": 3,
-    "value_score": 5.0,
-    "ambiguity_score": 3,
-    "narrowed_delta": [2, 2, 2, 1],
-    "dedup_metric": "no-identical-ambiguity-cycle",
-    "user_interrupt": false,
-    "safety_valve": 8,
-    "phase": "toss-subscription-sandbox"
-  }
-]
-]
+{
+  "phase": "proposal-to-verified-change",
+  "cycles": [
+    {
+      "cycle": 1,
+      "evidence_count": 3,
+      "value_score": 4.0,
+      "ambiguity_score": 2,
+      "status": "converged",
+      "decision": "approved"
+    }
+  ]
+}

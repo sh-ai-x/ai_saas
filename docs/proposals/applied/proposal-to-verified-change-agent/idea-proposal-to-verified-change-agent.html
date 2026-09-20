@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal-to-Verified-Change Agent — evidence plan</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg: #1d1d1f;
+  --bg: #fbfbfd;
+  --muted: #5b5b62;
+  --border: #d2d2d7;
+  --card-bg: #ffffff;
+  --th-bg: #f5f5f7;
+  --row-alt: #fafafa;
+  --code-bg: #f5f5f7;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.08);
+  --ok: #1f8a3b;
+  --warn: #a06400;
+  --bad: #b03030;
+  --callout-bg: rgba(10, 132, 255, 0.06);
+  --callout-border: #0a84ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f5f5f7;
+    --bg: #1c1c1e;
+    --muted: #aeaeb2;
+    --border: #38383a;
+    --card-bg: #2c2c2e;
+    --th-bg: #3a3a3c;
+    --row-alt: #232325;
+    --code-bg: #2c2c2e;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.18);
+    --ok: #4cd964;
+    --warn: #ff9f0a;
+    --bad: #ff453a;
+    --callout-bg: rgba(10, 132, 255, 0.14);
+    --callout-border: #0a84ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; margin: 3.5rem 0 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.6rem; }
+p { margin: 0.7rem 0; }
+.meta { color: var(--muted); font-size: 0.92rem; margin: 0 0 2.5rem; }
+.tags { margin: 0 0 1.5rem; }
+.tag {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 0.4rem;
+}
+.tag-ok { background: rgba(31, 138, 59, 0.12); color: var(--ok); }
+.tag-warn { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.tag-bad { background: rgba(176, 48, 48, 0.12); color: var(--bad); }
+.tag-info { background: var(--accent-soft); color: var(--accent); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--th-bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+tr:nth-child(even) td { background: var(--row-alt); }
+td code, th code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.88em; }
+.callout {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  border-radius: 6px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.5rem 0;
+}
+.callout .label { font-weight: 600; margin-bottom: 0.3rem; display: block; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+li > strong { color: var(--accent); }
+code { font-family: 'SF Mono', Menlo, Consolas, monospace; background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 8px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+pre code { background: transparent; padding: 0; }
+blockquote {
+  border-left: 3px solid var(--border);
+  margin: 1rem 0;
+  padding: 0.2rem 1rem;
+  color: var(--muted);
+}
+.section-divider { border: 0; border-top: 1px solid var(--border); margin: 3rem 0; }
+.back-link {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.back-link a { color: var(--accent); }
+.back-link a:hover { text-decoration: underline; }
+.toc {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 0 0 3rem;
+  font-size: 0.95rem;
+}
+.toc strong { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.toc ol { margin: 0; padding-left: 1.2rem; }
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* ----- Before / After + Pros / Cons / Limitations ---------------------------
+ * Structured sections emitted when the YAML declares
+ * `before:`, `after:`, `pros:`, `cons:`, `limitations:`. See
+ * `skills/proposal/SKILL.md` §Workflow and `lib/render_proposal_html.py`
+ * `_render_before_after` / `_render_pros_cons_limitations`. Color cues
+ * reuse the existing --ok / --warn / --bad tokens so dark-mode parity
+ * is automatic. */
+.ba-section { margin: 2.5rem 0 1rem; }
+.ba-section h2 { margin-top: 0; }
+.ba-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+@media (min-width: 880px) {
+  .ba-grid { grid-template-columns: 1fr 1fr; }
+}
+.ba-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.ba-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.before-card { border-left: 4px solid var(--muted); }
+.after-card  { border-left: 4px solid var(--accent); }
+.before-card h3 { color: var(--muted); }
+.after-card h3  { color: var(--accent); }
+.evidence-list, .files-list { padding-left: 1.2rem; margin: 0.4rem 0 0.7rem; }
+.evidence-list li { margin: 0.25rem 0; }
+.files-list li { margin: 0.5rem 0; }
+.file-path {
+  display: inline-block;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}
+.pcl-section { margin: 2rem 0 1rem; }
+.pcl-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pros-list, .cons-list, .limitations-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0 0.6rem;
+}
+.pros-list li, .cons-list li, .limitations-list li {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 1.6rem;
+  margin: 0.2rem 0;
+}
+.pros-list li::before {
+  content: "✓"; /* check */
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.cons-list li::before {
+  content: "✗"; /* ballot x */
+  position: absolute; left: 0;
+  color: var(--bad); font-weight: 700;
+}
+.limitations-list li::before {
+  content: "!";      /* warn glyph */
+  position: absolute; left: 0;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--bg);
+  font-weight: 700; font-size: 0.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pcl-pros h3    { color: var(--ok); }
+.pcl-cons h3    { color: var(--bad); }
+.pcl-limit h3   { color: var(--warn); }
+/* ----- Ralph-style structured sections (ambiguity / scope / gate_contract) ---
+ * Emitted when the YAML declares `ambiguity:`, `scope:`,
+ * `gate_contract:`. Color cues reuse the existing tokens so
+ * dark-mode parity is automatic. */
+.amb-section, .scope-section, .gate-section { margin: 2rem 0 1rem; }
+.amb-section h3, .scope-section h3, .gate-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+.amb-list { list-style: none; padding-left: 0; margin: 0.5rem 0; }
+.amb-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin: 0.6rem 0;
+  box-shadow: var(--shadow);
+}
+.amb-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.amb-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+.amb-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.amb-badge-blocking { background: rgba(176, 48, 48, 0.15); color: var(--bad); }
+.amb-badge-default  { background: rgba(91, 91, 98, 0.15); color: var(--muted); }
+.amb-question { margin: 0.3rem 0; }
+.amb-default {
+  margin-top: 0.4rem;
+  font-size: 0.92em;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+  padding-left: 0.7rem;
+}
+.scope-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 720px) {
+  .scope-grid { grid-template-columns: 1fr 1fr; }
+}
+.scope-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+.scope-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.scope-in-card { border-left: 4px solid var(--ok); }
+.scope-out-card { border-left: 4px solid var(--muted); }
+.scope-in-card h4  { color: var(--ok); }
+.scope-out-card h4 { color: var(--muted); }
+.scope-list { list-style: none; padding-left: 0; margin: 0; }
+.scope-list li {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 1.3rem;
+  margin: 0.2rem 0;
+}
+.scope-in-card .scope-list li::before {
+  content: "✓";
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.scope-out-card .scope-list li::before {
+  content: "✗";
+  position: absolute; left: 0;
+  color: var(--muted); font-weight: 700;
+}
+.gate-table { font-size: 0.92em; }
+.gate-table th { background: var(--th-bg); }
+.gate-table td { vertical-align: top; }
+.gate-row-attended td { opacity: 0.7; font-style: italic; }
+.muted { color: var(--muted); }
+/* ----- Timeline chips -------------------------------------------------------
+ * Emitted by `_meta_line` when the proposal YAML declares
+ * `started:` or `shipped:` (both YYYY-MM-DD). Visual cue mirrors the
+ * existing --ok / --warn tokens so dark-mode parity is automatic. */
+.timeline-chip {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.timeline-started { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.timeline-shipped { background: rgba(31, 138, 59, 0.12);  color: var(--ok);  }
+</style>
+</head>
+<body>
+
+<h1>Proposal-to-Verified-Change Agent — evidence plan</h1>
+<p class="meta">2026-09-20 · <span class="tag tag-ok">accepted</span> · <span class="timeline-chip timeline-started">started 2026-09-21</span></p>
+<div class="tags"><span class="tag tag-info">ai-agent</span><span class="tag tag-info">change-assurance</span><span class="tag tag-info">langchain</span><span class="tag tag-info">langgraph</span><span class="tag tag-info">langsmith</span><span class="tag tag-info">msa</span><span class="tag tag-info">ai-security</span><span class="tag tag-info">evaluation</span></div>
+<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">The one agent and the problem it solves</a></li><li><a href="#sec-1">Why the three Lang* frameworks are not over-engineering</a></li><li><a href="#sec-2">V1 scope that actively removes failure modes</a></li><li><a href="#sec-3">Accuracy and hallucination are release gates</a></li><li><a href="#sec-4">Latency, safety, security, and ethics</a></li><li><a href="#sec-5">Minimal MSA and Nginx boundary</a></li><li><a href="#sec-6">8GB MacBook Air Local Lite profile</a></li><li><a href="#sec-7">Project pivot boundary — kernel plus replaceable Project Pack</a></li><li><a href="#sec-8">Production Readiness Gate — measurable, not aspirational</a></li><li><a href="#sec-9">Token efficiency is a reliability budget</a></li><li><a href="#sec-10">Review decision and next hand-off</a></li><li><a href="#scope-section">Scope</a></li><li><a href="#gate-contract-section">Gate contract</a></li><li><a href="#ba-section">Before / After</a></li><li><a href="#pcl-pros">Pros</a></li><li><a href="#pcl-cons">Cons</a></li><li><a href="#pcl-limit">Limitations</a></li></ol></div>
+<h2 id="sec-0">The one agent and the problem it solves</h2>
+<p><strong>Agent:</strong> Proposal-to-Verified-Change Agent.</p>
+<p><strong>Problem:</strong> a proposal can be understood by a model yet still produce a change that misses requirements, cites nonexistent code, leaks secrets, bypasses approval, or reports passing tests that were never run. This agent closes that gap by returning a reviewable change package with evidence and a clear failure state.</p>
+<p>It is not sold as "AI writes code." It is sold as "AI makes a proposed engineering change traceable and verifiable before a human merges it."</p>
+<p>This follows the research recommendation to prefer a bounded workflow when the task has a predictable shape. See <a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic — Building Effective Agents</a>, fetched_at <code>2026-09-20</code>, source_type <code>primary-engineering-guidance</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-1">Why the three Lang* frameworks are not over-engineering</h2>
+<table><thead><tr><th>Layer</th><th>Responsibility</th><th>Evidence that the layer is needed</th></tr></thead><tbody><tr><td>LangChain</td><td>structured model output, retrievers, typed read-only tools</td><td>model boundaries must produce validated domain objects</td></tr><tr><td>LangGraph</td><td>explicit state graph, checkpoint, retry, approval interrupt, resume</td><td>patch/test work can outlive a request and pause for a human</td></tr><tr><td>LangSmith</td><td>redacted traces, datasets, offline regression, online sampling</td><td>quality claims need repeatable evidence across model/prompt versions</td></tr></tbody></table>
+<p>The choice is intentionally narrow. LangChain does not own authorization; LangGraph does not replace the product run database; LangSmith does not decide billing, permissions, or completion. This avoids using three frameworks for the same responsibility.</p>
+<p>Sources: <a href="https://docs.langchain.com/oss/python/learn">LangChain Learn</a>, <a href="https://langchain-ai.github.io/langgraph/reference/checkpoints/">LangGraph checkpoints</a>, and <a href="https://docs.langchain.com/langsmith/evaluation-types">LangSmith evaluation types</a>, each fetched_at <code>2026-09-20</code>, source_type <code>official-documentation</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-2">V1 scope that actively removes failure modes</h2>
+<p>The proposal minimizes trade-offs through capability tiers rather than a fixed language whitelist:</p>
+<ol><li><strong>Analyze:</strong> every Git repository can be inventoried and receive an evidence-backed plan.</li><li><strong>Verify:</strong> the profile scanner generates <code>change-assurance.yaml</code>; the user confirms the capabilities, then a built-in Node/pnpm or Python/pytest adapter runs bounded patch/test verification.</li><li><strong>Deliver:</strong> a signed Git/CI adapter creates a branch/PR and can dispatch a policy-approved delivery request using scoped credentials.</li></ol>
+<p>Unknown runtimes stop at <code>plan_only</code>, never at a misleading <code>verified</code>. The adapter SDK and conformance pack make new runtimes an additive extension rather than a redesign. Evaluation-as-code automatically sanitizes failed cases into regression candidates, runs them in CI, and sends only redacted metadata to LangSmith. Low-risk delivery can be auto-approved by static policy; high-impact delivery has one explicit approval interrupt.</p>
+<hr class="section-divider">
+
+<h2 id="sec-3">Accuracy and hallucination are release gates</h2>
+<p>Every completed run emits a machine-readable report, not just a prose answer. The release dataset includes normal, ambiguous, incomplete, and prompt-injection cases. Initial gates are:</p>
+<ul><li>requirement coverage recall <code>&gt;= 0.95</code>; critical requirements <code>= 1.00</code>;</li><li>acceptance-criteria coverage <code>&gt;= 0.95</code>;</li><li>evidence precision <code>&gt;= 0.98</code>; critical evidence precision <code>= 1.00</code>;</li><li>unsupported claim rate <code>&lt;= 0.02</code>; unsupported critical claims <code>= 0</code>;</li><li>invalid reference rate <code>= 0</code> for a completed package;</li><li>expected calibration error <code>&lt;= 0.10</code>, reported per evaluation batch;</li><li>all required tests pass before a package is labelled <code>verified</code>.</li></ul>
+<p>A zero denominator is <code>not_applicable</code>, never a perfect score. A failed gate yields <code>failed</code> or <code>needs_review</code>, not a confident-looking success. A verified package can continue to the signed delivery adapter; delivery failure never changes the recorded verification result. LangSmith evaluators measure semantic quality, while deterministic checks resolve paths, authorization, schemas, patches, test results, and policy.</p>
+<p>See <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic — Demystifying Evals</a>, fetched_at <code>2026-09-20</code>, source_type <code>primary-engineering-guidance</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-4">Latency, safety, security, and ethics</h2>
+<p>Latency is reported end-to-end and per node as p50/p95, together with queue delay, sandbox startup, model calls, tokens, cost, retries, and checkpoint resume time. The small-repository release fixture targets p95 <code>&lt;= 120s</code> for plan-only and <code>&lt;= 600s</code> for patch-plus-test runs. Results are never averaged across incompatible repository sizes.</p>
+<p>Local Lite also records peak RSS, process count, Docker daemon state, local model process state, and swap pressure. The laptop release gate is application peak RSS <code>&lt;= 3GB</code>, at most two long-lived processes, and no required background infrastructure service. Production resource SLOs are measured separately and never presented as laptop results.</p>
+<p>Zero-tolerance release checks cover unauthorized side effects, approval bypass, secret leakage, cross-tenant access, sandbox escape, disallowed network access, high-impact policy false negatives, and prompt-injection success. The UI identifies the agent, shows evidence and uncertainty, exposes approval boundaries, supports deletion/retention policy, and never fabricates a test result or confidence claim.</p>
+<p>Sources: <a href="https://www.anthropic.com/research/trustworthy-agents">Anthropic — Trustworthy Agents</a> and <a href="https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf">NIST Generative AI Profile</a>, fetched_at <code>2026-09-20</code>, source_type <code>primary-research-guidance</code> and <code>government-standard-guidance</code> respectively.</p>
+<hr class="section-divider">
+
+<h2 id="sec-5">Minimal MSA and Nginx boundary</h2>
+<p>Nginx terminates TLS, routes requests, enforces request limits, and carries non-buffered SSE. It contains no workflow or business logic.</p>
+<p>The Web Console and Control API own user interaction, tenant scope, metering, approvals, and lifecycle authority. The Agent Orchestrator owns the LangGraph execution. The Sandbox Worker owns isolated patch/test execution. PostgreSQL is one deployment initially, with schema ownership boundaries and versioned contracts; physical databases, Kafka, a vector database, and a service mesh are deferred. A Delivery Adapter receives only a verified package and scoped policy decision; it creates a signed branch/PR or dispatches CI, never ambient deployment access.</p>
+<p>This is enough MSA evidence for a portfolio: explicit ownership, failure boundaries, versioned contracts, worker isolation, and a clear extraction path. It avoids operational ceremony that has no measured benefit in v1. See <a href="https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy">NGINX reverse proxy</a> and <a href="https://learn.microsoft.com/en-us/azure/architecture/microservices/">Microsoft microservices architecture</a>, fetched_at <code>2026-09-20</code>, source_type <code>official-documentation</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-6">8GB MacBook Air Local Lite profile</h2>
+<p>The laptop profile is a first-class acceptance target, not a reduced afterthought:</p>
+<table><thead><tr><th>Resource</th><th>Local Lite policy</th></tr></thead><tbody><tr><td>Long-lived processes</td><td>At most two: web/control API and orchestrator; sandbox is a bounded subprocess</td></tr><tr><td>State</td><td>SQLite for run/checkpoint/audit state; filesystem index for repository context</td></tr><tr><td>Model</td><td>Remote provider API with allowlisted/redacted context or deterministic fake provider; no local model server</td></tr><tr><td>Observability</td><td>Redacted LangSmith API traces; no local collector</td></tr><tr><td>Infrastructure</td><td>No Docker Desktop, PostgreSQL, Redis, Kafka, vector DB, or Nginx required locally</td></tr><tr><td>Retrieval</td><td>bounded path/symbol index; no embeddings or vector service</td></tr><tr><td>Safety</td><td>only allowlisted fixture commands locally; untrusted high-impact execution uses Production Sandbox Worker</td></tr></tbody></table>
+<p>The local acceptance gate is measured on a clean 8GB profile: application peak RSS <code>&lt;= 3GB</code>, no more than two long-lived application processes, no Docker daemon, no local model process, and no swap-inducing background service. The test fixture, prompt, and repository size are recorded with the measurement. Production MSA keeps the same contracts but moves Nginx, PostgreSQL, sandbox isolation, and delivery adapters to separate deployable boundaries.</p>
+<p>This preserves the portfolio's MSA story without forcing an 8GB laptop to emulate production infrastructure. The design follows the principle that durable workflow state and authorization remain explicit while deployment topology varies by operating profile.</p>
+<hr class="section-divider">
+
+<h2 id="sec-7">Project pivot boundary — kernel plus replaceable Project Pack</h2>
+<p>The workflow is not hard-coded as the whole product. The Agent Platform Kernel owns versioned contracts, tenant/policy authorization, run state, LangGraph checkpointing, approval, metering, audit, sandbox protocol, evaluation ledger, Local Lite/Production profiles, and metric rules.</p>
+<p><code>project-packs/proposal-to-verified-change/</code> owns only project-specific prompts, requirement extensions, retrieval ranking, tools, execution and delivery adapters, report copy, and datasets. The kernel imports ports; it never imports a Project Pack. The web/API resolves packs through a registry, and packs cannot write kernel tables directly.</p>
+<p>A pivot therefore means adding or removing a pack and running its conformance suite. The kernel must still build, health-check, and pass tenant/security/metric contract tests with no pack installed. This keeps the current proposal valuable without locking the future product to one domain.</p>
+<hr class="section-divider">
+
+<h2 id="sec-8">Production Readiness Gate — measurable, not aspirational</h2>
+<p>“현업에서 사용 가능”은 기능 수가 아니라 판정 가능한 운영 계약으로 정의한다. 모든 run은 append-only event ledger에 다음 이벤트를 남긴다: <code>run.created</code>, <code>profile.detected</code>, <code>requirement.parsed</code>, <code>evidence.emitted</code>, <code>tool.authorized</code>, <code>approval.decided</code>, <code>patch.applied</code>, <code>test.completed</code>, <code>evaluation.completed</code>, <code>report.emitted</code>, <code>delivery.requested</code>, and <code>run.resumed</code>.</p>
+<p>각 metric은 formula, numerator, denominator, dataset/version, model/prompt version, sample count, 95% confidence interval, failed case IDs를 함께 저장한다. 비율은 Wilson 95% confidence interval, latency/resource는 bootstrap 95% upper bound를 사용한다. 표본이 부족하면 pass가 아니라 <code>insufficient_sample</code>이다.</p>
+<p>Production Readiness는 다음을 모두 통과해야 한다:</p>
+<ul><li>tenant isolation, approval bypass, unauthorized side effect, secret leakage, sandbox escape, prompt-injection success: <code>0</code>;</li><li>requirement coverage recall lower bound <code>&gt;= 0.95</code>, evidence precision lower bound <code>&gt;= 0.98</code>, invalid reference <code>0</code>;</li><li>checkpoint resume, SSE replay, terminal-state consistency, and delivery/ verification separation: <code>1.00</code> on release fixtures;</li><li>required tests pass before <code>verified</code> is rendered;</li><li>Local Lite peak RSS <code>&lt;= 3GB</code>, long-lived process <code>&lt;= 2</code>;</li><li>every release report is reproducible from persisted evidence.</li></ul>
+<p>LangSmith is used for redacted trace/evaluator comparison, while the product evaluation ledger remains the authority for release status. This follows <a href="https://docs.langchain.com/langsmith/evaluation-types">LangSmith evaluation types</a>, fetched_at <code>2026-09-20</code>, source_type <code>official-documentation</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-9">Token efficiency is a reliability budget</h2>
+<p>Token optimization is owned by the Agent Platform Kernel, not hidden in project prompts. A <code>TokenBudgetPort</code> applies tenant, run, node, context, call, timeout, retry, and cost limits. A Project Pack may request a smaller budget or provide retrieval hints, but it cannot increase the budget. When a ceiling is reached the run becomes <code>quota_paused</code> or <code>budget_exceeded</code>; it never silently truncates evidence or renders <code>verified</code>.</p>
+<p>Local Lite starts with a measured small-repository profile: plan-only runs are capped at <code>20,000</code> total model tokens, verification runs at <code>41,000</code> maximum including the bounded patch retry, one call receives at most <code>8,000</code> input tokens, and the graph allows at most five primary calls plus one bounded patch retry. The pipeline uses deterministic repository indexing, authorized path/symbol selection, line-preserving token limits, content-addressed summaries, and one evidence-triggered retrieval expansion. Retries receive only the failure code, missing evidence IDs, and compact repair context.</p>
+<p>The metric contract records exact or estimated input/output tokens, model calls, context cache hits, retrieval expansions, budget decisions, token savings against a fixed baseline, and quality per 1,000 tokens. The initial optimization target is at least 30% token savings on the same evaluation cases, but it is accepted only if requirement coverage, evidence precision, unsupported-claim, critical safety, and test gates remain at least as strong. See <a href="../../architecture/token-budget-contract.md">Token Budget Contract</a> and <a href="../../metrics/change-assurance-metrics.md">Change-Assurance Metrics Contract</a>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-10">Review decision and next hand-off</h2>
+<p>This proposal is approved for implementation. The product outcome, capability tiers, signed delivery boundary, layer contracts, token budgets, quantitative gates, and minimal MSA direction are locked for planning and build. The plan must emit the canonical PRD and phase artifacts before the build runner starts.</p>
+<p><code>/dev-kit:build</code> may implement source code only from those phase artifacts. Private-repository creation, remote configuration, and push remain separate authorized delivery actions.</p>
+<hr class="section-divider">
+
+
+<hr class="section-divider">
+
+<section id="scope-section" class="scope-section"><h3>Scope</h3><div class="scope-grid"><div class="scope-card scope-in-card"><h4>In scope</h4><ul class="scope-list"><li>One proposal/PRD to one authorized Git repository per run, with analysis available for every repository profile.</li><li>Typed requirements, acceptance criteria, targeted retrieval, capability profile confirmation, evidence references, approval, sandbox patching, tests, evaluation, and report.</li><li>Auto-generated change-assurance.yaml capability manifest with allowlisted paths, test command, resource limits, and retention profile.</li><li>Built-in Node/pnpm and Python/pytest execution adapters plus an adapter SDK and conformance test pack.</li><li>Signed Git branch/PR creation and policy-gated CI delivery through scoped provider adapters.</li><li>Evaluation-as-code: versioned datasets, automatic sanitized failure candidates, deterministic checks, and LangSmith regression runs.</li><li>Metric registry and append-only event ledger with formulas, confidence intervals, sample minimums, and release status.</li><li>Local Lite runtime: at most two long-lived processes, SQLite checkpoints, filesystem sandbox, remote model provider, redacted LangSmith traces, and no Docker Desktop requirement.</li><li>Production MSA runtime: Nginx, separately deployable API/orchestrator/sandbox/delivery boundaries, and PostgreSQL ownership boundaries.</li><li>Agent Platform Kernel and replaceable Project Pack boundary with versioned ports, registry, and conformance tests.</li><li>Kernel-owned token budgets, context cache, bounded retrieval expansion, usage reconciliation, and fail-closed quota behavior.</li><li>One configured model provider per deployment, no provider fallback in v1, and retrieval from repository inventory/symbols without a vector database.</li><li>LangChain model/tool boundary, LangGraph durable workflow, LangSmith trace/evaluation boundary.</li><li>Nginx edge proxy and minimal MSA-shaped local/deployable topology.</li><li>Deterministic and evaluator-based release gates for accuracy, hallucination, latency, cost, safety, security, and ethics.</li></ul></div><div class="scope-card scope-out-card"><h4>Out of scope</h4><ul class="scope-list"><li>Generic document summarization as the product center.</li><li>Multi-agent swarm, ambient credentials, arbitrary external API action, provider fallback, and unscoped delivery.</li><li>Arbitrary shell commands, vector database infrastructure, and model-generated network destinations.</li><li>Local LLM serving, always-on Docker Desktop, local PostgreSQL/Redis/Kafka, and production-grade sandbox isolation on the 8GB laptop.</li><li>Project-specific logic imported directly into kernel modules or cross-pack table writes.</li><li>Kubernetes, Kafka, service mesh, and per-service databases in the first deployment.</li></ul></div></div></section><section id="gate-contract-section" class="gate-section"><h3>Gate contract</h3><table class="gate-table"><thead><tr><th>Gate</th><th>Artifact</th><th>Question</th><th>Options</th><th>Rewind on Edit</th></tr></thead><tbody><tr class=""><td><code>proposal-review</code></td><td><code>docs/proposals/pending/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.html</code></td><td>Confirm the capability tiers, delivery boundary, layer ownership, and quantitative release gates.</td><td>approve, request changes</td><td><code>proposal-review</code></td></tr><tr class=""><td><code>plan-handoff</code></td><td><code>PRD.md and phases/&lt;phase&gt;/</code></td><td>After explicit approval, run the full plan interview and decompose the implementation.</td><td>proceed to plan</td><td><code>proposal-review</code></td></tr></tbody></table></section><section id="ba-section" class="ba-section"><h2>Before / After</h2><div class="ba-grid"><div class="ba-card before-card"><h3>Before (current state)</h3><p>The current repository is an AI SaaS foundation. Its PRD explicitly keeps domain-specific agent workflows out of the foundation and exposes only run/tool/checkpoint contracts. The existing system map describes a LangGraph runtime and service boundaries, but it does not define one user-facing agent outcome that proves requirement coverage, evidence grounding, safe patching, and verification together.</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--muted);">Evidence</h4><ul class="evidence-list"><li>PRD.md:29-34 — domain-specific agent workflows and automatic physical extraction are non-goals of the foundation.</li><li>docs/sot/architecture/system-map.md:24-33 — the system map does not define domain-specific prompts or product features.</li><li>docs/sot/architecture/system-map.md:58-68 — current logical boundaries separate the frontend, FastAPI agent API, LangGraph runtime, AI gateway, Postgres, and observability.</li><li>docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml — the foundation proposal prioritizes cost-tiered MSA contracts and worker extraction before domain-specific workflow breadth.</li></ul></div><div class="ba-card after-card"><h3>After (proposed state)</h3><p>A narrow change-assurance product turns an approved proposal and an authorized repository into a traceable change package: parsed requirements, targeted code evidence, an implementation plan, an approval record, a sandbox patch, test evidence, evaluator scores, and an auditable report. Every Git repository receives an inventory and evidence-backed plan. The system then auto-generates a capability profile and asks the user to confirm it before patching or delivery. Built-in Node/pnpm and Python/pytest adapters support verified execution; an unrecognized runtime degrades to a safe plan-only result. Verified output can flow through a signed Git/CI delivery adapter, so PR creation and policy-gated delivery are part of the product contract without granting the agent ambient deploy credentials. The same contracts expose two runtime profiles: Local Lite for an 8GB MacBook Air and Production MSA for isolated deployment. Local Lite uses at most two long-lived processes, SQLite checkpoints, a filesystem sandbox, remote model calls, and redacted LangSmith traces; it does not require Docker Desktop, PostgreSQL, Redis, Kafka, a vector database, or a local model. The reusable kernel owns contracts and controls; Proposal-to-Verified-Change is a replaceable Project Pack. A future project changes the pack, prompts, adapters, and datasets without rewriting auth, metering, workflow state, safety, metrics, or deployment profiles.</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--accent);">Files</h4><ul class="files-list"><li><span class="file-path">docs/adr/0001-proposal-to-verified-change-agent.md</span><p>Record the architecture decision, alternatives, authority boundaries, quantitative gates, and change triggers.</p></li><li><span class="file-path">.dev-kit/hand-off/sot-harness-proposal-to-verified-change-agent-20260920.md</span><p>Lock the product, Lang* layer contract, security boundary, metrics, release gates, and implementation phases.</p></li><li><span class="file-path">packages/agent-platform-contracts/</span><p>Define versioned product-neutral requirement, evidence, plan, patch, run, approval, evaluation, and verification schemas.</p></li><li><span class="file-path">packages/agent-platform-kernel/</span><p>Own policy, run state, checkpoint/resume, approval, metering, audit, sandbox boundary, evaluation ledger, and port interfaces without project-specific imports.</p></li><li><span class="file-path">services/control-api/</span><p>Own authenticated run creation, tenant scope, approvals, metering, lifecycle authority, and SSE access.</p></li><li><span class="file-path">services/agent-orchestrator/</span><p>Implement the typed LangGraph workflow, checkpoints, interrupts, bounded retries, and event mapping.</p></li><li><span class="file-path">services/sandbox-worker/</span><p>Apply approved patches and execute bounded tests with path, process, time, output, and network controls.</p></li><li><span class="file-path">services/profile-registry/</span><p>Auto-detect repository capabilities, emit a reviewable manifest, and resolve replaceable Project Packs through a versioned registry.</p></li><li><span class="file-path">services/delivery-gateway/</span><p>Create signed branches/PRs and dispatch policy-approved CI delivery requests through scoped provider adapters.</p></li><li><span class="file-path">project-packs/proposal-to-verified-change/</span><p>Implement the project-specific prompts, requirement extensions, repository/execution/delivery adapters, report copy, and capability manifest.</p></li><li><span class="file-path">evals/project-packs/proposal-to-verified-change/</span><p>Run versioned evaluation-as-code, redact failed cases into regression candidates, and execute deterministic/LangSmith evaluators in CI.</p></li><li><span class="file-path">docs/architecture/project-pivot-contract.md</span><p>Define kernel/Project Pack separation, ports, dependency rules, pivot procedure, and conformance tests.</p></li><li><span class="file-path">docs/architecture/token-budget-contract.md</span><p>Define kernel-owned token budgets, context reduction, cache keys, bounded retries, usage reconciliation, and hard-stop behavior.</p></li><li><span class="file-path">docs/metrics/change-assurance-metrics.md</span><p>Define every metric's formula, event source, denominator, confidence interval, sample minimum, and release decision.</p></li><li><span class="file-path">infra/nginx/</span><p>Configure TLS termination, route proxying, request limits, and non-buffered bounded SSE transport only.</p></li><li><span class="file-path">infra/profiles/local-lite/</span><p>Provide the 8GB-safe local runtime profile, resource budgets, fake-provider mode, SQLite state, and memory acceptance checks.</p></li></ul></div></div></section><section id="pcl-pros" class="pcl-section pcl-pros"><h3>Pros</h3><ul class="pros-list"><li>Creates one defensible product narrative: proposal to evidence-backed verified change, rather than a generic chatbot.</li><li>Uses LangChain, LangGraph, and LangSmith in separate necessary layers with explicit ownership and no duplicated orchestration.</li><li>Makes accuracy, hallucination, latency, safety, security, and ethics measurable through release gates and versioned evidence.</li><li>Demonstrates human approval, sandbox isolation, checkpoint resume, and reviewable output without autonomous deploy or merge.</li><li>Starts with a minimal MSA-shaped deployment and preserves physical extraction options only when workload or isolation evidence requires them.</li><li>Supports every Git repository for analysis, then upgrades capability through a profile and adapter contract instead of blocking on a fixed language list.</li><li>Turns evaluation maintenance into an evaluation-as-code feedback loop that automatically produces regression candidates from sanitized failures.</li><li>Extends from verified change package to signed PR and policy-gated CI delivery without exposing ambient deployment credentials.</li><li>Runs the complete portfolio demo on an 8GB MacBook Air without a local model or always-on infrastructure stack.</li><li>Treats token usage as a measurable reliability budget, using bounded context and cache reuse without accepting a quality or safety regression.</li></ul></section><section id="pcl-cons" class="pcl-section pcl-cons"><h3>Cons</h3><ul class="cons-list"><li>Provider-specific Git/CI adapters still need configuration; the mitigation is a provider-neutral delivery contract, local simulators, and conformance tests.</li><li>High-impact delivery remains approval-gated; the mitigation is policy-based low-risk auto-approval and a single explicit approval only at the risk boundary.</li><li>Local Lite does not reproduce every production failure domain; the mitigation is a contract-identical Production MSA profile exercised in CI.</li></ul></section><section id="pcl-limit" class="pcl-section pcl-limit"><h3>Limitations</h3><ul class="limitations-list"><li>The agent never receives ambient merge or deploy credentials; all delivery is delegated to scoped, auditable Git/CI adapters.</li><li>A new runtime requires an adapter conformance pack before it can claim verified execution; analysis and plan generation remain available immediately.</li><li>An 8GB laptop is a development/demo target, not the production isolation boundary; untrusted high-impact execution is disabled locally and delegated to the Production Sandbox Worker.</li></ul></section>
+
+<hr class="section-divider">
+
+<footer>Generated 2026-09-21 · render via <code>/dev-kit:proposal</code></footer>
+</body>
+</html>

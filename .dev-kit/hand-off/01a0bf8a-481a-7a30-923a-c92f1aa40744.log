@@ -1,2 +1,0 @@
-Bash	python3 -m pytest -q tests/test_proposal_verified_change_agent.py
-Bash	python3 -m pytest -q tests/test_proposal_verified_change_agent.py

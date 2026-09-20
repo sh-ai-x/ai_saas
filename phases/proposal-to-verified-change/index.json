@@ -1,0 +1,15 @@
+{
+  "phase": "proposal-to-verified-change",
+  "schema_version": "1.0.0",
+  "steps": [
+    {
+      "completed_at": "2026-09-21T01:22:35+0900",
+      "depends_on": [],
+      "duration_seconds": 1452.0,
+      "name": "vertical-slice-kernel-and-workflow",
+      "started_at": "2026-09-21T00:58:23+0900",
+      "status": "completed",
+      "step": 0
+    }
+  ]
+}
