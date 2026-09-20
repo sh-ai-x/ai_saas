@@ -23,8 +23,15 @@ def redact(value: Any) -> Any:
     if isinstance(value, str):
         return redact_text(value)
     if isinstance(value, Mapping):
-        return {str(key): redact(child) for key, child in value.items()}
+        redacted: dict[str, Any] = {}
+        for key, child in value.items():
+            name = str(key)
+            sensitive_name = re.search(r"(?i)(?:^|_)(authorization|password|passwd|secret|api[_-]?key|credential)$", name) or name.lower() in {"token", "access_token", "refresh_token", "bearer_token", "client_secret"}
+            if sensitive_name:
+                redacted[name] = "[REDACTED_CREDENTIAL]"
+            else:
+                redacted[name] = redact(child)
+        return redacted
     if isinstance(value, (list, tuple)):
         return [redact(child) for child in value]
     return value
-

@@ -2,10 +2,11 @@
 
 from .otel import InMemorySpanExporter, SampledOpenTelemetry, SampledTracer, redact_attributes
 
-from .adapter import RedactedTraceAdapter, TraceRecord
+from .adapter import LangSmithClientAdapter, RedactedTraceAdapter, TraceRecord
 
 __all__ = [
     "InMemorySpanExporter",
+    "LangSmithClientAdapter",
     "RedactedTraceAdapter",
     "SampledOpenTelemetry",
     "SampledTracer",

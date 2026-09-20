@@ -1,5 +1,6 @@
-"""Small local control facade; no web server is required for tests."""
+"""Small control facade and dependency-light HTTP API."""
 
 from .service import LocalControlService
+from .http import ControlApiConfig, ControlRuntime, build_runtime, create_server
 
-__all__ = ["LocalControlService"]
+__all__ = ["ControlApiConfig", "ControlRuntime", "LocalControlService", "build_runtime", "create_server"]

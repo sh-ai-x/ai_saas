@@ -1,8 +1,8 @@
 ---
 adr: 0001
 title: Proposal-to-Verified-Change Agent architecture
-status: proposed
-date: 2026-09-20
+status: accepted
+date: 2026-09-21
 decision_owner: product-and-platform
 scope: new-private-product-repository
 source_of_truth: architecture-decision
@@ -14,10 +14,10 @@ related_decision_log: ../../.dev-kit/decision-log-sot-harness/proposal-to-verifi
 
 ## Status
 
-Proposed. This ADR becomes accepted only after the evidence-plan proposal is
-reviewed and explicitly approved. It records the architecture for the new
-private product repository; it does not silently change the existing
-foundation repository's runtime.
+Accepted after review of the evidence-plan proposal. It records the
+architecture and implementation boundary for the new private product
+repository; it does not silently change the existing foundation repository's
+runtime.
 
 ## Context
 
@@ -34,10 +34,34 @@ The product therefore needs one narrow outcome:
 > evidence-backed, reviewable, sandbox-verified change package.
 
 The package contains the parsed requirements, repository evidence, plan,
-approval record, patch/diff, verification results, evaluation scores, and
-trace identifiers. The system may use an LLM for interpretation and bounded
-tool selection, but policy, authorization, lifecycle state, metering, and
-completion status must remain deterministic and server-owned.
+approval record, verification results, evaluation scores, and trace
+identifiers. The current V1 emits a review artifact and signed delivery
+request; it does not mutate a repository. A future typed diff adapter may add
+patch contents without changing the kernel contract. The system may use an
+LLM for interpretation and bounded tool selection, but policy, authorization,
+lifecycle state, metering, and completion status remain deterministic and
+server-owned.
+
+## Implementation status
+
+The accepted design has an executable Local Lite slice and a production-shaped
+integration boundary:
+
+- `services/control_api` exposes authenticated run creation, approval resume,
+  report lookup, and JSON/SSE event replay over the standard library HTTP
+  server.
+- `agent_platform` remains the authority for SQLite state, tenant scope,
+  idempotency, checkpoints, redaction, token budgets, and terminal states.
+- LangChain structured output, LangGraph interrupt/checkpoint execution, and
+  LangSmith `create_run` telemetry are optional runtime adapters. They are
+  enabled only when their packages/configuration are present; the fake
+  provider remains the credential-free fallback.
+- `services/sandbox_worker.BoundedSubprocessSandbox` verifies declared
+  commands in a disposable allowlisted copy. Production untrusted execution
+  still requires a VM/container worker boundary.
+- `services/delivery_gateway.ReviewArtifactStore` writes an atomic redacted
+  review package, while `DeliveryGateway` accepts only a signed manual
+  delivery request.
 
 ## Decision
 

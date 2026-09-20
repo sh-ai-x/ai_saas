@@ -2,6 +2,8 @@ profile: local-lite
 provider_mode: fake
 state_store: sqlite
 network: disabled
+sandbox_mode: deterministic
+api_auth: x-tenant-id-local-or-signed-bearer
 long_lived_processes:
   - name: control-api
     command: python3 -m services.control_api
@@ -13,4 +15,3 @@ limits:
   per_call_input_tokens: 8000
   primary_model_calls: 5
   retry_calls: 1
-

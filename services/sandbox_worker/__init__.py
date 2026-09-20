@@ -1,5 +1,5 @@
 """Allowlisted deterministic patch/test worker."""
 
-from .sandbox import DeterministicSandbox, SandboxPolicy, SimulationResult
+from .sandbox import BoundedSubprocessSandbox, DeterministicSandbox, ProcessResult, SandboxPolicy, SimulationResult
 
-__all__ = ["DeterministicSandbox", "SandboxPolicy", "SimulationResult"]
+__all__ = ["BoundedSubprocessSandbox", "DeterministicSandbox", "ProcessResult", "SandboxPolicy", "SimulationResult"]
