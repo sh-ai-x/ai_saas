@@ -1,0 +1,395 @@
+title: Proposal-to-Verified-Change Agent — evidence plan
+status: accepted
+date: 2026-09-20
+started: 2026-09-21
+tags:
+  - ai-agent
+  - change-assurance
+  - langchain
+  - langgraph
+  - langsmith
+  - msa
+  - ai-security
+  - evaluation
+
+before:
+  summary: |
+    The current repository is an AI SaaS foundation. Its PRD explicitly keeps
+    domain-specific agent workflows out of the foundation and exposes only
+    run/tool/checkpoint contracts. The existing system map describes a
+    LangGraph runtime and service boundaries, but it does not define one
+    user-facing agent outcome that proves requirement coverage, evidence
+    grounding, safe patching, and verification together.
+  evidence:
+    - 'PRD.md:29-34 — domain-specific agent workflows and automatic physical extraction are non-goals of the foundation.'
+    - 'docs/sot/architecture/system-map.md:24-33 — the system map does not define domain-specific prompts or product features.'
+    - 'docs/sot/architecture/system-map.md:58-68 — current logical boundaries separate the frontend, FastAPI agent API, LangGraph runtime, AI gateway, Postgres, and observability.'
+    - 'docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml — the foundation proposal prioritizes cost-tiered MSA contracts and worker extraction before domain-specific workflow breadth.'
+
+after:
+  summary: |
+    A narrow change-assurance product turns an approved proposal and an
+    authorized repository into a traceable change package: parsed requirements,
+    targeted code evidence, an implementation plan, an approval record, a
+    sandbox patch, test evidence, evaluator scores, and an auditable report.
+    Every Git repository receives an inventory and evidence-backed plan. The
+    system then auto-generates a capability profile and asks the user to
+    confirm it before patching or delivery. Built-in Node/pnpm and Python/pytest
+    adapters support verified execution; an unrecognized runtime degrades to a
+    safe plan-only result. Verified output can flow through a signed Git/CI
+    delivery adapter, so PR creation and policy-gated delivery are part of the
+    product contract without granting the agent ambient deploy credentials.
+    The same contracts expose two runtime profiles: Local Lite for an 8GB
+    MacBook Air and Production MSA for isolated deployment. Local Lite uses at
+    most two long-lived processes, SQLite checkpoints, a filesystem sandbox,
+    remote model calls, and redacted LangSmith traces; it does not require
+    Docker Desktop, PostgreSQL, Redis, Kafka, a vector database, or a local
+    model.
+    The reusable kernel owns contracts and controls; Proposal-to-Verified-Change
+    is a replaceable Project Pack. A future project changes the pack, prompts,
+    adapters, and datasets without rewriting auth, metering, workflow state,
+    safety, metrics, or deployment profiles.
+  files:
+    - path: docs/adr/0001-proposal-to-verified-change-agent.md
+      change: Record the architecture decision, alternatives, authority boundaries, quantitative gates, and change triggers.
+    - path: .dev-kit/hand-off/sot-harness-proposal-to-verified-change-agent-20260920.md
+      change: Lock the product, Lang* layer contract, security boundary, metrics, release gates, and implementation phases.
+    - path: packages/agent-platform-contracts/
+      change: Define versioned product-neutral requirement, evidence, plan, patch, run, approval, evaluation, and verification schemas.
+    - path: packages/agent-platform-kernel/
+      change: Own policy, run state, checkpoint/resume, approval, metering, audit, sandbox boundary, evaluation ledger, and port interfaces without project-specific imports.
+    - path: services/control-api/
+      change: Own authenticated run creation, tenant scope, approvals, metering, lifecycle authority, and SSE access.
+    - path: services/agent-orchestrator/
+      change: Implement the typed LangGraph workflow, checkpoints, interrupts, bounded retries, and event mapping.
+    - path: services/sandbox-worker/
+      change: Apply approved patches and execute bounded tests with path, process, time, output, and network controls.
+    - path: services/profile-registry/
+      change: Auto-detect repository capabilities, emit a reviewable manifest, and resolve replaceable Project Packs through a versioned registry.
+    - path: services/delivery-gateway/
+      change: Create signed branches/PRs and dispatch policy-approved CI delivery requests through scoped provider adapters.
+    - path: project-packs/proposal-to-verified-change/
+      change: Implement the project-specific prompts, requirement extensions, repository/execution/delivery adapters, report copy, and capability manifest.
+    - path: evals/project-packs/proposal-to-verified-change/
+      change: Run versioned evaluation-as-code, redact failed cases into regression candidates, and execute deterministic/LangSmith evaluators in CI.
+    - path: docs/architecture/project-pivot-contract.md
+      change: Define kernel/Project Pack separation, ports, dependency rules, pivot procedure, and conformance tests.
+    - path: docs/architecture/token-budget-contract.md
+      change: Define kernel-owned token budgets, context reduction, cache keys, bounded retries, usage reconciliation, and hard-stop behavior.
+    - path: docs/metrics/change-assurance-metrics.md
+      change: Define every metric's formula, event source, denominator, confidence interval, sample minimum, and release decision.
+    - path: infra/nginx/
+      change: Configure TLS termination, route proxying, request limits, and non-buffered bounded SSE transport only.
+    - path: infra/profiles/local-lite/
+      change: Provide the 8GB-safe local runtime profile, resource budgets, fake-provider mode, SQLite state, and memory acceptance checks.
+
+pros:
+  - 'Creates one defensible product narrative: proposal to evidence-backed verified change, rather than a generic chatbot.'
+  - 'Uses LangChain, LangGraph, and LangSmith in separate necessary layers with explicit ownership and no duplicated orchestration.'
+  - 'Makes accuracy, hallucination, latency, safety, security, and ethics measurable through release gates and versioned evidence.'
+  - 'Demonstrates human approval, sandbox isolation, checkpoint resume, and reviewable output without autonomous deploy or merge.'
+  - 'Starts with a minimal MSA-shaped deployment and preserves physical extraction options only when workload or isolation evidence requires them.'
+  - 'Supports every Git repository for analysis, then upgrades capability through a profile and adapter contract instead of blocking on a fixed language list.'
+  - 'Turns evaluation maintenance into an evaluation-as-code feedback loop that automatically produces regression candidates from sanitized failures.'
+  - 'Extends from verified change package to signed PR and policy-gated CI delivery without exposing ambient deployment credentials.'
+  - 'Runs the complete portfolio demo on an 8GB MacBook Air without a local model or always-on infrastructure stack.'
+  - 'Treats token usage as a measurable reliability budget, using bounded context and cache reuse without accepting a quality or safety regression.'
+
+cons:
+  - 'Provider-specific Git/CI adapters still need configuration; the mitigation is a provider-neutral delivery contract, local simulators, and conformance tests.'
+  - 'High-impact delivery remains approval-gated; the mitigation is policy-based low-risk auto-approval and a single explicit approval only at the risk boundary.'
+  - 'Local Lite does not reproduce every production failure domain; the mitigation is a contract-identical Production MSA profile exercised in CI.'
+
+limitations:
+  - 'The agent never receives ambient merge or deploy credentials; all delivery is delegated to scoped, auditable Git/CI adapters.'
+  - 'A new runtime requires an adapter conformance pack before it can claim verified execution; analysis and plan generation remain available immediately.'
+  - 'An 8GB laptop is a development/demo target, not the production isolation boundary; untrusted high-impact execution is disabled locally and delegated to the Production Sandbox Worker.'
+
+scope:
+  in_scope:
+    - 'One proposal/PRD to one authorized Git repository per run, with analysis available for every repository profile.'
+    - 'Typed requirements, acceptance criteria, targeted retrieval, capability profile confirmation, evidence references, approval, sandbox patching, tests, evaluation, and report.'
+    - 'Auto-generated change-assurance.yaml capability manifest with allowlisted paths, test command, resource limits, and retention profile.'
+    - 'Built-in Node/pnpm and Python/pytest execution adapters plus an adapter SDK and conformance test pack.'
+    - 'Signed Git branch/PR creation and policy-gated CI delivery through scoped provider adapters.'
+    - 'Evaluation-as-code: versioned datasets, automatic sanitized failure candidates, deterministic checks, and LangSmith regression runs.'
+    - 'Metric registry and append-only event ledger with formulas, confidence intervals, sample minimums, and release status.'
+    - 'Local Lite runtime: at most two long-lived processes, SQLite checkpoints, filesystem sandbox, remote model provider, redacted LangSmith traces, and no Docker Desktop requirement.'
+    - 'Production MSA runtime: Nginx, separately deployable API/orchestrator/sandbox/delivery boundaries, and PostgreSQL ownership boundaries.'
+    - 'Agent Platform Kernel and replaceable Project Pack boundary with versioned ports, registry, and conformance tests.'
+    - 'Kernel-owned token budgets, context cache, bounded retrieval expansion, usage reconciliation, and fail-closed quota behavior.'
+    - 'One configured model provider per deployment, no provider fallback in v1, and retrieval from repository inventory/symbols without a vector database.'
+    - 'LangChain model/tool boundary, LangGraph durable workflow, LangSmith trace/evaluation boundary.'
+    - 'Nginx edge proxy and minimal MSA-shaped local/deployable topology.'
+    - 'Deterministic and evaluator-based release gates for accuracy, hallucination, latency, cost, safety, security, and ethics.'
+  out_of_scope:
+    - 'Generic document summarization as the product center.'
+    - 'Multi-agent swarm, ambient credentials, arbitrary external API action, provider fallback, and unscoped delivery.'
+    - 'Arbitrary shell commands, vector database infrastructure, and model-generated network destinations.'
+    - 'Local LLM serving, always-on Docker Desktop, local PostgreSQL/Redis/Kafka, and production-grade sandbox isolation on the 8GB laptop.'
+    - 'Project-specific logic imported directly into kernel modules or cross-pack table writes.'
+    - 'Kubernetes, Kafka, service mesh, and per-service databases in the first deployment.'
+
+gate_contract:
+  - gate: proposal-review
+    artifact: docs/proposals/pending/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.html
+    question: Confirm the capability tiers, delivery boundary, layer ownership, and quantitative release gates.
+    options:
+      - approve
+      - request changes
+    rewind_on_edit: proposal-review
+  - gate: plan-handoff
+    artifact: PRD.md and phases/<phase>/
+    question: After explicit approval, run the full plan interview and decompose the implementation.
+    options:
+      - proceed to plan
+    rewind_on_edit: proposal-review
+
+sections:
+  - title: The one agent and the problem it solves
+    body: |
+      **Agent:** Proposal-to-Verified-Change Agent.
+
+      **Problem:** a proposal can be understood by a model yet still produce a
+      change that misses requirements, cites nonexistent code, leaks secrets,
+      bypasses approval, or reports passing tests that were never run. This
+      agent closes that gap by returning a reviewable change package with
+      evidence and a clear failure state.
+
+      It is not sold as "AI writes code." It is sold as "AI makes a proposed
+      engineering change traceable and verifiable before a human merges it."
+
+      This follows the research recommendation to prefer a bounded workflow
+      when the task has a predictable shape. See [Anthropic — Building
+      Effective Agents](https://www.anthropic.com/engineering/building-effective-agents),
+      fetched_at `2026-09-20`, source_type `primary-engineering-guidance`.
+
+  - title: Why the three Lang* frameworks are not over-engineering
+    body: |
+      | Layer | Responsibility | Evidence that the layer is needed |
+      |---|---|---|
+      | LangChain | structured model output, retrievers, typed read-only tools | model boundaries must produce validated domain objects |
+      | LangGraph | explicit state graph, checkpoint, retry, approval interrupt, resume | patch/test work can outlive a request and pause for a human |
+      | LangSmith | redacted traces, datasets, offline regression, online sampling | quality claims need repeatable evidence across model/prompt versions |
+
+      The choice is intentionally narrow. LangChain does not own authorization;
+      LangGraph does not replace the product run database; LangSmith does not
+      decide billing, permissions, or completion. This avoids using three
+      frameworks for the same responsibility.
+
+      Sources: [LangChain Learn](https://docs.langchain.com/oss/python/learn),
+      [LangGraph checkpoints](https://langchain-ai.github.io/langgraph/reference/checkpoints/),
+      and [LangSmith evaluation types](https://docs.langchain.com/langsmith/evaluation-types),
+      each fetched_at `2026-09-20`, source_type `official-documentation`.
+
+  - title: V1 scope that actively removes failure modes
+    body: |
+      The proposal minimizes trade-offs through capability tiers rather than a
+      fixed language whitelist:
+
+      1. **Analyze:** every Git repository can be inventoried and receive an
+         evidence-backed plan.
+      2. **Verify:** the profile scanner generates `change-assurance.yaml`; the
+         user confirms the capabilities, then a built-in Node/pnpm or
+         Python/pytest adapter runs bounded patch/test verification.
+      3. **Deliver:** a signed Git/CI adapter creates a branch/PR and can
+         dispatch a policy-approved delivery request using scoped credentials.
+
+      Unknown runtimes stop at `plan_only`, never at a misleading `verified`.
+      The adapter SDK and conformance pack make new runtimes an additive
+      extension rather than a redesign. Evaluation-as-code automatically
+      sanitizes failed cases into regression candidates, runs them in CI, and
+      sends only redacted metadata to LangSmith. Low-risk delivery can be
+      auto-approved by static policy; high-impact delivery has one explicit
+      approval interrupt.
+
+  - title: Accuracy and hallucination are release gates
+    body: |
+      Every completed run emits a machine-readable report, not just a prose
+      answer. The release dataset includes normal, ambiguous, incomplete, and
+      prompt-injection cases. Initial gates are:
+
+      - requirement coverage recall `>= 0.95`; critical requirements `= 1.00`;
+      - acceptance-criteria coverage `>= 0.95`;
+      - evidence precision `>= 0.98`; critical evidence precision `= 1.00`;
+      - unsupported claim rate `<= 0.02`; unsupported critical claims `= 0`;
+      - invalid reference rate `= 0` for a completed package;
+      - expected calibration error `<= 0.10`, reported per evaluation batch;
+      - all required tests pass before a package is labelled `verified`.
+
+      A zero denominator is `not_applicable`, never a perfect score. A failed
+      gate yields `failed` or `needs_review`, not a confident-looking success.
+      A verified package can continue to the signed delivery adapter; delivery
+      failure never changes the recorded verification result.
+      LangSmith evaluators measure semantic quality, while deterministic checks
+      resolve paths, authorization, schemas, patches, test results, and policy.
+
+      See [Anthropic — Demystifying Evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents),
+      fetched_at `2026-09-20`, source_type `primary-engineering-guidance`.
+
+  - title: Latency, safety, security, and ethics
+    body: |
+      Latency is reported end-to-end and per node as p50/p95, together with
+      queue delay, sandbox startup, model calls, tokens, cost, retries, and
+      checkpoint resume time. The small-repository release fixture targets p95
+      `<= 120s` for plan-only and `<= 600s` for patch-plus-test runs. Results
+      are never averaged across incompatible repository sizes.
+
+      Local Lite also records peak RSS, process count, Docker daemon state,
+      local model process state, and swap pressure. The laptop release gate is
+      application peak RSS `<= 3GB`, at most two long-lived processes, and no
+      required background infrastructure service. Production resource SLOs are
+      measured separately and never presented as laptop results.
+
+      Zero-tolerance release checks cover unauthorized side effects, approval
+      bypass, secret leakage, cross-tenant access, sandbox escape, disallowed
+      network access, high-impact policy false negatives, and prompt-injection
+      success. The UI identifies the agent, shows evidence and uncertainty,
+      exposes approval boundaries, supports deletion/retention policy, and
+      never fabricates a test result or confidence claim.
+
+      Sources: [Anthropic — Trustworthy Agents](https://www.anthropic.com/research/trustworthy-agents)
+      and [NIST Generative AI Profile](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf),
+      fetched_at `2026-09-20`, source_type `primary-research-guidance` and
+      `government-standard-guidance` respectively.
+
+  - title: Minimal MSA and Nginx boundary
+    body: |
+      Nginx terminates TLS, routes requests, enforces request limits, and
+      carries non-buffered SSE. It contains no workflow or business logic.
+
+      The Web Console and Control API own user interaction, tenant scope,
+      metering, approvals, and lifecycle authority. The Agent Orchestrator owns
+      the LangGraph execution. The Sandbox Worker owns isolated patch/test
+      execution. PostgreSQL is one deployment initially, with schema ownership
+      boundaries and versioned contracts; physical databases, Kafka, a vector
+      database, and a service mesh are deferred. A Delivery Adapter receives
+      only a verified package and scoped policy decision; it creates a signed
+      branch/PR or dispatches CI, never ambient deployment access.
+
+      This is enough MSA evidence for a portfolio: explicit ownership,
+      failure boundaries, versioned contracts, worker isolation, and a clear
+      extraction path. It avoids operational ceremony that has no measured
+      benefit in v1. See [NGINX reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy)
+      and [Microsoft microservices architecture](https://learn.microsoft.com/en-us/azure/architecture/microservices/),
+      fetched_at `2026-09-20`, source_type `official-documentation`.
+
+  - title: 8GB MacBook Air Local Lite profile
+    body: |
+      The laptop profile is a first-class acceptance target, not a reduced
+      afterthought:
+
+      | Resource | Local Lite policy |
+      |---|---|
+      | Long-lived processes | At most two: web/control API and orchestrator; sandbox is a bounded subprocess |
+      | State | SQLite for run/checkpoint/audit state; filesystem index for repository context |
+      | Model | Remote provider API with allowlisted/redacted context or deterministic fake provider; no local model server |
+      | Observability | Redacted LangSmith API traces; no local collector |
+      | Infrastructure | No Docker Desktop, PostgreSQL, Redis, Kafka, vector DB, or Nginx required locally |
+      | Retrieval | bounded path/symbol index; no embeddings or vector service |
+      | Safety | only allowlisted fixture commands locally; untrusted high-impact execution uses Production Sandbox Worker |
+
+      The local acceptance gate is measured on a clean 8GB profile: application
+      peak RSS `<= 3GB`, no more than two long-lived application processes,
+      no Docker daemon, no local model process, and no swap-inducing background
+      service. The test fixture, prompt, and repository size are recorded with
+      the measurement. Production MSA keeps the same contracts but moves Nginx,
+      PostgreSQL, sandbox isolation, and delivery adapters to separate
+      deployable boundaries.
+
+      This preserves the portfolio's MSA story without forcing an 8GB laptop
+      to emulate production infrastructure. The design follows the principle
+      that durable workflow state and authorization remain explicit while
+      deployment topology varies by operating profile.
+
+  - title: Project pivot boundary — kernel plus replaceable Project Pack
+    body: |
+      The workflow is not hard-coded as the whole product. The Agent Platform
+      Kernel owns versioned contracts, tenant/policy authorization, run state,
+      LangGraph checkpointing, approval, metering, audit, sandbox protocol,
+      evaluation ledger, Local Lite/Production profiles, and metric rules.
+
+      `project-packs/proposal-to-verified-change/` owns only project-specific
+      prompts, requirement extensions, retrieval ranking, tools, execution and
+      delivery adapters, report copy, and datasets. The kernel imports ports;
+      it never imports a Project Pack. The web/API resolves packs through a
+      registry, and packs cannot write kernel tables directly.
+
+      A pivot therefore means adding or removing a pack and running its
+      conformance suite. The kernel must still build, health-check, and pass
+      tenant/security/metric contract tests with no pack installed. This keeps
+      the current proposal valuable without locking the future product to one
+      domain.
+
+  - title: Production Readiness Gate — measurable, not aspirational
+    body: |
+      “현업에서 사용 가능”은 기능 수가 아니라 판정 가능한 운영 계약으로
+      정의한다. 모든 run은 append-only event ledger에 다음 이벤트를 남긴다:
+      `run.created`, `profile.detected`, `requirement.parsed`,
+      `evidence.emitted`, `tool.authorized`, `approval.decided`,
+      `patch.applied`, `test.completed`, `evaluation.completed`,
+      `report.emitted`, `delivery.requested`, and `run.resumed`.
+
+      각 metric은 formula, numerator, denominator, dataset/version, model/prompt
+      version, sample count, 95% confidence interval, failed case IDs를 함께
+      저장한다. 비율은 Wilson 95% confidence interval, latency/resource는
+      bootstrap 95% upper bound를 사용한다. 표본이 부족하면 pass가 아니라
+      `insufficient_sample`이다.
+
+      Production Readiness는 다음을 모두 통과해야 한다:
+
+      - tenant isolation, approval bypass, unauthorized side effect, secret
+        leakage, sandbox escape, prompt-injection success: `0`;
+      - requirement coverage recall lower bound `>= 0.95`, evidence precision
+        lower bound `>= 0.98`, invalid reference `0`;
+      - checkpoint resume, SSE replay, terminal-state consistency, and delivery/
+        verification separation: `1.00` on release fixtures;
+      - required tests pass before `verified` is rendered;
+      - Local Lite peak RSS `<= 3GB`, long-lived process `<= 2`;
+      - every release report is reproducible from persisted evidence.
+
+      LangSmith is used for redacted trace/evaluator comparison, while the
+      product evaluation ledger remains the authority for release status. This
+      follows [LangSmith evaluation types](https://docs.langchain.com/langsmith/evaluation-types),
+      fetched_at `2026-09-20`, source_type `official-documentation`.
+
+  - title: Token efficiency is a reliability budget
+    body: |
+      Token optimization is owned by the Agent Platform Kernel, not hidden in
+      project prompts. A `TokenBudgetPort` applies tenant, run, node, context,
+      call, timeout, retry, and cost limits. A Project Pack may request a
+      smaller budget or provide retrieval hints, but it cannot increase the
+      budget. When a ceiling is reached the run becomes `quota_paused` or
+      `budget_exceeded`; it never silently truncates evidence or renders
+      `verified`.
+
+      Local Lite starts with a measured small-repository profile: plan-only
+      runs are capped at `20,000` total model tokens, verification runs at
+      `41,000` maximum including the bounded patch retry, one call receives at
+      most `8,000` input tokens, and the graph allows at most five primary
+      calls plus one bounded patch retry. The
+      pipeline uses deterministic repository indexing, authorized path/symbol
+      selection, line-preserving token limits, content-addressed summaries,
+      and one evidence-triggered retrieval expansion. Retries receive only
+      the failure code, missing evidence IDs, and compact repair context.
+
+      The metric contract records exact or estimated input/output tokens,
+      model calls, context cache hits, retrieval expansions, budget decisions,
+      token savings against a fixed baseline, and quality per 1,000 tokens.
+      The initial optimization target is at least 30% token savings on the same
+      evaluation cases, but it is accepted only if requirement coverage,
+      evidence precision, unsupported-claim, critical safety, and test gates
+      remain at least as strong. See [Token Budget Contract](../../architecture/token-budget-contract.md)
+      and [Change-Assurance Metrics Contract](../../metrics/change-assurance-metrics.md).
+
+  - title: Review decision and next hand-off
+    body: |
+      This proposal is approved for implementation. The product outcome,
+      capability tiers, signed delivery boundary, layer contracts, token
+      budgets, quantitative gates, and minimal MSA direction are locked for
+      planning and build. The plan must emit the canonical PRD and phase
+      artifacts before the build runner starts.
+
+      `/dev-kit:build` may implement source code only from those phase
+      artifacts. Private-repository creation, remote configuration, and push
+      remain separate authorized delivery actions.
