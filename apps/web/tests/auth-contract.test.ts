@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import { after, before, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 import { getTableName } from "drizzle-orm";
 import { createElement } from "react";
@@ -48,31 +46,31 @@ function restoreEnv() {
 }
 
 describe("Google auth and session contracts", () => {
-  before(setLocalEnv);
-  after(restoreEnv);
+  beforeAll(setLocalEnv);
+  afterAll(restoreEnv);
 
   it("exports the Better Auth identity tables and keeps the local profile credential-free", () => {
-    assert.equal(getTableName(schema.users), "app_user");
-    assert.equal(getTableName(schema.sessions), "session");
-    assert.equal(getTableName(schema.accounts), "account");
-    assert.equal(getTableName(schema.verifications), "verification");
+    expect(getTableName(schema.users)).toBe("app_user");
+    expect(getTableName(schema.sessions)).toBe("session");
+    expect(getTableName(schema.accounts)).toBe("account");
+    expect(getTableName(schema.verifications)).toBe("verification");
   });
 
   it("creates a test fixture session with an httpOnly cookie and exposes a safe projection", async () => {
     const signIn = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", { method: "POST", body: "{}" }));
-    assert.equal(signIn.status, 200);
+    expect(signIn.status).toBe(200);
     const setCookie = signIn.headers.get("set-cookie") ?? "";
-    assert.match(setCookie, new RegExp(`${localSessionCookie}=${localDemoSession.session.id}`));
-    assert.match(setCookie, /HttpOnly/i);
+    expect(setCookie).toMatch(new RegExp(`${localSessionCookie}=${localDemoSession.session.id}`));
+    expect(setCookie).toMatch(/HttpOnly/i);
 
     const session = await getSession(new NextRequest("http://127.0.0.1:3012/api/auth/session", {
       headers: { cookie: `${localSessionCookie}=${localDemoSession.session.id}` },
     }));
-    assert.equal(session.status, 200);
+    expect(session.status).toBe(200);
     const body = await session.json() as { session: Record<string, unknown> };
-    assert.equal((body.session.user as Record<string, unknown>).email, "demo@example.test");
-    assert.equal("accessToken" in body.session, false);
-    assert.equal("refreshToken" in body.session, false);
+    expect((body.session.user as Record<string, unknown>).email).toBe("demo@example.test");
+    expect("accessToken" in body.session).toBe(false);
+    expect("refreshToken" in body.session).toBe(false);
   });
 
   it("keeps regular-user fixture sessions out of admin authorization", async () => {
@@ -81,20 +79,17 @@ describe("Google auth and session contracts", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role: "member" }),
     }));
-    assert.equal(signIn.status, 200);
-    assert.match(signIn.headers.get("set-cookie") ?? "", new RegExp(`${localSessionCookie}=${localMemberSession.session.id}`));
+    expect(signIn.status).toBe(200);
+    expect(signIn.headers.get("set-cookie") ?? "").toMatch(new RegExp(`${localSessionCookie}=${localMemberSession.session.id}`));
 
     const session = await getSession(new NextRequest("http://127.0.0.1:3012/api/auth/session", {
       headers: { cookie: `${localSessionCookie}=${localMemberSession.session.id}` },
     }));
     const body = await session.json() as { session: { user: { role: string } } };
-    assert.equal(body.session.user.role, "member");
-    await assert.rejects(
-      () => requireAdmin(new NextRequest("http://127.0.0.1:3012/api/admin", {
+    expect(body.session.user.role).toBe("member");
+    await expect(requireAdmin(new NextRequest("http://127.0.0.1:3012/api/admin", {
         headers: { cookie: `${localSessionCookie}=${localMemberSession.session.id}` },
-      })),
-      /admin authorization denied/,
-    );
+      }))).rejects.toThrow(/admin authorization denied/);
   });
 
   it("returns 403 when a member reaches the foundation admin proxy", async () => {
@@ -104,48 +99,45 @@ describe("Google auth and session contracts", () => {
       }),
       { params: Promise.resolve({ path: ["v1", "admin", "users"] }) },
     );
-    assert.equal(response.status, 403);
-    assert.equal((await response.json()).error, "admin authorization denied");
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toBe("admin authorization denied");
   });
 
   it("returns a safe not-configured response instead of starting OAuth locally", async () => {
     const response = await getAuthCatchAll(new NextRequest("http://127.0.0.1:3012/api/auth/sign-in/social"));
-    assert.equal(response.status, 503);
-    assert.equal((await response.json()).error, "auth_not_configured");
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toBe("auth_not_configured");
   });
 
   it("keeps Google as the only user-facing sign-up and sign-in path", () => {
     const configured = renderToStaticMarkup(createElement(GoogleLoginForm, { googleConfigured: true, callbackURL: "/app" }));
-    assert.match(configured, /Continue with Google/);
-    assert.doesNotMatch(configured, /local|mock/i);
+    expect(configured).toMatch(/Continue with Google/);
+    expect(configured).not.toMatch(/local|mock/i);
 
     const unconfigured = renderToStaticMarkup(createElement(GoogleLoginForm, { googleConfigured: false, callbackURL: "/app" }));
-    assert.match(unconfigured, /Open Google OAuth setup guide/);
-    assert.doesNotMatch(unconfigured, /member|admin session/i);
+    expect(unconfigured).toMatch(/Open Google OAuth setup guide/);
+    expect(unconfigured).not.toMatch(/member|admin session/i);
   });
 
   it("does not expose the local demo sign-in route outside test runtime", async () => {
     process.env.APP_ENV = "local";
     const response = await localSignIn(new NextRequest("http://127.0.0.1:3012/api/auth/local/sign-in", { method: "POST" }));
-    assert.equal(response.status, 404);
-    assert.equal((await response.json()).error, "test_auth_only");
+    expect(response.status).toBe(404);
+    expect((await response.json()).error).toBe("test_auth_only");
     setLocalEnv();
   });
 
   it("revokes the local cookie and never accepts local fallback in production", async () => {
     const signedOut = await localSignOut();
-    assert.equal(signedOut.status, 200);
-    assert.match(signedOut.headers.get("set-cookie") ?? "", /Expires=Thu, 01 Jan 1970/i);
+    expect(signedOut.status).toBe(200);
+    expect(signedOut.headers.get("set-cookie") ?? "").toMatch(/Expires=Thu, 01 Jan 1970/i);
 
     process.env.APP_ENV = "production";
     const session = await getSession(new NextRequest("http://127.0.0.1:3012/api/auth/session", {
       headers: { cookie: `${localSessionCookie}=${localDemoSession.session.id}` },
     }));
-    assert.equal(session.status, 503);
-    await assert.rejects(
-      () => requireAdmin(new NextRequest("http://127.0.0.1:3012/api/admin")),
-      /Google auth is not configured|authorization required/,
-    );
+    expect(session.status).toBe(503);
+    await expect(requireAdmin(new NextRequest("http://127.0.0.1:3012/api/admin"))).rejects.toThrow(/Google auth is not configured|authorization required/);
     setLocalEnv();
   });
 });

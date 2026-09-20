@@ -6,7 +6,7 @@
     "web:dev": "pnpm --filter ai-saas-foundation-web dev",
     "web:build": "pnpm --filter ai-saas-foundation-web build",
     "web:test": "pnpm --filter ai-saas-foundation-web test:all",
-    "web:e2e": "node scripts/web-e2e.mjs",
+    "web:e2e": "pnpm --filter ai-saas-foundation-web exec jest --config jest.e2e.config.mjs --runInBand",
     "docker:local": "bash scripts/docker-local.sh",
     "web:setup-auth": "uv run --locked python scripts/setup-web-auth.py",
     "web:db:generate": "pnpm --filter ai-saas-foundation-web db:generate",
