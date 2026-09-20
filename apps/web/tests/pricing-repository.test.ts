@@ -3,6 +3,7 @@ import {
   getBillingPolicy,
   listPricingCatalog,
   listProviderSettings,
+  selectedPaymentProvider,
   setBillingMode,
   updateProviderSetting,
 } from "@/lib/pricing/repository";
@@ -81,5 +82,16 @@ describe("pricing repository invariants", () => {
     await updateProviderSetting("toss", { enabled: true, sandbox: false, publicConfig: {}, secretRef: "test/toss" }, "test-suite", "enable one live provider");
     await expect(updateProviderSetting("lemon-squeezy", { enabled: true, sandbox: false, publicConfig: {}, secretRef: "test/lemon" }, "test-suite", "reject live provider conflict")).rejects.toThrow(/only one live provider may be enabled/);
     await updateProviderSetting("toss", { enabled: false, sandbox: true, publicConfig: {}, secretRef: null }, "test-suite", "restore provider test state");
+  });
+
+  it("uses the persisted admin provider before the legacy environment default", async () => {
+    const previous = process.env.PAYMENT_PROVIDER;
+    process.env.PAYMENT_PROVIDER = "mock";
+    await updateProviderSetting("toss", { enabled: true, sandbox: true, publicConfig: {}, secretRef: "TOSS_SECRET_KEY" }, "test-suite", "select Toss sandbox");
+    expect(await selectedPaymentProvider()).toBe("toss");
+    await updateProviderSetting("toss", { enabled: false, sandbox: true, publicConfig: {}, secretRef: null }, "test-suite", "restore Toss provider");
+    await updateProviderSetting("mock", { enabled: true, sandbox: true, publicConfig: {}, secretRef: null }, "test-suite", "restore mock provider");
+    if (previous === undefined) delete process.env.PAYMENT_PROVIDER;
+    else process.env.PAYMENT_PROVIDER = previous;
   });
 });

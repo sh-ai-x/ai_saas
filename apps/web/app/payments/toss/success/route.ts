@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { settleTossOneTimePayment } from "@/lib/payments/toss-settlement";
+import { getPaymentOrder } from "@/lib/pricing/repository";
+
 const foundationApiUrl = process.env.FOUNDATION_API_URL ?? "http://127.0.0.1:8080";
 
 export async function GET(request: NextRequest) {
@@ -10,21 +13,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/?payment=invalid", request.url));
   }
 
-  const upstream = await fetch(`${foundationApiUrl.replace(/\/$/, "")}/v1/billing/toss/confirm`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      cookie: request.headers.get("cookie") ?? "",
-    },
-    body: JSON.stringify({
-      order_id: orderId,
-      payment_key: paymentKey,
-      amount_minor: amount,
-      idempotency_key: `toss-confirm-${paymentKey}`,
-    }),
-    cache: "no-store",
-  });
-  return NextResponse.redirect(
-    new URL(upstream.ok ? "/?payment=success" : "/?payment=failed", request.url),
-  );
+  try {
+    const webOrder = await getPaymentOrder(orderId);
+    if (webOrder) {
+      await settleTossOneTimePayment({ paymentKey, orderId, amount });
+      return NextResponse.redirect(new URL("/billing?payment=success", request.url));
+    }
+
+    // Keep the existing Foundation-console checkout compatible while the
+    // catalog checkout uses the durable web payment_orders table.
+    const upstream = await fetch(`${foundationApiUrl.replace(/\/$/, "")}/v1/billing/toss/confirm`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: request.headers.get("cookie") ?? "",
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        payment_key: paymentKey,
+        amount_minor: amount,
+        idempotency_key: `toss-confirm-${paymentKey}`,
+      }),
+      cache: "no-store",
+    });
+    return NextResponse.redirect(new URL(upstream.ok ? "/?payment=success" : "/?payment=failed", request.url));
+  } catch {
+    return NextResponse.redirect(new URL("/billing?payment=failed", request.url));
+  }
 }

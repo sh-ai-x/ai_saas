@@ -5,7 +5,7 @@ import { POST as postCheckout } from "@/app/api/pricing/checkout/route";
 import { GET as getAdminPolicy, PATCH as patchAdminPolicy } from "@/app/api/admin/billing-policy/route";
 import { GET as getAdminPricing, POST as postAdminPricing } from "@/app/api/admin/pricing/route";
 import { GET as getAdminProviders, PATCH as patchAdminProvider } from "@/app/api/admin/payment-providers/route";
-import { getBillingPolicy, listPricingCatalog, setBillingMode } from "@/lib/pricing/repository";
+import { getBillingPolicy, getPaymentOrder, listPricingCatalog, setBillingMode } from "@/lib/pricing/repository";
 import { localDemoSession, localSessionCookie } from "@/lib/auth/local-session";
 
 process.env.APP_ENV = "test";
@@ -114,6 +114,55 @@ describe("pricing and admin API contracts", () => {
       provider: "toss", enabled: false, sandbox: true,
     }, { method: "PATCH" }));
     expect(missingProviderReason.status).toBe(400);
+  });
+
+  it("requires matching Toss sandbox keys before admin can enable Toss", async () => {
+    const originalClientKey = process.env.TOSS_CLIENT_KEY;
+    const originalSecretKey = process.env.TOSS_SECRET_KEY;
+    process.env.PAYMENT_SANDBOX = "true";
+    delete process.env.TOSS_CLIENT_KEY;
+    delete process.env.TOSS_SECRET_KEY;
+
+    const missingKeys = await patchAdminProvider(json({
+      provider: "toss", enabled: true, sandbox: true, reason: "reject unconfigured Toss sandbox",
+    }, { method: "PATCH" }));
+    expect(missingKeys.status).toBe(400);
+    expect((await bodyOf(missingKeys)).error).toMatch(/TOSS_CLIENT_KEY and TOSS_SECRET_KEY/);
+
+    process.env.TOSS_CLIENT_KEY = "test_ck_example";
+    process.env.TOSS_SECRET_KEY = "test_sk_example";
+    const enabled = await patchAdminProvider(json({
+      provider: "toss", enabled: true, sandbox: true, reason: "enable configured Toss sandbox",
+    }, { method: "PATCH" }));
+    expect(enabled.status).toBe(200);
+    expect((await bodyOf(enabled)).provider.provider).toBe("toss");
+
+    const tossPlan = await postAdminPricing(json({
+      reason: "create Toss KRW API contract option",
+      plan: {
+        code: `api-toss-${Date.now()}`,
+        name: "API Toss sandbox plan",
+        description: "test-only Toss option",
+        billingMode: "subscription",
+        options: [{ mode: "subscription", interval: "month", provider: "toss", currency: "KRW", amountMinor: 1000 }],
+      },
+    }, { method: "POST" }));
+    expect(tossPlan.status).toBe(201);
+    const tossOption = (await bodyOf(tossPlan)).plan.options[0];
+    const tossCheckout = await postCheckout(json({ optionId: tossOption.id }, { method: "POST" }));
+    expect(tossCheckout.status).toBe(201);
+    const tossCheckoutBody = await bodyOf(tossCheckout);
+    expect(tossCheckoutBody.provider).toBe("toss");
+    expect(tossCheckoutBody.checkoutContext.billing_auth).toBe(true);
+    expect(tossCheckoutBody.checkoutContext.client_key).toBe("test_ck_example");
+    expect(await getPaymentOrder(tossCheckoutBody.orderId)).toEqual(expect.objectContaining({ status: "pending", currency: "KRW" }));
+
+    await patchAdminProvider(json({ provider: "toss", enabled: false, sandbox: true, reason: "restore Toss provider" }, { method: "PATCH" }));
+    await patchAdminProvider(json({ provider: "mock", enabled: true, sandbox: true, reason: "restore mock provider" }, { method: "PATCH" }));
+    if (originalClientKey === undefined) delete process.env.TOSS_CLIENT_KEY;
+    else process.env.TOSS_CLIENT_KEY = originalClientKey;
+    if (originalSecretKey === undefined) delete process.env.TOSS_SECRET_KEY;
+    else process.env.TOSS_SECRET_KEY = originalSecretKey;
   });
 
   it("rejects unknown and inactive checkout options", async () => {

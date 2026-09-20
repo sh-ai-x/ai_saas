@@ -58,13 +58,25 @@ describe("payment adapter contracts", () => {
   });
 
   it("creates a Toss client-side context without returning secret keys", async () => {
-    const handoff = await createCatalogCheckout(input(option({ provider: "toss" })));
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
     expect(handoff.provider).toBe("toss");
     expect(handoff.checkoutUrl).toBe("");
     expect(handoff.checkoutContext.adapter).toBe("toss");
     expect(handoff.checkoutContext.client_key).toBe("test_toss_client_key");
+    expect(handoff.checkoutContext.billing_auth).toBe(true);
+    expect(handoff.checkoutContext.customer_key).toMatch(/^customer-/);
     expect("secret_key" in handoff.checkoutContext).toBe(false);
     expect(handoff.checkoutContext.amount).toBeInstanceOf(Object);
+  });
+
+  it("keeps one-time Toss checkout on the payment authorization path", async () => {
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", mode: "one_time", interval: "one_time", currency: "KRW" })));
+    expect(handoff.checkoutContext.billing_auth).toBe(false);
+    expect(handoff.checkoutContext.success_url).toContain("/payments/toss/success");
+  });
+
+  it("rejects Toss options that are not denominated in KRW", async () => {
+    await expect(createCatalogCheckout(input(option({ provider: "toss", currency: "USD" })))).rejects.toThrow(/currency must be KRW/);
   });
 
   it("creates a Lemon Squeezy sandbox checkout URL with custom order context", async () => {

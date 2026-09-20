@@ -19,7 +19,9 @@ serverEnv.DATABASE_URL = "";
 serverEnv.BETTER_AUTH_SECRET = "";
 serverEnv.GOOGLE_CLIENT_ID = "";
 serverEnv.GOOGLE_CLIENT_SECRET = "";
-serverEnv.TOSS_CLIENT_KEY = "e2e_toss_client_key";
+serverEnv.PAYMENT_SANDBOX = "true";
+serverEnv.TOSS_CLIENT_KEY = "test_ck_e2e_toss_client_key";
+serverEnv.TOSS_SECRET_KEY = "test_sk_e2e_toss_secret_key";
 serverEnv.LEMONSQUEEZY_STORE_ID = "e2e_store";
 serverEnv.LEMONSQUEEZY_VARIANT_ID = "e2e_variant";
 delete serverEnv.PAYMENT_PROVIDER;
@@ -50,10 +52,10 @@ async function stopServer() {
 }
 
 async function waitForServer() {
-  const deadline = Date.now() + 45_000;
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${baseUrl}/login`, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(`${baseUrl}/login`, { redirect: "manual", signal: AbortSignal.timeout(10_000) });
       if (response.status === 200) return;
     } catch {
       // Next.js is still compiling or binding the port.
@@ -233,6 +235,18 @@ describe("web HTTP E2E contracts", () => {
     expect(providers.response.status).toBe(200);
     expect(providers.body.providers.map((provider: any) => provider.provider).sort()).toEqual(["lemon-squeezy", "mock", "toss"]);
 
+    const tossPlan = await request("/api/admin/pricing", jsonInit("POST", {
+      reason: "HTTP E2E Toss KRW sandbox catalog",
+      plan: {
+        code: `e2e-toss-${Date.now()}`,
+        name: "HTTP E2E Toss Plan",
+        description: "KRW option used only by the sandbox contract.",
+        billingMode: "subscription",
+        options: [{ mode: "subscription", interval: "year", provider: "toss", currency: "KRW", amountMinor: 1000 }],
+      },
+    }), adminCookie);
+    expect(tossPlan.response.status).toBe(201);
+
     try {
       for (const provider of ["toss", "lemon-squeezy"]) {
         const disableMock = await request("/api/admin/payment-providers", jsonInit("PATCH", {
@@ -244,7 +258,7 @@ describe("web HTTP E2E contracts", () => {
         }), adminCookie);
         expect(enableProvider.response.status).toBe(200);
         const sandboxPricing = await getJson("/api/pricing");
-        const sandboxOption = sandboxPricing.body.plans.flatMap((plan: any) => plan.options).find((option: any) => option.interval === "year");
+        const sandboxOption = sandboxPricing.body.plans.flatMap((plan: any) => plan.options).find((option: any) => provider === "toss" ? option.provider === "toss" : option.interval === "year");
         expect(sandboxOption).toBeTruthy();
         const sandboxCheckout = await request("/api/pricing/checkout", jsonInit("POST", { optionId: sandboxOption.id }), adminCookie);
         expect(sandboxCheckout.response.status).toBe(201);

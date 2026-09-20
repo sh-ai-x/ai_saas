@@ -2,26 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { loadTossSdk } from "@/lib/payments/toss-sdk";
+
 type JsonRecord = Record<string, unknown>;
-
-type TossPayment = {
-  requestPayment: (options: {
-    method: "CARD";
-    amount: { value: number; currency: string };
-    orderId: string;
-    orderName: string;
-    successUrl: string;
-    failUrl: string;
-  }) => Promise<void>;
-};
-
-declare global {
-  interface Window {
-    TossPayments?: (clientKey: string) => {
-      payment: (options: { customerKey: string }) => TossPayment;
-    };
-  }
-}
 
 const jsonHeaders = { "content-type": "application/json" };
 
@@ -47,19 +30,6 @@ function formatError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 처리하지 못했습니다.";
 }
 
-async function loadTossSdk() {
-  if (window.TossPayments) return window.TossPayments;
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://js.tosspayments.com/v2/standard";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Toss Payments SDK를 불러오지 못했습니다."));
-    document.head.appendChild(script);
-  });
-  if (!window.TossPayments) throw new Error("Toss Payments SDK가 초기화되지 않았습니다.");
-  return window.TossPayments;
-}
 
 export function FoundationConsole() {
   const [tenantId, setTenantId] = useState("demo-tenant");
