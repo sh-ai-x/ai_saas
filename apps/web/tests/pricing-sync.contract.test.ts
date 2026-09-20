@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import { after, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 import React from "react";
 
@@ -20,6 +18,8 @@ process.env.FOUNDATION_API_URL = "http://127.0.0.1:9";
 const integrationEnabled = process.env.PRICING_DB_INTEGRATION === "1";
 const testDatabaseUrl = process.env.PRICING_TEST_DATABASE_URL;
 let openedDb: ReturnType<typeof getDb> = null;
+const integrationEnabledTest = integrationEnabled ? it : it.skip;
+const configuredIntegrationTest = integrationEnabled && testDatabaseUrl ? it : it.skip;
 
 function request(url: string, init?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(`http://127.0.0.1:3012${url}`, {
@@ -73,7 +73,7 @@ function comparablePlan(plan: PricingPlan) {
 }
 
 describe("admin pricing to landing consistency contract", () => {
-  after(async () => {
+  afterAll(async () => {
     const client = (openedDb as unknown as { $client?: { end: () => Promise<void> } } | null)?.$client;
     await client?.end();
     delete process.env.PRICING_DB_INTEGRATION;
@@ -81,22 +81,24 @@ describe("admin pricing to landing consistency contract", () => {
   });
 
   it("marks the landing route dynamic so a build-time seed cannot mask database edits", () => {
-    assert.equal(landingDynamic, "force-dynamic");
+    expect(landingDynamic).toBe("force-dynamic");
   });
 
-  it("requires an explicit isolated database when integration mode is enabled", { skip: !integrationEnabled }, () => {
-    assert.ok(testDatabaseUrl, "PRICING_DB_INTEGRATION=1 requires PRICING_TEST_DATABASE_URL");
-    assert.notEqual(testDatabaseUrl, process.env.DATABASE_URL, "integration tests must not target the default runtime database");
+  integrationEnabledTest("requires an explicit isolated database when integration mode is enabled", () => {
+    expect(testDatabaseUrl).toBeTruthy();
+    expect(testDatabaseUrl).not.toBe(process.env.DATABASE_URL);
   });
 
-  it("keeps database, admin, public, and landing catalogs identical after an update", { skip: !integrationEnabled || !testDatabaseUrl }, async () => {
+  configuredIntegrationTest("keeps database, admin, public, and landing catalogs identical after an update", async () => {
     process.env.DATABASE_URL = testDatabaseUrl;
     openedDb = getDb();
-    assert.ok(openedDb, "database integration requires a configured PostgreSQL connection");
+    expect(openedDb).toBeTruthy();
+    if (!openedDb) throw new Error("database integration requires a configured PostgreSQL connection");
 
     const original = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-pro");
-    assert.ok(original, "migration seed must contain plan-pro");
-    assert.equal(original.options.length, 2, "fixture must contain monthly and yearly child options");
+    expect(original).toBeTruthy();
+    if (!original) throw new Error("migration seed must contain plan-pro");
+    expect(original.options.length).toBe(2);
 
     const updatedInput: PricingPlanInput = {
       tenantId: original.tenantId,
@@ -128,35 +130,39 @@ describe("admin pricing to landing consistency contract", () => {
         jsonRequest({ plan: updatedInput, reason: "pricing consistency integration test" }, { method: "PATCH" }),
         { params: Promise.resolve({ id: original.id }) },
       );
-      assert.equal(updated.status, 200);
+      expect(updated.status).toBe(200);
 
       const [dbPlan, dbOptions] = await Promise.all([
         openedDb.select().from(schema.pricingPlans).where(eq(schema.pricingPlans.id, original.id)),
         openedDb.select().from(schema.pricingOptions).where(eq(schema.pricingOptions.planId, original.id)),
       ]);
-      assert.equal(dbPlan[0]?.name, updatedInput.name);
-      assert.deepEqual(dbOptions.map((option) => option.id), [original.options[0].id]);
-      assert.equal(dbOptions[0]?.amountMinor, 3111);
+      expect(dbPlan[0]?.name).toBe(updatedInput.name);
+      expect(dbOptions.map((option) => option.id)).toEqual([original.options[0].id]);
+      expect(dbOptions[0]?.amountMinor).toBe(3111);
 
       const admin = await getAdminPricing(request("/api/admin/pricing"));
-      assert.equal(admin.status, 200);
+      expect(admin.status).toBe(200);
       const adminBody = await responseBody(admin);
       const adminPlan = adminBody.plans.find((plan: PricingPlan) => plan.id === original.id);
-      assert.ok(dbPlan[0]);
+      expect(dbPlan[0]).toBeTruthy();
+      if (!dbPlan[0]) throw new Error("updated database plan is missing");
 
       const publicResponse = await getPublicPricing();
-      assert.equal(publicResponse.status, 200);
+      expect(publicResponse.status).toBe(200);
       const publicBody = await responseBody(publicResponse);
       const publicPlan = publicBody.plans.find((plan: PricingPlan) => plan.id === original.id);
-      assert.ok(adminPlan);
-      assert.ok(publicPlan);
+      expect(adminPlan).toBeTruthy();
+      if (!adminPlan) throw new Error("updated admin plan is missing");
+      expect(publicPlan).toBeTruthy();
+      if (!publicPlan) throw new Error("updated public plan is missing");
 
       const landing = await HomePage();
       const landingProps = (landing as { props: { plans: PricingPlan[]; billingMode: string } }).props;
       const landingPlan = landingProps.plans.find((plan) => plan.id === original.id);
-      assert.ok(landingPlan);
+      expect(landingPlan).toBeTruthy();
+      if (!landingPlan) throw new Error("updated landing plan is missing");
 
-      assert.deepEqual({
+      expect({
         id: dbPlan[0].id,
         tenantId: dbPlan[0].tenantId,
         code: dbPlan[0].code,
@@ -181,12 +187,12 @@ describe("admin pricing to landing consistency contract", () => {
           providerPriceRef: option.providerPriceRef,
           active: option.active,
         })),
-      }, comparablePlan(adminPlan));
-      assert.deepEqual(comparablePlan(adminPlan), comparablePlan(publicPlan));
-      assert.deepEqual(comparablePlan(publicPlan), comparablePlan(landingPlan));
-      assert.equal(publicPlan.options.length, 1);
-      assert.equal(publicPlan.options[0].amountMinor, 3111);
-      assert.equal(landingProps.billingMode, publicBody.billing.billingMode);
+      }).toEqual(comparablePlan(adminPlan));
+      expect(comparablePlan(adminPlan)).toEqual(comparablePlan(publicPlan));
+      expect(comparablePlan(publicPlan)).toEqual(comparablePlan(landingPlan));
+      expect(publicPlan.options.length).toBe(1);
+      expect(publicPlan.options[0].amountMinor).toBe(3111);
+      expect(landingProps.billingMode).toBe(publicBody.billing.billingMode);
     } finally {
       await patchAdminPricing(
         jsonRequest({
@@ -210,15 +216,18 @@ describe("admin pricing to landing consistency contract", () => {
     }
   });
 
-  it("deactivates a referenced option instead of breaking payment history", { skip: !integrationEnabled || !testDatabaseUrl }, async () => {
+  configuredIntegrationTest("deactivates a referenced option instead of breaking payment history", async () => {
     process.env.DATABASE_URL = testDatabaseUrl;
     openedDb = getDb();
-    assert.ok(openedDb, "database integration requires a configured PostgreSQL connection");
+    expect(openedDb).toBeTruthy();
+    if (!openedDb) throw new Error("database integration requires a configured PostgreSQL connection");
     const db = openedDb;
     const original = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-pro");
-    assert.ok(original, "migration seed must contain plan-pro");
+    expect(original).toBeTruthy();
+    if (!original) throw new Error("migration seed must contain plan-pro");
     const referencedOption = original.options[1];
-    assert.ok(referencedOption, "fixture must contain a yearly option");
+    expect(referencedOption).toBeTruthy();
+    if (!referencedOption) throw new Error("fixture must contain a yearly option");
     const orderId = "pricing-sync-referenced-order";
 
     await db.insert(schema.paymentOrders).values({
@@ -257,11 +266,11 @@ describe("admin pricing to landing consistency contract", () => {
         }, { method: "PATCH" }),
         { params: Promise.resolve({ id: original.id }) },
       );
-      assert.equal(updated.status, 200);
+      expect(updated.status).toBe(200);
       const rows = await db.select({ id: schema.pricingOptions.id, active: schema.pricingOptions.active })
         .from(schema.pricingOptions)
         .where(eq(schema.pricingOptions.id, referencedOption.id));
-      assert.deepEqual(rows, [{ id: referencedOption.id, active: false }]);
+      expect(rows).toEqual([{ id: referencedOption.id, active: false }]);
     } finally {
       await patchAdminPricing(
         jsonRequest({
