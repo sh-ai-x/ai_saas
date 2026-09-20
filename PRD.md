@@ -64,65 +64,52 @@ Each item maps 1:1 to the acceptance criteria in `phases/toss-subscription-sandb
 
 ---
 
-# JEV-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
+# OpenAI-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
 
 ## 1. Frame
 
-- **Goal:** Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses JEV only as a bounded category/FAQ router when fixed matching misses.
-- **Target user:** A product user trying to resolve a common setup, login, pricing, or agent-run question without opening a support request.
-- **Situation:** The application has a Drizzle FAQ table and seed data but no API, JEV decision path, or visible FAQ surface, so users cannot discover or use the catalog.
+- **Goal:** Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses one bounded OpenAI Structured Output call only when fixed matching misses.
+- **Target user:** A product user trying to resolve a common setup, workspace, or support question without opening a support request.
+- **Situation:** The application has a Drizzle FAQ table and seed data but no API, AI routing path, or visible FAQ surface.
 
-## 2. Validate
+## 2. Decision
+
+Use the existing `FaqProvider` port with a direct OpenAI Responses API adapter using `gpt-4o-mini` and strict JSON Schema output. LangChain/LangGraph are intentionally not added: they are orchestration libraries, not model access, and this fixed FAQ flow has no graph, tool, memory, or RAG requirement. Direct HTTP keeps the dependency and latency budget smaller.
+
+The model returns only `faqId`, `category`, `answerable`, and `confidence`. Application code validates those fields and returns answer prose owned by the Drizzle catalog. Exact/alias matches remain zero-cost and never call OpenAI.
 
 ### Independent evidence
 
-1. **Existing product signal:** `faq_entries` is already the intended data boundary in the working implementation direction; the missing piece is the API/UI path that consumes it.
-2. **Provider signal:** TypeSafe describes Jev as a typed decision API with `state`, typed questions, probabilities, and confidence, and explicitly positions it for routing rather than string generation. [src:https://typesafe.ai/blog/introducing-system-one-models-and-jev;ts:2026-09-20;type:primary]
-3. **Workflow signal:** TypeSafe's workflow guidance recommends decomposing work into narrow typed questions and programmatic rules, while its customer-service example includes safety checks and handoff states. [src:https://evals.typesafe.ai/;ts:2026-09-20;type:primary] [src:https://evals.typesafe.ai/customer_service;ts:2026-09-20;type:primary]
-4. **Risk signal:** The vendor API is early access and external; TypeSafe's privacy and contract materials require server-side credential handling and a separate privacy/usage review. [src:https://typesafe.ai/legal/privacy-policy;ts:2026-09-20;type:primary] [src:https://typesafe.ai/legal/mca;ts:2026-09-20;type:primary]
+1. OpenAI lists GPT-4o mini as a fast, affordable small model with Structured Outputs support, Responses API support, and $0.15/$0.60 per million input/output tokens. [src:https://developers.openai.com/api/docs/models/gpt-4o-mini;ts:2026-09-20;type:primary]
+2. OpenAI Structured Outputs with `text.format` and `strict: true` is designed to make the response conform to the supplied JSON Schema. [src:https://developers.openai.com/ko-KR/api/docs/guides/structured-outputs;ts:2026-09-20;type:primary]
+3. The Responses API supports `store: false`, bounded `max_output_tokens`, and no tools for this stateless classification request. [src:https://developers.openai.com/api/reference/cli/resources/responses/methods/create;ts:2026-09-20;type:primary]
 
-### Value score
+## 3. Cost, latency, accuracy, and safety policy
 
-- `LTV_per_user`: 240 value units per retained self-service user
-- `reachable_users_year1`: 25 initial product users
-- `total_cost`: 1,200 value units of implementation and low-volume infrastructure
-- `value_score = (240 × 25) / 1,200 = 5.0`
+- Exact/alias match: zero provider calls.
+- AI miss path: one call, at most five public FAQ candidates, no conversation history or account context.
+- Output: strict schema, known FAQ ID allowlist, category check, confidence `>= .85`, answerable gate, catalog-only answer text.
+- Budget: `gpt-4o-mini`, `max_output_tokens=80`, 1.5-second provider deadline, no retries, one in-flight request, 30-second circuit cooldown, and 60 API requests/minute per process.
+- Privacy: normalized/redacted question, server-only `OPENAI_API_KEY`, `store:false`, no tools, no persistence, no tenant/account/payment data.
+- Failure: disabled/missing key, timeout, malformed output, rate limit, provider error, low confidence, or unknown ID returns deterministic clarification/handoff.
 
-### Ambiguity
+## 4. Non-goals
 
-- `ambiguity_score: 3/10`
-- Locked decisions: Drizzle owns the catalog; exact/alias matching is the zero-cost path; JEV is one-call typed routing only; code owns answer text; low confidence and provider failure produce fixed fallback; the local default is deterministic and provider-free.
-- Implementation gate retained: live JEV access, current account limits, retention/region terms, and workload calibration must be verified before enabling JEV in staging or production.
-
-## 3. Non-goals
-
-1. **Open-ended generated answers:** JEV must not author prose; this prevents hallucinated or stale support instructions. If requested, create a separate answer-generation security and evaluation plan.
-2. **Account, billing, or ticket mutations:** The MVP is read-only and cannot reset passwords, change plans, refund charges, or create tickets. If requested, route to a separate authenticated workflow with idempotency and human approval.
-3. **RAG, embeddings, memory, attachments, and arbitrary tools:** The MVP uses a small catalog and bounded typed questions to control token cost and attack surface. If coverage is insufficient, first expand the catalog and labeled evaluation set.
-4. **Live-provider dependency in local/test:** Local and CI use deterministic fixtures; a live JEV key is an explicit staging gate, never a hidden test prerequisite.
-
-## 4. Phase plan
-
-Phase directory: `phases/jev-cs-faq-bot/`
-
-This phase is one shippable vertical slice so the build runner can produce an auditable implementation branch without pretending that independent steps share unmerged worktrees.
-
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 0 | vertical-faq-support-bot | none | Drizzle FAQ catalog, layered router/JEV adapter/policy, versioned API, bottom-right widget, tests, and verification evidence |
-
-The authoritative step state is `phases/jev-cs-faq-bot/index.json`.
+1. Open-ended generated answers, RAG, embeddings, memory, attachments, or arbitrary tools.
+2. Account, billing, payment, password, or ticket mutations.
+3. Browser-to-provider calls or client-side provider credentials.
+4. Live provider calls in local/CI; tests use mocked HTTP and the default remains provider-free.
 
 ## 5. Acceptance criteria
 
-- **REQ-1:** Drizzle owns `faq_entries`; migration/seed data and repository tests are committed, and no provider call is made for exact/alias matches.
-- **REQ-2:** The server-side JEV adapter sends only bounded redacted state, makes at most one call per miss, validates typed answers/confidence, and maps only known FAQ IDs to catalog content.
-- **REQ-3:** `GET /api/faq` and `POST /api/faq` expose versioned validated contracts with deterministic `answer`, `clarify`, and `handoff` outcomes and bounded rate/timeout/fallback behavior.
-- **REQ-4:** The root layout renders a right-bottom FAQ widget that supports presets and free text, never exposes provider secrets, and shows a fixed support CTA when the bot abstains.
-- **REQ-5:** Focused tests, typecheck, full web test/build, and diff checks pass without live provider credentials or production writes.
+- **REQ-1:** Drizzle owns `faq_entries`; migration/seed data and repository tests are committed.
+- **REQ-2:** Exact/alias matches make zero provider calls; misses make at most one bounded OpenAI call and never return provider-generated prose.
+- **REQ-3:** `GET /api/faq` and `POST /api/faq` expose versioned validated contracts with deterministic `answer`, `clarify`, and `handoff` outcomes.
+- **REQ-4:** The root layout renders a right-bottom widget with presets, free text, loading/error states, catalog-only answers, and a support CTA.
+- **REQ-5:** Focused tests, typecheck, full web test/build, browser smoke, and diff checks pass without live credentials or production writes.
 
-## 6. Handoff to build
+## 6. Operational gate
 
-The plan is ready for `/dev-kit:build` in the single-step phase. The design record is `docs/proposals/reviewing/faq-support/jev-cs-faq-bot.html`. Build must keep JEV optional and fail closed, preserve the existing auth/billing boundaries, and record all verification evidence before handoff to review.
+Enable only in staging first with `FAQ_OPENAI_ENABLED=true`, a server-injected `OPENAI_API_KEY`, and a measured synthetic FAQ set. Record p50/p95/p99 latency, provider-call rate, confidence calibration, correct-routing rate, false-answer rate, fallback rate, and monthly spend before production promotion. The model price and provider limits are reference data, not this product's SLO.
 
-Sources used for the plan: TypeSafe's Jev launch description and API shape, TypeSafe workflow evaluation guidance, customer-service handoff pattern, privacy policy, and master customer agreement. Vendor speed/cost figures are planning context only; this phase must measure its own latency, call count, confidence behavior, and fallback rate.
+Phase directory remains `phases/jev-cs-faq-bot/` for continuity with the already-created plan artifacts; its implementation/provider naming is OpenAI-based.

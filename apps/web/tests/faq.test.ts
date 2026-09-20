@@ -2,13 +2,13 @@ import { catalogSchema, responseSchema } from '../lib/faq/contracts';
 import { seedFaqs } from '../lib/faq/seed';
 import { answerFaq } from '../lib/faq/service';
 import { redact, normalize } from '../lib/faq/matcher';
-import { createJevProvider } from '../lib/faq/jev';
+import { createOpenAiProvider } from '../lib/faq/openai';
 
 const repository = { list: async () => seedFaqs };
-const choice = (value: string, options: string[], confidence = 1) => ({ type: 'choice', choice: value, confidence, probabilities: Object.fromEntries(options.map(x => [x, x === value ? 1 : 0])) });
-const payload = () => ({ answers: { faq: choice('guides', [...seedFaqs.map(x => x.id), 'none']), category: choice('guides', ['guides', 'product', 'support', 'none']), answerable: { type: 'noul', noul: 1 } } });
+const decision = (overrides: Record<string, unknown> = {}) => ({ faqId: 'guides', category: 'guides', answerable: true, confidence: 1, ...overrides });
+const payload = (overrides: Record<string, unknown> = {}) => ({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(decision(overrides)) }] }] });
 
-describe('FAQ policy and JEV boundary', () => {
+describe('FAQ policy and OpenAI boundary', () => {
   it('validates seed and rejects duplicate IDs and empty answers', () => {
     expect(catalogSchema.parse(seedFaqs)).toEqual(seedFaqs);
     expect(() => catalogSchema.parse([...seedFaqs, seedFaqs[0]])).toThrow();
@@ -32,30 +32,28 @@ describe('FAQ policy and JEV boundary', () => {
   });
   it('makes one typed call and returns catalog prose only', async () => {
     const fetcher = jest.fn(async () => Response.json(payload()));
-    const provider = createJevProvider({ enabled: true, key: 'test-placeholder', fetcher });
+    const provider = createOpenAiProvider({ enabled: true, key: 'test-placeholder', fetcher });
     expect((await answerFaq('help with documentation', repository, provider)).answer).toBe(seedFaqs[0].answer);
     expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://api.typesafe.ai/v1/systemone');
+    expect(url).toBe('https://api.openai.com/v1/responses');
     const body = JSON.parse(init.body as string);
-    expect(body.questions.faq.type).toBe('choice');
-    expect(body.questions.answerable.type).toBe('noul');
-    expect(body.state).not.toContain(seedFaqs[0].answer);
+    expect(body.text.format.type).toBe('json_schema');
+    expect(body.text.format.strict).toBe(true);
+    expect(body.store).toBe(false);
+    expect(JSON.stringify(body)).not.toContain(seedFaqs[0].answer);
   });
   it.each(['disabled', 'missing-key', 'low', 'malformed', 'unknown', 'category', 'rate', 'error'])('fails closed: %s', async mode => {
-    const data = payload();
-    if (mode === 'low') data.answers.faq.confidence = 0.2;
-    if (mode === 'unknown') data.answers.faq.choice = 'invented';
-    if (mode === 'category') data.answers.category.choice = 'product';
-    const fetcher = jest.fn(async () => { if (mode === 'error') throw new Error('private'); return Response.json(mode === 'malformed' ? {} : data, { status: mode === 'rate' ? 429 : 200 }); });
-    const result = await answerFaq('documentation help', repository, createJevProvider({ enabled: mode !== 'disabled', key: mode === 'missing-key' ? undefined : 'test-placeholder', fetcher }));
+    const overrides = mode === 'low' ? { confidence: 0.2 } : mode === 'unknown' ? { faqId: 'invented' } : mode === 'category' ? { category: 'product' } : mode === 'noul' ? { answerable: false } : {};
+    const fetcher = jest.fn(async () => { if (mode === 'error') throw new Error('private'); return Response.json(mode === 'malformed' ? {} : payload(overrides), { status: mode === 'rate' ? 429 : 200 }); });
+    const result = await answerFaq('documentation help', repository, createOpenAiProvider({ enabled: mode !== 'disabled', key: mode === 'missing-key' ? undefined : 'test-placeholder', fetcher }));
     expect(result.outcome).not.toBe('answer');
     expect(JSON.stringify(result)).not.toContain('private');
     expect(fetcher.mock.calls.length).toBeLessThanOrEqual(1);
   });
   it('bounds timeout and opens circuit after failure', async () => {
     const fetcher = jest.fn(() => new Promise<Response>(() => {}));
-    const provider = createJevProvider({ enabled: true, key: 'test-placeholder', fetcher, timeoutMs: 5 });
+    const provider = createOpenAiProvider({ enabled: true, key: 'test-placeholder', fetcher, timeoutMs: 5 });
     expect((await answerFaq('documentation help', repository, provider)).outcome).toBe('handoff');
     await answerFaq('documentation help', repository, provider);
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -152,11 +150,8 @@ describe('FAQ repository and bounded wire validation', () => {
     for (const row of seedFaqs) for (const value of [row.id, row.category, row.question, JSON.stringify(row.aliases), row.answer]) expect(sql).toContain(value);
   });
   it.each(['type', 'distribution', 'oversized', 'noul'])('rejects malformed provider %s', async mode => {
-    const data = payload();
-    if (mode === 'type') data.answers.faq.type = 'score';
-    if (mode === 'distribution') data.answers.faq.probabilities.guides = 0.1;
-    if (mode === 'noul') data.answers.answerable.noul = 3;
-    const fetcher = jest.fn(async () => mode === 'oversized' ? new Response('x'.repeat(17000)) : Response.json(data));
-    expect((await answerFaq('documentation help', repository, createJevProvider({ enabled: true, key: 'test-placeholder', fetcher }))).outcome).toBe('handoff');
+    const overrides = mode === 'distribution' ? { confidence: 2 } : mode === 'noul' ? { answerable: 'invalid' } : {};
+    const fetcher = jest.fn(async () => mode === 'oversized' ? new Response('x'.repeat(17000)) : mode === 'type' ? Response.json({ output: [{ type: 'message', content: [{ type: 'text', text: '{}' }] }] }) : Response.json(payload(overrides)));
+    expect((await answerFaq('documentation help', repository, createOpenAiProvider({ enabled: true, key: 'test-placeholder', fetcher }))).outcome).toBe('handoff');
   });
 });
