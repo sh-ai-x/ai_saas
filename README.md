@@ -370,3 +370,47 @@ after interruption. `InngestDispatcher` carries only run identifiers and
 limits; `FargateSpotBoundary` is an optional ARM64 worker-only launch
 description with no inbound route. Prompts and payment payloads are excluded
 from workflow/SSE payloads and redacted from streamed output.
+## Proposal-to-Verified-Change Local Lite slice
+
+The new `agent_platform`, `project_packs/proposal_to_verified_change`, and
+`services/agent_orchestrator` packages provide an offline, fake-provider
+vertical slice. It uses SQLite, an allowlisted deterministic repository index,
+deterministic patch/test simulation, and no network or credentials.
+
+```python
+from agent_platform import KernelStore
+from project_packs.proposal_to_verified_change import ProposalToVerifiedChangePack, RepositoryIndex
+from services.agent_orchestrator import FakeStructuredModel, ProposalVerifiedWorkflow
+
+store = KernelStore(":memory:")
+pack = ProposalToVerifiedChangePack(RepositoryIndex("."))
+workflow = ProposalVerifiedWorkflow(store, pack, model=FakeStructuredModel())
+outcome = workflow.run(
+    tenant_id="demo-tenant",
+    proposal="runtime: python\nREQ-1: inspect the agent platform\nagent_platform/contracts.py:1-10",
+    mode="plan_only",
+    idempotency_key="demo-plan-001",
+)
+print(outcome.run.state, outcome.plan.plan_id)
+```
+
+Use `mode="verify"` to receive a scoped approval token and an
+`waiting_approval` state. Pass that token to a second call with the same
+idempotency key to resume. A verify run can reach `verified` only after valid
+evidence, approval, deterministic sandbox tests, budget checks, and a persisted
+release report.
+
+The framework boundaries are deliberately thin. The orchestrator exposes a
+typed structured-model port and an explicit graph with the nodes
+`intake`, `profile_validate`, `inventory`, `retrieve`, `analyze`, `plan`,
+`human_approval`, `patch`, `test`, `evaluate`, and `report`. The fake provider
+is the default; the LangChain adapter accepts an injected runnable but does
+not own auth, billing, token authority, or completion state. The observability
+adapter redacts before optionally forwarding records to an injected LangSmith
+client; it cannot change permissions or run state. Sandbox and delivery ports
+never execute arbitrary shell, merge, deploy, or network actions.
+
+The Local Lite declarations are in `infra/profiles/local-lite/profile.yaml`
+and `infra/nginx/local-lite.conf`. They describe at most two long-lived
+processes and do not require Docker, PostgreSQL, Redis, a vector database, or a
+local model server.
