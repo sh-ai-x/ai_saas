@@ -61,3 +61,68 @@ Each item maps 1:1 to the acceptance criteria in `phases/toss-subscription-sandb
 - Review artifact: `/dev-kit:proposal toss-payment/subscription-sandbox`.
 - Next invocation: `/dev-kit:build`.
 - Build must use the step's TDD order: capture RED, implement GREEN, refactor, then run the declared verification commands.
+
+---
+
+# JEV-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
+
+## 1. Frame
+
+- **Goal:** Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses JEV only as a bounded category/FAQ router when fixed matching misses.
+- **Target user:** A product user trying to resolve a common setup, login, pricing, or agent-run question without opening a support request.
+- **Situation:** The application has a Drizzle FAQ table and seed data but no API, JEV decision path, or visible FAQ surface, so users cannot discover or use the catalog.
+
+## 2. Validate
+
+### Independent evidence
+
+1. **Existing product signal:** `faq_entries` is already the intended data boundary in the working implementation direction; the missing piece is the API/UI path that consumes it.
+2. **Provider signal:** TypeSafe describes Jev as a typed decision API with `state`, typed questions, probabilities, and confidence, and explicitly positions it for routing rather than string generation. [src:https://typesafe.ai/blog/introducing-system-one-models-and-jev;ts:2026-09-20;type:primary]
+3. **Workflow signal:** TypeSafe's workflow guidance recommends decomposing work into narrow typed questions and programmatic rules, while its customer-service example includes safety checks and handoff states. [src:https://evals.typesafe.ai/;ts:2026-09-20;type:primary] [src:https://evals.typesafe.ai/customer_service;ts:2026-09-20;type:primary]
+4. **Risk signal:** The vendor API is early access and external; TypeSafe's privacy and contract materials require server-side credential handling and a separate privacy/usage review. [src:https://typesafe.ai/legal/privacy-policy;ts:2026-09-20;type:primary] [src:https://typesafe.ai/legal/mca;ts:2026-09-20;type:primary]
+
+### Value score
+
+- `LTV_per_user`: 240 value units per retained self-service user
+- `reachable_users_year1`: 25 initial product users
+- `total_cost`: 1,200 value units of implementation and low-volume infrastructure
+- `value_score = (240 × 25) / 1,200 = 5.0`
+
+### Ambiguity
+
+- `ambiguity_score: 3/10`
+- Locked decisions: Drizzle owns the catalog; exact/alias matching is the zero-cost path; JEV is one-call typed routing only; code owns answer text; low confidence and provider failure produce fixed fallback; the local default is deterministic and provider-free.
+- Implementation gate retained: live JEV access, current account limits, retention/region terms, and workload calibration must be verified before enabling JEV in staging or production.
+
+## 3. Non-goals
+
+1. **Open-ended generated answers:** JEV must not author prose; this prevents hallucinated or stale support instructions. If requested, create a separate answer-generation security and evaluation plan.
+2. **Account, billing, or ticket mutations:** The MVP is read-only and cannot reset passwords, change plans, refund charges, or create tickets. If requested, route to a separate authenticated workflow with idempotency and human approval.
+3. **RAG, embeddings, memory, attachments, and arbitrary tools:** The MVP uses a small catalog and bounded typed questions to control token cost and attack surface. If coverage is insufficient, first expand the catalog and labeled evaluation set.
+4. **Live-provider dependency in local/test:** Local and CI use deterministic fixtures; a live JEV key is an explicit staging gate, never a hidden test prerequisite.
+
+## 4. Phase plan
+
+Phase directory: `phases/jev-cs-faq-bot/`
+
+This phase is one shippable vertical slice so the build runner can produce an auditable implementation branch without pretending that independent steps share unmerged worktrees.
+
+| Step | Name | Dependency | Outcome |
+|---:|---|---|---|
+| 0 | vertical-faq-support-bot | none | Drizzle FAQ catalog, layered router/JEV adapter/policy, versioned API, bottom-right widget, tests, and verification evidence |
+
+The authoritative step state is `phases/jev-cs-faq-bot/index.json`.
+
+## 5. Acceptance criteria
+
+- **REQ-1:** Drizzle owns `faq_entries`; migration/seed data and repository tests are committed, and no provider call is made for exact/alias matches.
+- **REQ-2:** The server-side JEV adapter sends only bounded redacted state, makes at most one call per miss, validates typed answers/confidence, and maps only known FAQ IDs to catalog content.
+- **REQ-3:** `GET /api/faq` and `POST /api/faq` expose versioned validated contracts with deterministic `answer`, `clarify`, and `handoff` outcomes and bounded rate/timeout/fallback behavior.
+- **REQ-4:** The root layout renders a right-bottom FAQ widget that supports presets and free text, never exposes provider secrets, and shows a fixed support CTA when the bot abstains.
+- **REQ-5:** Focused tests, typecheck, full web test/build, and diff checks pass without live provider credentials or production writes.
+
+## 6. Handoff to build
+
+The plan is ready for `/dev-kit:build` in the single-step phase. The design record is `docs/proposals/reviewing/faq-support/jev-cs-faq-bot.html`. Build must keep JEV optional and fail closed, preserve the existing auth/billing boundaries, and record all verification evidence before handoff to review.
+
+Sources used for the plan: TypeSafe's Jev launch description and API shape, TypeSafe workflow evaluation guidance, customer-service handoff pattern, privacy policy, and master customer agreement. Vendor speed/cost figures are planning context only; this phase must measure its own latency, call count, confidence behavior, and fallback rate.

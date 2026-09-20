@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { askFaq, loadFaqCatalog } from '@/lib/faq/client';
 import { SUPPORT, type FaqEntry, type FaqResponse } from '@/lib/faq/contracts';
+const FAQ_REQUEST_TIMEOUT_MS = 15_000;
 export function FaqWidget() {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<FaqEntry[]>([]);
@@ -14,7 +15,7 @@ export function FaqWidget() {
     if (!open) return;
     const controller = new AbortController();
     active.current = controller;
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), FAQ_REQUEST_TIMEOUT_MS);
     setBusy(true); setError('');
     loadFaqCatalog(controller.signal).then(setEntries).catch(() => { if (!controller.signal.aborted) setError('FAQ is unavailable. Please use the support guide.'); }).finally(() => { clearTimeout(timer); if (active.current === controller) { setBusy(false); if (controller.signal.aborted) setError('FAQ timed out. Please try again.'); } });
     return () => { active.current = null; controller.abort(); clearTimeout(timer); };
@@ -23,7 +24,7 @@ export function FaqWidget() {
   async function submit(text: string) {
     if (busy || !text.trim()) return;
     const controller = new AbortController(); active.current = controller;
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), FAQ_REQUEST_TIMEOUT_MS);
     setBusy(true); setError(''); setResult(null);
     try { setResult(await askFaq(text, entries, controller.signal)); }
     catch { setError('FAQ is unavailable. Please try again or use the support guide.'); }

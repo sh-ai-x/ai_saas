@@ -16,8 +16,9 @@ identical. Drizzle owns the schema and migration snapshot.
 
 JEV is opt-in: inject JEV_API_KEY server-side and set FAQ_JEV_ENABLED=true.
 Restart the server after changing these settings. Never use NEXT_PUBLIC keys.
-The adapter follows https://docs.typesafe.ai/introduction/quickstart: state,
-model, typed choice/noul questions, answers with probability distributions.
+The adapter follows TypeSafe's `POST https://api.typesafe.ai/v1/systemone`
+contract: state, model, typed choice/noul questions, and answers with
+probability distributions.
 No live provider was needed for verification. Before enabling in staging, verify
 actual wire compatibility and conservative confidence thresholds on synthetic
 non-personal questions with explicit provider-spend authorization.
@@ -39,8 +40,9 @@ JEV cannot supply answer prose or links. The client also checks returned answers
 against GET catalog entries and renders plain React text.
 
 The per-process limiter permits 60 requests/minute across GET and POST, with no
-IP/user storage. JEV permits one in-flight request/process, a 2500ms deadline,
-16KiB response limit, no retries or redirects, and a 30-second failure cooldown.
+IP/user storage. The catalog is cached for 30 seconds per process. JEV permits
+one in-flight request/process, a 1200ms deadline, 16KiB response limit, no
+retries or redirects, and a 30-second failure cooldown.
 These are instance-local bounds; multiple serverless instances multiply the
 budget. Configure an ingress rate limit before scaling a paid deployment.
 Logs contain only event, outcome, status; never question, provider body or error.

@@ -1,0 +1,30 @@
+title: JEV-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
+status: design-discussion
+date: 2026-09-20
+tags:
+  - faq
+  - cs-support
+  - jev
+  - drizzle
+  - confidence-gating
+  - cost-control
+  - safety
+
+sections:
+  - title: Executive decision
+    body: |
+      Build one vertical slice: Drizzle owns a versioned FAQ catalog, exact/alias matching answers known questions without a provider call, and a server-only JEV adapter makes one typed category/FAQ decision only on a miss or ambiguity. Application code maps validated FAQ IDs to allowlisted answers; low confidence, timeout, malformed output, missing credentials, and provider failure return a fixed clarification/support fallback.
+
+  - title: Layered architecture
+    body: |
+      `catalog/repository → deterministic matcher → provider port/JEV adapter → confidence and safety policy → versioned HTTP API → bottom-right widget`.
+
+      JEV receives bounded redacted text and a small candidate set. The widget never calls JEV and never owns FAQ decisions. The service has no tools, memory, RAG, account actions, billing actions, or generated answer text.
+
+  - title: Acceptance gates
+    body: |
+      Exact/alias paths make zero provider calls. JEV misses are limited to one bounded request. The API returns typed `answer`, `clarify`, or `handoff` outcomes. Tests cover redaction, confidence, malformed provider output, timeout, rate limit, and fallback. Local and CI remain deterministic without a live JEV key.
+
+  - title: Evidence and risk controls
+    body: |
+      TypeSafe describes Jev as a typed probabilistic decision model with confidence and no string generation. The provider is early access, so vendor cost/latency figures are not product SLOs. The implementation must measure its own p95/p99, provider-call rate, confidence calibration, unknown recall, false-answer rate, and fallback rate before staging enablement. [src:https://typesafe.ai/blog/introducing-system-one-models-and-jev;ts:2026-09-20;type:primary]
