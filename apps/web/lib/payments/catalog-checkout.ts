@@ -6,6 +6,8 @@ export type CheckoutInput = {
   accountId: string;
   orderId: string;
   idempotencyKey: string;
+  userEmail?: string;
+  userName?: string;
 };
 
 export type CheckoutHandoff = {
@@ -25,6 +27,7 @@ const foundationApiUrl = () => process.env.FOUNDATION_API_URL ?? "http://127.0.0
 
 export async function createCatalogCheckout(input: CheckoutInput): Promise<CheckoutHandoff> {
   const provider = input.option.provider;
+  if (provider === "toss") return createTossCheckout(input);
   const foundation = await tryFoundationCheckout(input);
   if (foundation) return foundation;
 
@@ -39,31 +42,6 @@ export async function createCatalogCheckout(input: CheckoutInput): Promise<Check
       testMode: true,
       checkoutUrl: `/app?checkout=${encodeURIComponent(input.orderId)}`,
       checkoutContext: { adapter: "mock", idempotency_key: input.idempotencyKey },
-      source: "catalog-adapter",
-    };
-  }
-
-  if (provider === "toss") {
-    const clientKey = process.env.TOSS_CLIENT_KEY;
-    if (!clientKey) throw new Error("TOSS_CLIENT_KEY is required for Toss checkout");
-    return {
-      orderId: input.orderId,
-      provider,
-      mode: input.option.mode,
-      interval: input.option.interval,
-      amountMinor: input.option.amountMinor,
-      currency: input.option.currency,
-      testMode: true,
-      checkoutUrl: "",
-      checkoutContext: {
-        adapter: "toss",
-        client_key: clientKey,
-        order_id: input.orderId,
-        order_name: input.option.interval === "one_time" ? "AI SaaS one-time plan" : "AI SaaS subscription plan",
-        amount: { value: input.option.amountMinor, currency: input.option.currency },
-        success_url: `${process.env.APP_BASE_URL ?? "http://127.0.0.1:3000"}/payments/toss/success`,
-        fail_url: `${process.env.APP_BASE_URL ?? "http://127.0.0.1:3000"}/payments/toss/fail`,
-      },
       source: "catalog-adapter",
     };
   }
@@ -127,4 +105,44 @@ async function tryFoundationCheckout(input: CheckoutInput): Promise<CheckoutHand
   } catch {
     return null;
   }
+}
+
+function createTossCheckout(input: CheckoutInput): CheckoutHandoff {
+  const clientKey = process.env.TOSS_CLIENT_KEY?.trim();
+  const sandbox = (process.env.PAYMENT_SANDBOX ?? "true") !== "false";
+  if (!clientKey) throw new Error("TOSS_CLIENT_KEY is required for Toss checkout");
+  if (sandbox && !clientKey.startsWith("test_")) {
+    throw new Error("PAYMENT_SANDBOX=true requires a Toss test client key starting with test_");
+  }
+  if (input.option.currency.toUpperCase() !== "KRW") throw new Error("Toss checkout currency must be KRW");
+  const customerKey = `customer-${crypto.randomUUID()}`;
+  const baseUrl = process.env.APP_BASE_URL ?? "http://127.0.0.1:3000";
+  const isSubscription = input.option.mode === "subscription";
+  const successUrl = isSubscription
+    ? process.env.TOSS_BILLING_SUCCESS_URL ?? `${baseUrl}/payments/toss/billing-success`
+    : process.env.TOSS_SUCCESS_URL ?? `${baseUrl}/payments/toss/success`;
+  return {
+    orderId: input.orderId,
+    provider: "toss",
+    mode: input.option.mode,
+    interval: input.option.interval,
+    amountMinor: input.option.amountMinor,
+    currency: "KRW",
+    testMode: sandbox,
+    checkoutUrl: "",
+    checkoutContext: {
+      adapter: "toss",
+      client_key: clientKey,
+      customer_key: customerKey,
+      order_id: input.orderId,
+      order_name: isSubscription ? "AI SaaS subscription plan" : "AI SaaS one-time plan",
+      amount: { value: input.option.amountMinor, currency: "KRW" },
+      billing_auth: isSubscription,
+      customer_email: input.userEmail ?? "customer@example.test",
+      customer_name: input.userName ?? "AI SaaS customer",
+      success_url: successUrl,
+      fail_url: process.env.TOSS_FAIL_URL ?? `${baseUrl}/payments/toss/fail`,
+    },
+    source: "catalog-adapter",
+  };
 }

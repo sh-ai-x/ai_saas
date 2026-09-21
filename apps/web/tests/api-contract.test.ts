@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import { after, before, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 
 import { GET as getPublicPricing } from "@/app/api/pricing/route";
@@ -7,7 +5,7 @@ import { POST as postCheckout } from "@/app/api/pricing/checkout/route";
 import { GET as getAdminPolicy, PATCH as patchAdminPolicy } from "@/app/api/admin/billing-policy/route";
 import { GET as getAdminPricing, POST as postAdminPricing } from "@/app/api/admin/pricing/route";
 import { GET as getAdminProviders, PATCH as patchAdminProvider } from "@/app/api/admin/payment-providers/route";
-import { getBillingPolicy, listPricingCatalog, setBillingMode } from "@/lib/pricing/repository";
+import { getBillingPolicy, getPaymentOrder, listPricingCatalog, setBillingMode } from "@/lib/pricing/repository";
 import { localDemoSession, localSessionCookie } from "@/lib/auth/local-session";
 
 process.env.APP_ENV = "test";
@@ -34,11 +32,11 @@ async function bodyOf(response: Response) {
 }
 
 describe("pricing and admin API contracts", () => {
-  before(async () => {
+  beforeAll(async () => {
     await setBillingMode("subscription", "api-test", "reset before API contract tests");
   });
 
-  after(async () => {
+  afterAll(async () => {
     await setBillingMode("subscription", "api-test", "restore subscription catalog after API contract tests");
     process.env.APP_ENV = "test";
     delete process.env.ADMIN_API_TOKEN;
@@ -46,39 +44,40 @@ describe("pricing and admin API contracts", () => {
 
   it("returns the subscription catalog with annual Pro at 290 USD", async () => {
     const response = await getPublicPricing();
-    assert.equal(response.status, 200);
+    expect(response.status).toBe(200);
     const body = await bodyOf(response);
-    assert.equal(body.billing.billingMode, "subscription");
+    expect(body.billing.billingMode).toBe("subscription");
     const options = body.plans.flatMap((plan: any) => plan.options);
-    assert.ok(options.some((option: any) => option.interval === "year" && option.amountMinor === 29000));
-    assert.equal(options.some((option: any) => option.amountMinor === 7900), false);
+    expect(options.some((option: any) => option.interval === "year" && option.amountMinor === 29000)).toBe(true);
+    expect(options.some((option: any) => option.amountMinor === 7900)).toBe(false);
   });
 
   it("switches the public API atomically to one-time and blocks subscription checkout", async () => {
     const switched = await patchAdminPolicy(json({ billingMode: "one_time", reason: "API contract mode switch" }, { method: "PATCH" }));
-    assert.equal(switched.status, 200);
+    expect(switched.status).toBe(200);
 
     const catalog = await getPublicPricing();
-    assert.equal(catalog.status, 200);
+    expect(catalog.status).toBe(200);
     const catalogBody = await bodyOf(catalog);
-    assert.equal(catalogBody.billing.billingMode, "one_time");
+    expect(catalogBody.billing.billingMode).toBe("one_time");
     const options = catalogBody.plans.flatMap((plan: any) => plan.options);
-    assert.deepEqual(options.map((option: any) => option.interval), ["one_time"]);
-    assert.equal(options[0].amountMinor, 7900);
+    expect(options.map((option: any) => option.interval)).toEqual(["one_time"]);
+    expect(options[0].amountMinor).toBe(7900);
 
     const allPlans = await listPricingCatalog(false);
     const subscriptionOption = allPlans.flatMap((plan) => plan.options).find((option) => option.interval === "year");
-    assert.ok(subscriptionOption);
+    expect(subscriptionOption).toBeTruthy();
+    if (!subscriptionOption) throw new Error("seeded subscription option is missing");
     const subscriptionCheckout = await postCheckout(json({ optionId: subscriptionOption.id }, { method: "POST" }));
-    assert.equal(subscriptionCheckout.status, 409);
+    expect(subscriptionCheckout.status).toBe(409);
 
     const oneTimeOption = options[0];
     const oneTimeCheckout = await postCheckout(json({ optionId: oneTimeOption.id }, { method: "POST" }));
-    assert.equal(oneTimeCheckout.status, 201);
+    expect(oneTimeCheckout.status).toBe(201);
     const checkoutBody = await bodyOf(oneTimeCheckout);
-    assert.equal(checkoutBody.amountMinor, 7900);
-    assert.equal(checkoutBody.mode, "one_time");
-    assert.equal(checkoutBody.testMode, true);
+    expect(checkoutBody.amountMinor).toBe(7900);
+    expect(checkoutBody.mode).toBe("one_time");
+    expect(checkoutBody.testMode).toBe(true);
 
     await setBillingMode("subscription", "api-test", "restore subscription mode");
   });
@@ -87,41 +86,90 @@ describe("pricing and admin API contracts", () => {
     process.env.APP_ENV = "production";
     delete process.env.ADMIN_API_TOKEN;
     const denied = await getAdminPolicy(request("/api/admin/billing-policy"));
-    assert.equal(denied.status, 403);
+    expect(denied.status).toBe(403);
 
     process.env.ADMIN_API_TOKEN = "test-admin-token";
     const accepted = await getAdminPolicy(request("/api/admin/billing-policy", {
       headers: { authorization: "Bearer test-admin-token" },
     }));
-    assert.equal(accepted.status, 200);
+    expect(accepted.status).toBe(200);
     process.env.APP_ENV = "test";
   });
 
   it("requires reasons for admin writes and exposes provider settings", async () => {
     const pricing = await getAdminPricing(request("/api/admin/pricing"));
-    assert.equal(pricing.status, 200);
-    assert.ok((await bodyOf(pricing)).plans.length >= 3);
+    expect(pricing.status).toBe(200);
+    expect((await bodyOf(pricing)).plans.length).toBeGreaterThanOrEqual(3);
 
     const missingReason = await postAdminPricing(json({
       plan: { code: "missing-reason", name: "Missing reason", billingMode: "subscription", options: [] },
     }, { method: "POST" }));
-    assert.equal(missingReason.status, 400);
+    expect(missingReason.status).toBe(400);
 
     const providers = await getAdminProviders(request("/api/admin/payment-providers"));
-    assert.equal(providers.status, 200);
-    assert.ok((await bodyOf(providers)).providers.some((provider: any) => provider.provider === "toss"));
+    expect(providers.status).toBe(200);
+    expect((await bodyOf(providers)).providers.some((provider: any) => provider.provider === "toss")).toBe(true);
 
     const missingProviderReason = await patchAdminProvider(json({
       provider: "toss", enabled: false, sandbox: true,
     }, { method: "PATCH" }));
-    assert.equal(missingProviderReason.status, 400);
+    expect(missingProviderReason.status).toBe(400);
+  });
+
+  it("requires matching Toss sandbox keys before admin can enable Toss", async () => {
+    const originalClientKey = process.env.TOSS_CLIENT_KEY;
+    const originalSecretKey = process.env.TOSS_SECRET_KEY;
+    process.env.PAYMENT_SANDBOX = "true";
+    delete process.env.TOSS_CLIENT_KEY;
+    delete process.env.TOSS_SECRET_KEY;
+
+    const missingKeys = await patchAdminProvider(json({
+      provider: "toss", enabled: true, sandbox: true, reason: "reject unconfigured Toss sandbox",
+    }, { method: "PATCH" }));
+    expect(missingKeys.status).toBe(400);
+    expect((await bodyOf(missingKeys)).error).toMatch(/TOSS_CLIENT_KEY and TOSS_SECRET_KEY/);
+
+    process.env.TOSS_CLIENT_KEY = "test_ck_example";
+    process.env.TOSS_SECRET_KEY = "test_sk_example";
+    const enabled = await patchAdminProvider(json({
+      provider: "toss", enabled: true, sandbox: true, reason: "enable configured Toss sandbox",
+    }, { method: "PATCH" }));
+    expect(enabled.status).toBe(200);
+    expect((await bodyOf(enabled)).provider.provider).toBe("toss");
+
+    const tossPlan = await postAdminPricing(json({
+      reason: "create Toss KRW API contract option",
+      plan: {
+        code: `api-toss-${Date.now()}`,
+        name: "API Toss sandbox plan",
+        description: "test-only Toss option",
+        billingMode: "subscription",
+        options: [{ mode: "subscription", interval: "month", provider: "toss", currency: "KRW", amountMinor: 1000 }],
+      },
+    }, { method: "POST" }));
+    expect(tossPlan.status).toBe(201);
+    const tossOption = (await bodyOf(tossPlan)).plan.options[0];
+    const tossCheckout = await postCheckout(json({ optionId: tossOption.id }, { method: "POST" }));
+    expect(tossCheckout.status).toBe(201);
+    const tossCheckoutBody = await bodyOf(tossCheckout);
+    expect(tossCheckoutBody.provider).toBe("toss");
+    expect(tossCheckoutBody.checkoutContext.billing_auth).toBe(true);
+    expect(tossCheckoutBody.checkoutContext.client_key).toBe("test_ck_example");
+    expect(await getPaymentOrder(tossCheckoutBody.orderId)).toEqual(expect.objectContaining({ status: "pending", currency: "KRW" }));
+
+    await patchAdminProvider(json({ provider: "toss", enabled: false, sandbox: true, reason: "restore Toss provider" }, { method: "PATCH" }));
+    await patchAdminProvider(json({ provider: "mock", enabled: true, sandbox: true, reason: "restore mock provider" }, { method: "PATCH" }));
+    if (originalClientKey === undefined) delete process.env.TOSS_CLIENT_KEY;
+    else process.env.TOSS_CLIENT_KEY = originalClientKey;
+    if (originalSecretKey === undefined) delete process.env.TOSS_SECRET_KEY;
+    else process.env.TOSS_SECRET_KEY = originalSecretKey;
   });
 
   it("rejects unknown and inactive checkout options", async () => {
     const unknown = await postCheckout(json({ optionId: "does-not-exist" }, { method: "POST" }));
-    assert.equal(unknown.status, 404);
-    assert.equal((await bodyOf(unknown)).error, "pricing option is not available");
+    expect(unknown.status).toBe(404);
+    expect((await bodyOf(unknown)).error).toBe("pricing option is not available");
 
-    assert.equal((await getBillingPolicy()).billingMode, "subscription");
+    expect((await getBillingPolicy()).billingMode).toBe("subscription");
   });
 });

@@ -65,10 +65,11 @@ pnpm --filter ai-saas-foundation-web build
 pnpm --filter ai-saas-foundation-web start
 ```
 
-Run the contract and adapter test suite without provider credentials:
+Run the Jest contract and adapter test suite without provider credentials:
 
 ```bash
 pnpm --filter ai-saas-foundation-web test
+pnpm --filter ai-saas-foundation-web test:watch
 pnpm --filter ai-saas-foundation-web test:all
 pnpm web:e2e
 ```

@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start --hostname localhost --port 3000",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts",
-    "test:watch": "node --import tsx --test --watch tests/**/*.test.ts",
+    "test": "jest --config jest.config.mjs --runInBand",
+    "test:watch": "jest --config jest.config.mjs --watch",
     "test:all": "pnpm lint && pnpm test && pnpm build",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts"
@@ -27,11 +27,12 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "22.15.30",
     "@types/react": "19.1.2",
     "@types/react-dom": "19.1.2",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.23.13",
+    "jest": "^30.5.2",
     "typescript": "5.8.3"
   },
   "overrides": {

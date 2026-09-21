@@ -32,6 +32,13 @@ services:
       CONTRACT_VERSION: v1
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
       MOCK_PAYMENTS_ENABLED: ${MOCK_PAYMENTS_ENABLED:-true}
+      PAYMENT_SANDBOX: ${PAYMENT_SANDBOX:-true}
+      TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      TOSS_WEBHOOK_SECRET: ${TOSS_WEBHOOK_SECRET:-}
+      TOSS_SUCCESS_URL: ${TOSS_SUCCESS_URL:-http://localhost:3000/payments/toss/success}
+      TOSS_BILLING_SUCCESS_URL: ${TOSS_BILLING_SUCCESS_URL:-http://localhost:3000/payments/toss/billing-success}
+      TOSS_FAIL_URL: ${TOSS_FAIL_URL:-http://localhost:3000/payments/toss/fail}
       WORKFLOW_PROVIDER: local
       PAID_INFRASTRUCTURE: "false"
       AWS_WORKER_ENABLED: "false"
@@ -82,8 +89,14 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       PAYMENT_PROVIDER: ${WEB_PAYMENT_PROVIDER:-mock}
+      PAYMENT_SANDBOX: ${PAYMENT_SANDBOX:-true}
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      TOSS_API_BASE_URL: ${TOSS_API_BASE_URL:-https://api.tosspayments.com}
+      TOSS_WEBHOOK_SECRET: ${TOSS_WEBHOOK_SECRET:-}
+      TOSS_SUCCESS_URL: ${TOSS_SUCCESS_URL:-http://localhost:3000/payments/toss/success}
+      TOSS_BILLING_SUCCESS_URL: ${TOSS_BILLING_SUCCESS_URL:-http://localhost:3000/payments/toss/billing-success}
+      TOSS_FAIL_URL: ${TOSS_FAIL_URL:-http://localhost:3000/payments/toss/fail}
       LEMONSQUEEZY_STORE_ID: ${LEMONSQUEEZY_STORE_ID:-}
       LEMONSQUEEZY_VARIANT_ID: ${LEMONSQUEEZY_VARIANT_ID:-}
       LEMONSQUEEZY_API_KEY: ${LEMONSQUEEZY_API_KEY:-}

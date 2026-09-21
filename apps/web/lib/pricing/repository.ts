@@ -10,6 +10,8 @@ import type {
   PricingPlanInput,
   PricingPolicy,
   PricingProvider,
+  PaymentOrder,
+  SubscriptionRecord,
   ProviderSetting,
 } from "./types";
 
@@ -19,6 +21,8 @@ type LocalPricingState = {
   plans: PricingPlan[];
   providers: ProviderSetting[];
   billingMode: BillingMode;
+  orders: PaymentOrder[];
+  subscriptions: SubscriptionRecord[];
 };
 
 const globalState = globalThis as typeof globalThis & { __aiSaasPricingState?: LocalPricingState };
@@ -26,6 +30,8 @@ const localState: LocalPricingState = globalState.__aiSaasPricingState ??= {
   plans: clonePlans(seededPricingCatalog),
   providers: cloneProviders(seededProviderSettings),
   billingMode: seededBillingMode,
+  orders: [],
+  subscriptions: [],
 };
 
 function clonePlans(plans: PricingPlan[]) {
@@ -142,6 +148,147 @@ export async function getPricingOption(optionId: string): Promise<PricingOption 
     if (option) return option;
   }
   return null;
+}
+
+export async function getPricingOffer(optionId: string): Promise<{ plan: PricingPlan; option: PricingOption } | null> {
+  const catalog = await listPricingCatalog(false);
+  for (const plan of catalog) {
+    const option = plan.options.find((candidate) => candidate.id === optionId);
+    if (option) return { plan, option };
+  }
+  return null;
+}
+
+function mapPaymentOrder(row: typeof paymentOrders.$inferSelect): PaymentOrder {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    userId: row.userId,
+    pricingOptionId: row.pricingOptionId,
+    provider: row.provider as PricingProvider,
+    mode: row.mode as PaymentOrder["mode"],
+    status: row.status as PaymentOrder["status"],
+    externalOrderRef: row.externalOrderRef,
+    externalPaymentRef: row.externalPaymentRef,
+    amountMinor: row.amountMinor,
+    currency: row.currency,
+    idempotencyKey: row.idempotencyKey,
+    metadata: row.metadata,
+  };
+}
+
+export async function createPaymentOrder(input: {
+  id: string;
+  tenantId: string;
+  userId?: string | null;
+  option: PricingOption;
+  idempotencyKey: string;
+  metadata?: Record<string, unknown>;
+}): Promise<PaymentOrder> {
+  const row: PaymentOrder = {
+    id: input.id,
+    tenantId: input.tenantId,
+    userId: input.userId ?? null,
+    pricingOptionId: input.option.id,
+    provider: input.option.provider,
+    mode: input.option.mode,
+    status: "pending",
+    externalOrderRef: input.id,
+    externalPaymentRef: null,
+    amountMinor: input.option.amountMinor,
+    currency: input.option.currency.toUpperCase(),
+    idempotencyKey: input.idempotencyKey,
+    metadata: input.metadata ?? {},
+  };
+  const db = getDb();
+  if (!db) {
+    const existing = localState.orders.find((order) => order.idempotencyKey === row.idempotencyKey);
+    if (existing) return structuredClone(existing);
+    localState.orders.push(row);
+    return structuredClone(row);
+  }
+  const [existing] = await db.select().from(paymentOrders).where(eq(paymentOrders.idempotencyKey, row.idempotencyKey)).limit(1);
+  if (existing) return mapPaymentOrder(existing);
+  await db.insert(paymentOrders).values({
+    id: row.id,
+    tenantId: row.tenantId,
+    userId: row.userId,
+    pricingOptionId: row.pricingOptionId,
+    provider: row.provider,
+    mode: row.mode,
+    status: row.status,
+    externalOrderRef: row.externalOrderRef,
+    externalPaymentRef: row.externalPaymentRef,
+    amountMinor: row.amountMinor,
+    currency: row.currency,
+    idempotencyKey: row.idempotencyKey,
+    metadata: row.metadata,
+  });
+  return row;
+}
+
+export async function getPaymentOrder(orderId: string): Promise<PaymentOrder | null> {
+  const db = getDb();
+  if (!db) return structuredClone(localState.orders.find((order) => order.id === orderId) ?? null);
+  const [row] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, orderId)).limit(1);
+  return row ? mapPaymentOrder(row) : null;
+}
+
+export async function getPaymentOrderByCustomerKey(customerKey: string): Promise<PaymentOrder | null> {
+  const db = getDb();
+  if (!db) return structuredClone(localState.orders.find((order) => order.metadata.customerKey === customerKey) ?? null);
+  const rows = await db.select().from(paymentOrders).where(eq(paymentOrders.provider, "toss"));
+  const row = rows.find((candidate) => (candidate.metadata as Record<string, unknown>).customerKey === customerKey);
+  return row ? mapPaymentOrder(row) : null;
+}
+
+export async function updatePaymentOrder(
+  orderId: string,
+  patch: Partial<Pick<PaymentOrder, "status" | "externalPaymentRef" | "metadata">>,
+): Promise<PaymentOrder | null> {
+  const db = getDb();
+  if (!db) {
+    const current = localState.orders.find((order) => order.id === orderId);
+    if (!current) return null;
+    Object.assign(current, patch);
+    return structuredClone(current);
+  }
+  await db.update(paymentOrders).set({ ...patch, updatedAt: new Date() }).where(eq(paymentOrders.id, orderId));
+  return getPaymentOrder(orderId);
+}
+
+export async function recordTossSubscription(input: {
+  order: PaymentOrder;
+  customerKey: string;
+  billingKey: string;
+}): Promise<void> {
+  const db = getDb();
+  const periodEnd = new Date();
+  if (input.order.metadata.interval === "year") periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+  else periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+  const values: SubscriptionRecord = {
+    id: `subscription-${input.order.id}`,
+    tenantId: input.order.tenantId,
+    userId: input.order.userId,
+    pricingOptionId: input.order.pricingOptionId,
+    provider: "toss",
+    externalCustomerRef: input.customerKey,
+    externalSubscriptionRef: input.order.id,
+    status: "active",
+    currentPeriodStart: new Date(),
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: false,
+    metadata: { billingKey: input.billingKey },
+  };
+  if (!db) {
+    const index = localState.subscriptions.findIndex((subscription) => subscription.id === values.id);
+    if (index === -1) localState.subscriptions.push(structuredClone(values));
+    else localState.subscriptions[index] = structuredClone(values);
+    return;
+  }
+  const [existing] = await db.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.id, values.id)).limit(1);
+  if (existing) await db.update(subscriptions).set({ ...values, updatedAt: new Date() }).where(eq(subscriptions.id, values.id));
+  else await db.insert(subscriptions).values(values);
 }
 
 export async function createPricingPlan(input: PricingPlanInput, actorUserId = "local-admin", reason = "") {
@@ -261,12 +408,15 @@ export async function updateProviderSetting(
   }
   const db = getDb();
   if (!db) {
-    localState.providers = localState.providers.map((setting) => setting.provider === provider ? { ...setting, ...input } : setting);
+    localState.providers = localState.providers.map((setting) => input.enabled
+      ? { ...setting, enabled: setting.provider === provider, ...(setting.provider === provider ? input : {}) }
+      : setting.provider === provider ? { ...setting, ...input } : setting);
     return localState.providers.find((setting) => setting.provider === provider) ?? null;
   }
   const current = (await listProviderSettings()).find((setting) => setting.provider === provider);
   const row = { ...input, updatedAt: new Date() };
   if (current) {
+    if (input.enabled) await db.update(paymentProviderSettings).set({ enabled: false, updatedAt: new Date() }).where(eq(paymentProviderSettings.enabled, true));
     await db.update(paymentProviderSettings).set(row).where(eq(paymentProviderSettings.provider, provider));
   } else {
     await db.insert(paymentProviderSettings).values({ id: `provider-${provider}`, provider, ...input });
@@ -276,10 +426,12 @@ export async function updateProviderSetting(
 }
 
 export async function selectedPaymentProvider(): Promise<PricingProvider> {
+  const settings = await listProviderSettings();
+  const enabled = settings.find((setting) => setting.enabled);
+  if (enabled) return enabled.provider;
   const configured = process.env.PAYMENT_PROVIDER as PricingProvider | undefined;
   if (configured && ["mock", "toss", "lemon-squeezy"].includes(configured)) return configured;
-  const settings = await listProviderSettings();
-  return settings.find((setting) => setting.enabled)?.provider ?? "mock";
+  return "mock";
 }
 
 function validatePlanInput(input: PricingPlanInput, reason: string) {

@@ -1,0 +1,15 @@
+{
+  "exit_code": 0,
+  "stdout": "pnpm lint: exit 0 (tsc --noEmit). pnpm test: exit 0; Test Suites: 8 passed, 8 total; Tests: 3 skipped, 33 passed, 36 total. Python unittest: exit 0; Ran 22 tests; OK. docker compose config --quiet: exit 0. git diff --check: exit 0.",
+  "stderr": "The delegated Codex build subprocess produced no output and was safely interrupted before changing the per-step worktree. Manual TDD fallback completed in the requested isolated worktree; no live Toss request or real-charge credential was used. Next production build reached successful compilation and static page generation but hung during trace finalization and was interrupted (exit 130); typecheck and declared test gates are green.",
+  "duration_seconds": 59.32,
+  "timestamp": "2026-09-21T00:09:13+09:00",
+  "verification": {
+    "web_lint": { "command": "pnpm lint", "exit_code": 0, "duration_seconds": 34.07 },
+    "web_test": { "command": "pnpm test", "exit_code": 0, "duration_seconds": 18.16, "test_suites_passed": 8, "tests_passed": 33, "tests_skipped": 3 },
+    "python_billing": { "command": "uv run --locked python -m unittest tests/test_payment_sandbox_api.py tests/test_billing.py tests/test_integration_contracts.py", "exit_code": 0, "duration_seconds": 7.09, "tests_passed": 22 },
+    "compose_config": { "command": "docker compose -f docker/prod/compose.yaml config --quiet", "exit_code": 0 },
+    "diff_check": { "command": "git diff --check", "exit_code": 0 }
+  },
+  "manual_fallback": true
+}
