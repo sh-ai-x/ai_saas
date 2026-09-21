@@ -43,10 +43,13 @@ export APP_SECRET_KEY="$(openssl rand -base64 32)"
 docker compose -f docker/prod/compose.yaml up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The API is available at
-[http://localhost:8080/healthz](http://localhost:8080/healthz). Stop the
-stack with `docker compose -f docker/prod/compose.yaml down`; add `-v` only
-when the disposable local PostgreSQL and Foundation state should be removed.
+Open [http://localhost:3100](http://localhost:3100). The API is available at
+[http://localhost:8180/healthz](http://localhost:8180/healthz). Docker uses
+host ports `3100`, `8180`, and `55432` for the web, API, and PostgreSQL
+services so it can run beside the process-mode/legacy stack. Internal service
+ports remain `3000`, `8080`, and `5432`. Stop the stack with `docker compose -f
+docker/prod/compose.yaml down`; add `-v` only when the disposable local
+PostgreSQL and Foundation state should be removed.
 
 The local Compose PostgreSQL service uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For a real Google login, fill the server-only
@@ -56,7 +59,7 @@ not automatically load `apps/web/.env.local`.
 For a live Google test, set `WEB_DATABASE_URL`, `BETTER_AUTH_SECRET`,
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
 `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` in the ignored `.env` file. Register
-`http://localhost:3000/api/auth/callback/google` in Google Cloud.
+`http://localhost:3100/api/auth/callback/google` in Google Cloud.
 
 ## 4. Verify the contract
 
@@ -65,7 +68,7 @@ before introducing external credentials. Validate real account creation and
 login through the Google OAuth guide after configuring the provider.
 
 ```bash
-curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8180/healthz
 uv run --locked python -m foundation.contract_check
 bash scripts/verify-local.sh
 ```

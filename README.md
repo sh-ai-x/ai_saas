@@ -234,15 +234,18 @@ cp .env.docker.example .env
 pnpm docker:local
 ```
 
-Open `http://localhost:3000` for the web console and
-`http://localhost:8080/healthz` for the API health check. The default profile
-uses mock payments, while the browser has no local/mock login fallback. Local
-Compose PostgreSQL uses trust authentication and does not require
-`POSTGRES_PASSWORD`. For live Google login, fill `BETTER_AUTH_SECRET`,
-`GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the ignored root `.env`; use
-the local default `WEB_DATABASE_URL` or set it to the intended Neon connection
-string. The Google callback for this local container remains:
-`http://localhost:3000/api/auth/callback/google`.
+Open `http://localhost:3100` for the web console and
+`http://localhost:8180/healthz` for the API health check. The Docker-only host
+ports (`3100`, `8180`, and `55432`) are intentionally separate from the
+process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
+container URLs remain `web:3000`, `foundation:8080`, and `postgres:5432`.
+The default profile uses mock payments, while the browser has no local/mock
+login fallback. Local Compose PostgreSQL uses trust authentication and does
+not require `POSTGRES_PASSWORD`. For live Google login, fill
+`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the
+ignored root `.env`; use the local default `WEB_DATABASE_URL` or set it to the
+intended Neon connection string. The Google callback for this Docker stack is:
+`http://localhost:3100/api/auth/callback/google`.
 
 `pnpm docker:local` always reads the root `.env`, rebuilds the images, and
 force-recreates the containers. This is important after changing Google OAuth

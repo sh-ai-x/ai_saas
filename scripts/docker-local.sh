@@ -35,6 +35,30 @@ env_file_value() {
   ' "$env_file"
 }
 
+use_isolated_host_port() {
+  local key="$1"
+  local legacy="$2"
+  local isolated="$3"
+  local configured="$(env_file_value "$key")"
+  local shell_value="${!key:-}"
+
+  # Keep an explicitly chosen non-legacy port. Empty values and the old
+  # process-mode defaults are promoted to the Docker-only host port so an
+  # existing .env cannot accidentally recreate a host-port collision.
+  if [[ -z "$shell_value" && ( -z "$configured" || "$configured" == "$legacy" ) ]]; then
+    export "$key=$isolated"
+  elif [[ "$shell_value" == "$legacy" ]]; then
+    export "$key=$isolated"
+  fi
+}
+
+use_isolated_host_port POSTGRES_PORT 5432 55432
+use_isolated_host_port FOUNDATION_PORT 8080 8180
+use_isolated_host_port WEB_PORT 3000 3100
+use_isolated_host_port FOUNDATION_PUBLIC_URL http://localhost:8080 http://localhost:8180
+use_isolated_host_port WEB_PUBLIC_URL http://localhost:3000 http://localhost:3100
+use_isolated_host_port BETTER_AUTH_URL http://localhost:3000 http://localhost:3100
+
 if [[ -z "${APP_SECRET_KEY:-}" && -z "$(env_file_value APP_SECRET_KEY)" ]]; then
   generated_app_secret="$(openssl rand -hex 32)"
   export APP_SECRET_KEY="$generated_app_secret"
