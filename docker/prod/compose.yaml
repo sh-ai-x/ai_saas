@@ -64,7 +64,9 @@ services:
       dockerfile: apps/web/Dockerfile
       target: migrator
     environment:
-      DATABASE_URL: ${WEB_DATABASE_URL:-postgresql://foundation@postgres:5432/foundation}
+      # Drizzle migrations use Neon direct/unpooled connections. The local
+      # profile supplies the same local URL for both runtime and migration.
+      DATABASE_URL: ${WEB_DATABASE_URL_UNPOOLED:-postgresql://foundation@postgres:5432/foundation}
     depends_on:
       postgres:
         condition: service_healthy

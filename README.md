@@ -225,15 +225,15 @@ git diff -- apps/web/drizzle
 ```
 
 Apply the committed migration to the intended environment with the unpooled
-connection string. The command reads `DATABASE_URL`; it never selects a Neon
-branch implicitly:
+connection string. Drizzle prefers `DATABASE_URL_UNPOOLED` and falls back to
+`DATABASE_URL` for local PostgreSQL; it never selects a Neon branch implicitly:
 
 ```bash
 # local Docker: web-migrate runs this automatically during docker:local
 pnpm docker:local
 
 # an explicitly selected Neon preview or staging branch
-DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
+DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
 ```
 
 For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
@@ -250,12 +250,32 @@ For an explicit remote-preview diagnostic only, opt in for that invocation:
 ```bash
 ALLOW_REMOTE_DATABASE=true \
 WEB_DATABASE_URL="$DATABASE_URL" \
+WEB_DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" \
 pnpm docker:local
 ```
 
 Review the target branch and migration output before using this escape hatch;
-it causes the Docker `web-migrate` service to run against the supplied remote
-database.
+the web process uses the pooled `WEB_DATABASE_URL`, while the Docker
+`web-migrate` service uses the direct `WEB_DATABASE_URL_UNPOOLED`.
+
+### Docker runtime with Neon
+
+Use the Neon Compose profile when the web console must run against a Neon
+preview or staging branch. It does not start a local PostgreSQL container:
+
+```bash
+cp .env.neon.example .env.neon
+# Fill DATABASE_URL with the pooled URL and DATABASE_URL_UNPOOLED with the
+# direct URL from the selected Neon branch, then add the runtime secrets.
+pnpm docker:neon
+```
+
+`docker:neon` derives an isolated `3200`/`8280` host-port block per worktree.
+The web container receives the pooled `DATABASE_URL`; the one-shot
+`web-migrate` container receives only `DATABASE_URL_UNPOOLED`. Stop that
+worktree with `pnpm docker:neon:down`. Create/select the Neon branch with Neon
+MCP or the Neon CLI before copying its URLs; the Docker command never creates,
+deletes, or promotes a Neon branch.
 
 ## Docker path
 

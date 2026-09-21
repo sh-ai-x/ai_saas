@@ -55,6 +55,28 @@ pnpm web:setup-auth -- --migrate
 
 Add `--link-neon` when the branch has not been linked yet.
 
+The Drizzle configuration uses `DATABASE_URL_UNPOOLED` for migrations and
+`DATABASE_URL` for application traffic. This is intentional: keep the direct
+Neon connection for schema changes and the pooled connection for runtime
+queries. To run the web console in Docker against the selected branch, use
+the Neon-specific profile instead of the local PostgreSQL profile:
+
+```bash
+cp .env.neon.example .env.neon
+# Copy DATABASE_URL and DATABASE_URL_UNPOOLED from the selected branch into
+# .env.neon, then add the required application and OAuth secrets.
+pnpm docker:neon
+```
+
+The local profile remains:
+
+```bash
+pnpm docker:local
+```
+
+It starts a separate PostgreSQL volume for the current Git worktree and does
+not silently use a Neon URL.
+
 ## 4. Apply the repository policy
 
 The committed `neon.ts` deliberately starts with an empty policy so existing
