@@ -52,6 +52,37 @@ The Foundation container requires a generated secret, which fixes the common
 `APP_SECRET_KEY must be a generated value with at least 32 characters` startup
 error:
 
+## 4. Run the temporary isolated-port sandbox
+
+The temporary Compose override keeps this Toss sandbox separate from the
+default stack. The browser uses `3001`, Foundation listens on `8081`, and
+Postgres listens on `5433` inside the Compose network (`55433` on the host).
+The web container therefore calls `http://foundation:8081`, and every service
+uses the Postgres URL with port `5433`.
+
+```bash
+export APP_SECRET_KEY="$(openssl rand -hex 32)"
+export TOSS_CLIENT_KEY="test_ck_your_client_key"
+export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
+export PAYMENT_PROVIDER=toss
+export PAYMENT_SANDBOX=true
+export MOCK_PAYMENTS_ENABLED=false
+
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml up --build
+```
+
+Open `http://localhost:3001`. Stop only this isolated stack with:
+
+```bash
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml down
+```
+
+Do not use `-v` unless the disposable sandbox database should be removed.
+
 ```bash
 cp .env.docker.example .env
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
@@ -74,7 +105,7 @@ runtime and credentials.
 Open [http://localhost:3000/guides?guide=payment-toss](http://localhost:3000/guides?guide=payment-toss).
 The Foundation health endpoint is [http://localhost:8080/healthz](http://localhost:8080/healthz).
 
-## 4. Enable Toss and configure a KRW option
+## 5. Enable Toss and configure a KRW option
 
 1. Sign in with the configured Google test account and open
    `/admin/payments`.
@@ -88,7 +119,7 @@ The Foundation health endpoint is [http://localhost:8080/healthz](http://localho
 Toss general card payments support KRW. Existing USD mock options are not
  silently converted by the server; an invalid Toss currency fails closed.
 
-## 5. Subscription sandbox flow
+## 6. Subscription sandbox flow
 
 From `/billing`, select the active Toss subscription:
 
@@ -113,7 +144,7 @@ Toss option, and the browser calls `requestPayment()`. The success route then
 calls `/v1/payments/confirm` server-side and applies the same amount/order and
 idempotency checks.
 
-## 6. Scope and troubleshooting
+## 7. Scope and troubleshooting
 
 - Live Toss mode is not enabled in local/test profiles. Automatic billing may
   require a Toss risk review/contract before production use.
