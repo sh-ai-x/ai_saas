@@ -436,10 +436,17 @@ export async function selectedPaymentProvider(): Promise<PricingProvider> {
 }
 
 export function applySelectedPaymentProvider(plans: PricingPlan[], provider: PricingProvider): PricingPlan[] {
-  return plans.map((plan) => ({
-    ...plan,
-    options: plan.options.map((option) => option.provider === "mock" ? { ...option, provider } : option),
-  }));
+  return plans
+    .map((plan) => ({
+      ...plan,
+      // Public pricing is provider-neutral. Provider-specific rows remain
+      // available to admin/API contract tests, but must not become a second
+      // product card that can be clicked under a different active provider.
+      options: plan.options
+        .filter((option) => option.provider === "mock")
+        .map((option) => ({ ...option, provider })),
+    }))
+    .filter((plan) => plan.options.length > 0);
 }
 
 function validatePlanInput(input: PricingPlanInput, reason: string) {
