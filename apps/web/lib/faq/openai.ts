@@ -104,7 +104,7 @@ export function createOpenAiProvider(options: {
           return parseOpenAi(await boundedJson(response.body, 16384, controller.signal), candidates);
         };
         return await Promise.race([work(), new Promise<never>((_, reject) => {
-          timer = setTimeout(() => { controller.abort(); reject(new Error('Provider timeout')); }, Math.min(options.timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS));
+          timer = setTimeout(() => { controller.abort(); reject(new Error('Provider timeout')); }, options.timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS);
         })]);
       } catch {
         openUntil = now() + 30000;
