@@ -294,7 +294,7 @@ export async function recordTossSubscription(input: {
 export async function createPricingPlan(input: PricingPlanInput, actorUserId = "local-admin", reason = "") {
   validatePlanInput(input, reason);
   const policy = await getBillingPolicy();
-  if (input.billingMode !== policy.billingMode) throw new Error(`plan billingMode must match active catalog mode: ${policy.billingMode}`);
+  assertBillingModeIsEditable(undefined, input, policy);
   const planId = `plan-${crypto.randomUUID()}`;
   const options = (input.options ?? []).map((option) => ({ ...option, id: option.id ?? `option-${crypto.randomUUID()}`, planId }));
   validatePlanOptions(options, input.billingMode);
@@ -320,11 +320,11 @@ export async function updatePricingPlan(
 ) {
   validatePlanInput(input, reason);
   const policy = await getBillingPolicy();
-  if (input.billingMode !== policy.billingMode) throw new Error(`plan billingMode must match active catalog mode: ${policy.billingMode}`);
   const db = getDb();
   if (!db) {
     const current = localState.plans.find((plan) => plan.id === planId);
     if (!current) return null;
+    assertBillingModeIsEditable(current, input, policy);
     const next = toLocalPlan(planId, input, (input.options ?? current.options).map((option) => ({
       ...option,
       id: option.id ?? `option-${crypto.randomUUID()}`,
@@ -337,6 +337,7 @@ export async function updatePricingPlan(
 
   const current = (await listPricingCatalog(false)).find((plan) => plan.id === planId);
   if (!current) return null;
+  assertBillingModeIsEditable(current, input, policy);
   const options = input.options ?? current.options;
   validatePlanOptions(options, input.billingMode);
   const normalizedOptions = options.map((option) => ({
@@ -438,6 +439,22 @@ function validatePlanInput(input: PricingPlanInput, reason: string) {
   if (!input.code.trim() || !input.name.trim()) throw new Error("plan code and name are required");
   if (!["one_time", "subscription"].includes(input.billingMode)) throw new Error("valid billingMode is required");
   if (!reason.trim()) throw new Error("reason is required for pricing changes");
+}
+
+function assertBillingModeIsEditable(current: PricingPlan | undefined, next: PricingPlanInput, policy: PricingPolicy) {
+  if (current === undefined) {
+    if (next.billingMode !== policy.billingMode) {
+      throw new Error(
+        `plan billingMode ${next.billingMode} requires the active catalog mode to also be ${next.billingMode}; current policy is ${policy.billingMode}`,
+      );
+    }
+    return;
+  }
+  if (next.billingMode !== current.billingMode && next.billingMode !== policy.billingMode) {
+    throw new Error(
+      `plan billingMode change to ${next.billingMode} requires the active catalog mode to also be ${next.billingMode}; current policy is ${policy.billingMode}`,
+    );
+  }
 }
 
 function validatePlanOptions(options: PricingOptionInput[], billingMode: BillingMode) {

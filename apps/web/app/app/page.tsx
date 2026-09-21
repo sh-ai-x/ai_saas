@@ -11,7 +11,7 @@ export default async function UserAppPage() {
   const isAdmin = ["admin", "super_admin"].includes(session.user.role);
   return (
     <main className="user-app-page">
-      <nav className="user-app-nav"><a className="brand" href="/"><span className="brand-mark">AI</span><span><small>FOUNDATION</small><strong>User workspace</strong></span></a><div><span className="role-badge">{session.user.role.toUpperCase()}</span><a href="/billing">Billing</a><a href="/guides">Setup guides</a>{isAdmin ? <a href="/admin">Admin console</a> : null}<SessionControl /></div></nav>
+      <nav className="user-app-nav"><a className="brand" href="/"><span className="brand-mark">AI</span><span><small>FOUNDATION</small><strong>User workspace</strong></span></a><div><span className="role-badge">{session.user.role.toUpperCase()}</span>{isAdmin ? <a href="/admin">Admin console</a> : null}<SessionControl /></div></nav>
       <FoundationConsole />
     </main>
   );
