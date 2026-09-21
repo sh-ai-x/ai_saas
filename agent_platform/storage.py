@@ -97,6 +97,7 @@ class KernelStore:
                 scopes_json TEXT NOT NULL,
                 issued_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
+                plan_hash TEXT,
                 consumed INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS release_reports (
@@ -194,13 +195,16 @@ class KernelStore:
         rows = self._db.execute("SELECT payload_json FROM model_usage WHERE run_id = ? ORDER BY call_id", (run_id,)).fetchall()
         return tuple(UsageRecord(**json.loads(row["payload_json"])) for row in rows)
 
-    def issue_approval(self, *, run_id: str, tenant_id: str, scopes: tuple[str, ...], expires_at: str) -> ApprovalToken:
+    def issue_approval(self, *, run_id: str, tenant_id: str, scopes: tuple[str, ...], expires_at: str, plan_hash: str | None = None) -> ApprovalToken:
         self._owned_row(run_id, tenant_id)
-        token = ApprovalToken(f"approval-{uuid.uuid4().hex}", run_id, tenant_id, scopes, _now(), expires_at)
-        self._db.execute("INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, 0)", (token.token_id, run_id, tenant_id, json.dumps(scopes), token.issued_at, expires_at))
+        token = ApprovalToken(f"approval-{uuid.uuid4().hex}", run_id, tenant_id, scopes, _now(), expires_at, plan_hash)
+        self._db.execute(
+            "INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+            (token.token_id, run_id, tenant_id, json.dumps(scopes), token.issued_at, expires_at, plan_hash),
+        )
         return token
 
-    def consume_approval(self, token_id: str, *, run_id: str, tenant_id: str, scope: str) -> ApprovalToken:
+    def consume_approval(self, token_id: str, *, run_id: str, tenant_id: str, scope: str, plan_hash: str | None = None) -> ApprovalToken:
         with self._transaction():
             row = self._db.execute("SELECT * FROM approvals WHERE token_id = ?", (token_id,)).fetchone()
             if row is None or row["run_id"] != run_id or row["tenant_id"] != tenant_id or bool(row["consumed"]):
@@ -209,8 +213,15 @@ class KernelStore:
                 raise InvalidApproval("approval token does not grant the requested scope")
             if datetime.fromisoformat(row["expires_at"]) <= datetime.now(timezone.utc):
                 raise InvalidApproval("approval token is expired")
+            bound_plan_hash = row["plan_hash"]
+            if bound_plan_hash is not None and plan_hash != bound_plan_hash:
+                raise InvalidApproval("approval token is bound to a different plan")
             self._db.execute("UPDATE approvals SET consumed = 1 WHERE token_id = ?", (token_id,))
-            return ApprovalToken(row["token_id"], row["run_id"], row["tenant_id"], tuple(json.loads(row["scopes_json"])), row["issued_at"], row["expires_at"], True)
+            return ApprovalToken(
+                row["token_id"], row["run_id"], row["tenant_id"],
+                tuple(json.loads(row["scopes_json"])), row["issued_at"], row["expires_at"],
+                bound_plan_hash, True,
+            )
 
     def save_report(self, report: ReleaseReport, tenant_id: str) -> None:
         self.get_run(report.run_id, tenant_id)

@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 from agent_platform import KernelStore
 from agent_platform.contracts import ApprovalToken
 from agent_platform.storage import IdempotencyConflict, TenantScopeError
-from project_packs.proposal_to_verified_change import ProposalToVerifiedChangePack, RepositoryIndex
+from project_packs import ProposalToVerifiedChangePack, RepositoryIndex, resolve_project_pack
 from services.agent_orchestrator import FakeStructuredModel, ProposalVerifiedWorkflow, build_langgraph_runtime, build_openai_proposal_adapter
 from services.delivery_gateway import ReviewArtifactStore
 from services.observability import LangSmithClientAdapter, RedactedTraceAdapter
@@ -53,7 +53,7 @@ def build_runtime(config: ControlApiConfig | None = None) -> ControlRuntime:
         Path(config.database).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
     store = KernelStore(config.database)
     repository = RepositoryIndex(Path(config.repository_root))
-    pack = ProposalToVerifiedChangePack(repository)
+    pack = resolve_project_pack()(repository)
     langsmith_client = LangSmithClientAdapter.from_env()
     model = build_openai_proposal_adapter() if os.getenv("AGENT_PROVIDER_MODE", "fake") == "langchain" else FakeStructuredModel()
     sandbox = BoundedSubprocessSandbox(config.repository_root) if os.getenv("AGENT_SANDBOX_MODE", "deterministic") == "process" else None

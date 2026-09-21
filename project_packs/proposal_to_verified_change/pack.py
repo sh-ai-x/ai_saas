@@ -7,14 +7,14 @@ import re
 from dataclasses import dataclass
 from typing import Sequence
 
-from agent_platform.contracts import EvidenceReference, Plan, PlanStep, Requirement
+from agent_platform.contracts import EvidenceReference, PackRejectionError, Plan, PlanStep, Requirement
 from agent_platform.ports import ProjectPackPort
 
 from .index import RepositoryIndex, UnauthorizedPath
 
 
-class PromptInjectionDetected(ValueError):
-    pass
+class PromptInjectionDetected(PackRejectionError):
+    """Raised when the proposal text contains a prompt-injection attempt."""
 
 
 @dataclass(frozen=True)

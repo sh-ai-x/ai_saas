@@ -12,9 +12,10 @@ from typing import Any, Mapping
 from agent_platform.budgets import BudgetPhase, BudgetPolicy, TokenBudgetLedger, estimate_tokens
 from agent_platform.cache import ContentAddressedContextCache
 from agent_platform.contracts import ApprovalToken, EvidenceReference, Plan, ReleaseReport, RunLifecycle, UsageRecord
+from agent_platform.contracts import PackRejectionError
 from agent_platform.redaction import redact
 from agent_platform.storage import InvalidApproval, KernelStore
-from project_packs.proposal_to_verified_change.pack import PromptInjectionDetected, ProposalToVerifiedChangePack
+from project_packs import ProposalToVerifiedChangePack
 
 from .graph import NODE_NAMES
 from .langgraph_runtime import LangGraphRuntime
@@ -102,13 +103,28 @@ class ProposalVerifiedWorkflow:
                 self._checkpoint(run_id, tenant_id, "analyze", values)
                 prompt, safe_context = self.prompt_adapter.build(proposal, cache_lookup.value)
                 estimated_input = estimate_tokens(prompt)
-                if estimated_input > ledger.policy.per_call_input_limit:
-                    decision = ledger.reserve(phase=BudgetPhase.ANALYZE, input_tokens=estimated_input, output_tokens=0)
-                    usage = UsageRecord(run_id, f"{run_id}:analyze", "analyze", estimated_input, 0, estimated_input, True, cache_lookup.hit, len(evidence), decision.status)
+                preflight_decision = ledger.reserve(
+                    phase=BudgetPhase.ANALYZE,
+                    input_tokens=estimated_input,
+                    output_tokens=0,
+                )
+                if not preflight_decision.allowed or estimated_input > ledger.policy.per_call_input_limit:
+                    usage = UsageRecord(
+                        run_id, f"{run_id}:analyze", "analyze", estimated_input, 0, estimated_input,
+                        True, cache_lookup.hit, len(evidence), preflight_decision.status,
+                    )
                     self.store.record_usage(usage, tenant_id)
-                    return self._budget_stop(run, tenant_id, decision.status, decision.reason, values, parsed.requirements, evidence)
+                    return self._budget_stop(run, tenant_id, preflight_decision.status, preflight_decision.reason, values, parsed.requirements, evidence)
                 result = self.model.generate(prompt, context=safe_context, schema="proposal-analysis-v1", idempotency_key=f"{run_id}:analyze")
-                decision = ledger.reserve(phase=BudgetPhase.ANALYZE, input_tokens=result.input_tokens, output_tokens=result.output_tokens)
+                # Reconcile: refund the over-estimate, then record the actual delta.
+                overage = max(0, estimated_input - result.input_tokens)
+                if overage > 0:
+                    ledger.refund(phase=BudgetPhase.ANALYZE, tokens=overage)
+                underrun = max(0, result.input_tokens - estimated_input)
+                if underrun > 0:
+                    decision = ledger.reserve(phase=BudgetPhase.ANALYZE, input_tokens=underrun, output_tokens=result.output_tokens)
+                else:
+                    decision = ledger.record_output(phase=BudgetPhase.ANALYZE, output_tokens=result.output_tokens)
                 usage = UsageRecord(run_id, f"{run_id}:analyze", "analyze", result.input_tokens, result.output_tokens, result.total_tokens, result.estimated, cache_lookup.hit, len(evidence), decision.status)
                 self.store.record_usage(usage, tenant_id)
                 self._event(run_id, tenant_id, "model.usage", usage.__dict__)
@@ -132,7 +148,7 @@ class ProposalVerifiedWorkflow:
             if mode == "plan_only" or plan.mode == "plan_only":
                 return self._finish_plan_only(run_id, tenant_id, parsed.requirements, evidence, plan, values, None)
             return self._verify(run_id, tenant_id, proposal, parsed.requirements, evidence, plan, values, approval, ledger)
-        except PromptInjectionDetected as exc:
+        except PackRejectionError as exc:
             return self._finish_rejected(run_id, tenant_id, values, str(exc))
         except (ValueError, FileNotFoundError) as exc:
             return self._finish_failed(run_id, tenant_id, (), (), None, values, str(exc))
@@ -141,13 +157,14 @@ class ProposalVerifiedWorkflow:
         del proposal, ledger
         checkpoint = self.store.checkpoint(run_id, tenant_id)
         if approval is None:
-            token = self.store.issue_approval(run_id=run_id, tenant_id=tenant_id, scopes=("patch", "deliver"), expires_at=(datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat())
+            plan_hash = self._artifact_hash(plan)
+            token = self.store.issue_approval(run_id=run_id, tenant_id=tenant_id, scopes=("patch", "deliver"), expires_at=(datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(), plan_hash=plan_hash)
             values["approval_id"] = token.token_id
             self._checkpoint(run_id, tenant_id, "human_approval", values)
             run = self.store.transition(run_id, tenant_id, "waiting_approval", payload={"node": "human_approval", "approval_id": token.token_id})
             return RunOutcome(run, requirements, evidence, plan, token, self.store.report(run_id, tenant_id))
         try:
-            consumed = self.store.consume_approval(approval.token_id, run_id=run_id, tenant_id=tenant_id, scope="patch")
+            consumed = self.store.consume_approval(approval.token_id, run_id=run_id, tenant_id=tenant_id, scope="patch", plan_hash=self._artifact_hash(plan))
         except InvalidApproval as exc:
             return self._finish_rejected(run_id, tenant_id, values, str(exc), requirements, evidence, plan)
         self._event(run_id, tenant_id, "approval.consumed", {"token_id": consumed.token_id, "scope": "patch"})

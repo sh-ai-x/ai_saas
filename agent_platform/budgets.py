@@ -97,6 +97,23 @@ class TokenBudgetLedger:
             self.primary_calls += 1
         return self._decision(True, "allowed", "within Local Lite budget")
 
+    def refund(self, *, phase: BudgetPhase, tokens: int) -> None:
+        """Return pre-flight budget back when an actual call consumed less than estimated."""
+        if tokens <= 0:
+            return
+        self.total_used = max(0, self.total_used - tokens)
+        self._phase_used[phase] = max(0, self._phase_used[phase] - tokens)
+
+    def record_output(self, *, phase: BudgetPhase, output_tokens: int) -> BudgetDecision:
+        """Record the output portion of a model call whose input was already reserved."""
+        if output_tokens <= 0:
+            return self._decision(True, "allowed", "no output to record")
+        if output_tokens > self.policy.per_call_input_limit:
+            return self._decision(False, "budget_exceeded", "output token cap exceeded")
+        self.total_used += output_tokens
+        self._phase_used[phase] += output_tokens
+        return self._decision(True, "allowed", "output within budget")
+
     def _decision(self, allowed: bool, status: str, reason: str) -> BudgetDecision:
         decision = BudgetDecision(
             allowed=allowed,

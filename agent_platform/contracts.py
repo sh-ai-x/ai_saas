@@ -105,7 +105,16 @@ class ApprovalToken:
     scopes: tuple[str, ...]
     issued_at: str
     expires_at: str
+    plan_hash: str | None = None
     consumed: bool = False
+
+
+class PackRejectionError(Exception):
+    """Base class for pack-raised exceptions that should terminate the workflow as ``rejected``.
+
+    Lives in the kernel contract module so packs can subclass it without
+    depending on the registry module (which avoids a circular import).
+    """
 
 
 @dataclass(frozen=True)
