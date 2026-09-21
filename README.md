@@ -207,6 +207,56 @@ Never commit either `.env.local` file, Neon credentials, Google secrets, or the
 Better Auth secret. The full category-based guides are also rendered at
 `/guides`.
 
+### Drizzle database workflow
+
+Drizzle is the schema and migration source of truth for the web database:
+
+- schema: `apps/web/db/schema/`
+- migration output: `apps/web/drizzle/`
+- configuration: `apps/web/drizzle.config.ts`
+- migration history: `neondb.drizzle.__drizzle_migrations`
+
+After changing a schema file, generate and review a migration before applying
+it:
+
+```bash
+pnpm web:db:generate
+git diff -- apps/web/drizzle
+```
+
+Apply the committed migration to the intended environment with the unpooled
+connection string. The command reads `DATABASE_URL`; it never selects a Neon
+branch implicitly:
+
+```bash
+# local Docker: web-migrate runs this automatically during docker:local
+pnpm docker:local
+
+# an explicitly selected Neon preview or staging branch
+DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
+```
+
+For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
+then load its ignored connection variables before running the migration. Never
+use the production connection string from a developer worktree. The normal
+cloud sequence is: create branch from `staging` → run Drizzle migration → run
+verification checks → delete the preview branch when the worktree or PR is
+retired.
+
+`pnpm docker:local` intentionally forces the web migration and application to
+the worktree-local PostgreSQL database, even if `.env` contains a Neon URL.
+For an explicit remote-preview diagnostic only, opt in for that invocation:
+
+```bash
+ALLOW_REMOTE_DATABASE=true \
+WEB_DATABASE_URL="$DATABASE_URL" \
+pnpm docker:local
+```
+
+Review the target branch and migration output before using this escape hatch;
+it causes the Docker `web-migrate` service to run against the supplied remote
+database.
+
 ## Docker path
 
 Docker Compose starts the local PostgreSQL companion and the same HTTP surface.
