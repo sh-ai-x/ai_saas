@@ -25,6 +25,7 @@ export PAYMENT_SANDBOX=true
 export PAYMENT_PROVIDER=toss
 export MOCK_PAYMENTS_ENABLED=false
 export WEB_PAYMENT_PROVIDER=toss
+export TOSS_SDK_SANDBOX_RESULT=SUCCESS
 ```
 
 ## 2. Connect the official Toss Integration Guide MCP
@@ -110,6 +111,13 @@ and redirect URLs. It never receives `TOSS_SECRET_KEY` or `billingKey`. The
 server compares customer, order, amount, KRW currency, status, and provider
 against its pending order before settlement. If Toss asks for a test
 authentication code, enter `000000`.
+
+When `PAYMENT_SANDBOX=true` and the client key starts with `test_`, the web
+checkout also sends the V2 SDK sandbox simulation parameter:
+`sandbox: { paymentResult: "SUCCESS" }`. This completes authentication without
+requiring a card. Set `TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the failure
+redirect instead. The simulation is rejected for live client keys, and the
+server still performs the normal test-key confirmation and order checks.
 
 For one-time mode, switch Admin billing policy to One-time, configure a KRW
 Toss option, and the browser calls `requestPayment()`. The success route then

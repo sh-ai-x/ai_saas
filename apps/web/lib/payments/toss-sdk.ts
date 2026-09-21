@@ -8,6 +8,7 @@ export type TossPayment = {
     failUrl: string;
     customerEmail?: string;
     customerName?: string;
+    sandbox?: { paymentResult: "SUCCESS" | "FAIL" };
   }) => Promise<void>;
   requestBillingAuth: (options: {
     method: "CARD";
@@ -15,6 +16,7 @@ export type TossPayment = {
     failUrl: string;
     customerEmail?: string;
     customerName?: string;
+    sandbox?: { paymentResult: "SUCCESS" | "FAIL" };
   }) => Promise<void>;
 };
 

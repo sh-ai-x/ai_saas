@@ -38,12 +38,17 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
         if (!context || !clientKey || !customerKey) throw new Error("Toss checkout context is incomplete");
         const TossPayments = await loadTossSdk();
         const payment = TossPayments(clientKey).payment({ customerKey });
+        const sandbox = context.sandbox as { paymentResult?: unknown } | undefined;
+        const sdkSandbox: { paymentResult: "SUCCESS" | "FAIL" } | undefined = sandbox?.paymentResult === "SUCCESS" || sandbox?.paymentResult === "FAIL"
+          ? { paymentResult: sandbox.paymentResult as "SUCCESS" | "FAIL" }
+          : undefined;
         const common = {
           method: "CARD" as const,
           successUrl: String(context.success_url ?? ""),
           failUrl: String(context.fail_url ?? ""),
           customerEmail: String(context.customer_email ?? ""),
           customerName: String(context.customer_name ?? ""),
+          ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
         };
         if (context.billing_auth === true) {
           await payment.requestBillingAuth(common);

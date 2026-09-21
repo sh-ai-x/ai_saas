@@ -76,6 +76,7 @@ export PAYMENT_SANDBOX=true
 export PAYMENT_PROVIDER=toss
 export MOCK_PAYMENTS_ENABLED=false
 export WEB_PAYMENT_PROVIDER=toss
+export TOSS_SDK_SANDBOX_RESULT=SUCCESS
 export TOSS_CLIENT_KEY="test_ck_your_matching_client_key"
 export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
 export TOSS_SUCCESS_URL="http://localhost:3000/payments/toss/success"
@@ -149,6 +150,13 @@ In the Toss sandbox, if a card-authentication code is requested, enter
 `000000`. Test keys and the sandbox test card flow do not charge a real card.
 If the browser is redirected to the fail URL, inspect the user-facing error
 and retry with the matching test key pair; do not switch to live keys.
+
+For a cardless browser test, `PAYMENT_SANDBOX=true` plus a `test_` client key
+adds the Toss V2 SDK simulation parameter
+`sandbox: { paymentResult: "SUCCESS" }`. Set
+`TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the failure redirect. Live client
+keys can never enable this simulation, and the server still confirms the test
+order normally.
 
 ## 6. One-time payment behavior
 

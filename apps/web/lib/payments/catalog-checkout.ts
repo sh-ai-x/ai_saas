@@ -121,6 +121,7 @@ function createTossCheckout(input: CheckoutInput): CheckoutHandoff {
   const successUrl = isSubscription
     ? process.env.TOSS_BILLING_SUCCESS_URL ?? `${baseUrl}/payments/toss/billing-success`
     : process.env.TOSS_SUCCESS_URL ?? `${baseUrl}/payments/toss/success`;
+  const sdkSandbox = getTossSdkSandbox(clientKey);
   return {
     orderId: input.orderId,
     provider: "toss",
@@ -142,7 +143,14 @@ function createTossCheckout(input: CheckoutInput): CheckoutHandoff {
       customer_name: input.userName ?? "AI SaaS customer",
       success_url: successUrl,
       fail_url: process.env.TOSS_FAIL_URL ?? `${baseUrl}/payments/toss/fail`,
+      ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
     },
     source: "catalog-adapter",
   };
+}
+
+function getTossSdkSandbox(clientKey: string): { paymentResult: "SUCCESS" | "FAIL" } | undefined {
+  const enabled = (process.env.TOSS_SDK_SANDBOX ?? process.env.PAYMENT_SANDBOX ?? "false").toLowerCase() === "true";
+  if (!enabled || !clientKey.startsWith("test_")) return undefined;
+  return { paymentResult: process.env.TOSS_SDK_SANDBOX_RESULT === "FAIL" ? "FAIL" : "SUCCESS" };
 }
