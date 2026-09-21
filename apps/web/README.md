@@ -46,8 +46,8 @@ cp .env.docker.example .env
 pnpm docker:local
 ```
 
-The browser uses `http://localhost:3000`; the Next.js server reaches the API
-at `http://foundation:8080` inside the Compose network. The `web-migrate`
+The Docker browser uses `http://localhost:3100`; the Next.js server reaches the
+API at `http://foundation:8080` inside the Compose network. The `web-migrate`
 one-shot service applies the committed Drizzle migrations before the web
 container starts. The default Docker profile is local/demo mode with mock
 payments. Local Compose PostgreSQL uses trust authentication and does not
