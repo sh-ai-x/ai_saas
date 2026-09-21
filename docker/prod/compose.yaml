@@ -76,6 +76,8 @@ services:
       context: ../..
       dockerfile: apps/web/Dockerfile
       target: runner
+      args:
+        NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-true}
     environment:
       APP_ENV: ${WEB_APP_ENV:-local}
       APP_BASE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
