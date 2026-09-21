@@ -2,10 +2,10 @@ import { catalogSchema, responseSchema } from '../lib/faq/contracts';
 import { seedFaqs } from '../lib/faq/seed';
 import { answerFaq } from '../lib/faq/service';
 import { redact, normalize } from '../lib/faq/matcher';
-import { createOpenAiProvider } from '../lib/faq/openai';
+import { createOpenAiProvider, DEFAULT_OPENAI_TIMEOUT_MS } from '../lib/faq/openai';
 
 const repository = { list: async () => seedFaqs };
-const decision = (overrides: Record<string, unknown> = {}) => ({ faqId: 'guides', category: 'guides', answerable: true, confidence: 1, ...overrides });
+const decision = (overrides: Record<string, unknown> = {}) => ({ faqId: 'faq-getting-started', category: 'general', answerable: true, confidence: 1, ...overrides });
 const payload = (overrides: Record<string, unknown> = {}) => ({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(decision(overrides)) }] }] });
 
 describe('FAQ policy and OpenAI boundary', () => {
@@ -14,7 +14,10 @@ describe('FAQ policy and OpenAI boundary', () => {
     expect(() => catalogSchema.parse([...seedFaqs, seedFaqs[0]])).toThrow();
     expect(() => catalogSchema.parse([{ ...seedFaqs[0], answer: '' }])).toThrow();
   });
-  it.each(['Where are the setup guides?', 'setup guides', '  SETUP GUIDES?!  '])('matches %s without calling provider', async question => {
+  it('uses a provider timeout compatible with container network latency', () => {
+    expect(DEFAULT_OPENAI_TIMEOUT_MS).toBe(5_000);
+  });
+  it.each(['What is AI SaaS Foundation?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
     const select = jest.fn();
     const result = await answerFaq(question, repository, { select });
     expect(result).toMatchObject({ outcome: 'answer', answer: seedFaqs[0].answer });
@@ -62,7 +65,7 @@ describe('FAQ policy and OpenAI boundary', () => {
 
 import { createFaqHttp } from '../lib/faq/http';
 import { askFaq, loadFaqCatalog } from '../lib/faq/client';
-import { FaqWidget } from '../components/faq-widget';
+import { FAQ_ANSWER_TIMEOUT_MS, FAQ_CATALOG_TIMEOUT_MS, FaqWidget } from '../components/faq-widget';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { faqEntries } from '../db/schema';
@@ -74,14 +77,20 @@ describe('FAQ HTTP and widget contracts', () => {
   const request = (body: unknown) => new Request('http://localhost/api/faq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   it('owns a Drizzle table and wires the widget into the layout', () => {
     expect(getTableName(faqEntries)).toBe('faq_entries');
+    expect(Object.keys(faqEntries).filter(key => key !== 'enableRLS')).toEqual([
+      'id', 'slug', 'locale', 'category', 'question', 'answer', 'aliases',
+      'active', 'displayOrder', 'createdAt', 'updatedAt',
+    ]);
     expect(readFileSync(resolve(__dirname, '../app/layout.tsx'), 'utf8')).toContain('<FaqWidget />');
     expect(renderToStaticMarkup(createElement(FaqWidget))).toContain('FAQ &amp; Support');
+    expect(FAQ_CATALOG_TIMEOUT_MS).toBeGreaterThan(FAQ_ANSWER_TIMEOUT_MS);
+    expect(FAQ_CATALOG_TIMEOUT_MS).toBe(60_000);
   });
   it('serves versioned catalog and exact answers with safe logs', async () => {
     const select = jest.fn(); const log = jest.fn();
     const http = createFaqHttp(repository, { select }, Date.now, log);
     expect((await (await http.GET()).json()).entries).toEqual(seedFaqs);
-    const result = await http.POST(request({ version: '1', question: 'setup guides' }));
+    const result = await http.POST(request({ version: '1', question: 'service overview' }));
     expect(result.status).toBe(200);
     expect((await result.json()).outcome).toBe('answer');
     expect(select).not.toHaveBeenCalled();
@@ -116,9 +125,9 @@ describe('FAQ HTTP and widget contracts', () => {
     const fetcher = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => init?.method === 'POST' ? http.POST(new Request('http://localhost/api/faq', init)) : http.GET());
     const signal = new AbortController().signal;
     const entries = await loadFaqCatalog(signal, fetcher);
-    expect((await askFaq('setup guides', entries, signal, fetcher)).answer).toBe(seedFaqs[0].answer);
+    expect((await askFaq('service overview', entries, signal, fetcher)).answer).toBe(seedFaqs[0].answer);
     expect(fetcher.mock.calls.every(([url]) => url === '/api/faq')).toBe(true);
-    const forged = jest.fn(async () => Response.json({ version: '1', outcome: 'answer', faqId: 'guides', answer: 'invented answer', support: { label: 'Support guide', href: '/guides' } }));
+    const forged = jest.fn(async () => Response.json({ version: '1', outcome: 'answer', faqId: 'faq-getting-started', answer: 'invented answer', support: { label: 'Support guide', href: '/guides' } }));
     await expect(askFaq('help', entries, signal, forged)).rejects.toThrow('Catalog changed');
     await expect(loadFaqCatalog(signal, jest.fn(async () => new Response('', { status: 503 })))).rejects.toThrow();
   });
@@ -146,8 +155,9 @@ describe('FAQ repository and bounded wire validation', () => {
     }
   });
   it('keeps migration seed equal to local seed', () => {
-    const sql = readFileSync(resolve(__dirname, '../drizzle/0003_serious_emma_frost.sql'), 'utf8');
-    for (const row of seedFaqs) for (const value of [row.id, row.category, row.question, JSON.stringify(row.aliases), row.answer]) expect(sql).toContain(value);
+    const sql = readFileSync(resolve(__dirname, '../drizzle/0004_faq_english.sql'), 'utf8');
+    expect(sql).toContain('UPDATE "faq_entries"');
+    for (const row of seedFaqs) for (const value of [row.id, row.category, row.question, ...row.aliases, row.answer]) expect(sql).toContain(value);
   });
   it.each(['type', 'distribution', 'oversized', 'noul'])('rejects malformed provider %s', async mode => {
     const overrides = mode === 'distribution' ? { confidence: 2 } : mode === 'noul' ? { answerable: 'invalid' } : {};

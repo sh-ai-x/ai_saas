@@ -14,7 +14,7 @@ export const faqRepository: FaqRepository = {
     const db = getDb();
     const entries = !db
       ? catalogSchema.parse(seedFaqs)
-      : catalogSchema.parse(await db.select({ id: faqEntries.id, category: faqEntries.category, question: faqEntries.question, aliases: faqEntries.aliases, answer: faqEntries.answer }).from(faqEntries).where(eq(faqEntries.active, true)).orderBy(asc(faqEntries.id)).limit(51));
+      : catalogSchema.parse(await db.select({ id: faqEntries.id, category: faqEntries.category, question: faqEntries.question, aliases: faqEntries.aliases, answer: faqEntries.answer }).from(faqEntries).where(eq(faqEntries.active, true)).orderBy(asc(faqEntries.displayOrder)).limit(51));
     cachedCatalog = { entries, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS };
     return entries;
   },

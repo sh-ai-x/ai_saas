@@ -6,7 +6,8 @@
     "Drizzle faq_entries schema, migration, and deterministic seed records",
     "FAQ repository, deterministic matcher, provider port, bounded OpenAI adapter, and fail-closed policy",
     "Versioned GET/POST /api/faq with validation, request budgets, and redacted structured logs",
-    "Root-layout FAQ widget with presets, free text, catalog-only answers, and /guides support CTA"
+    "Root-layout FAQ widget with presets, free text, catalog-only answers, and /guides support CTA",
+    "Catalog loading has a 60-second timeout separate from the 15-second answer timeout to tolerate cold route compilation"
   ],
   "verification": [
     {
@@ -30,9 +31,21 @@
       "exit_code": 0
     },
     {
+      "command": "pnpm --filter ai-saas-foundation-web db:generate",
+      "exit_code": 0,
+      "result": "No schema changes, nothing to migrate"
+    },
+    {
+      "command": "APP_ENV=staging DATABASE_URL=<shell-local> pnpm --filter ai-saas-foundation-web db:migrate",
+      "exit_code": 0,
+      "result": "migrations applied successfully; existing staging migration was a no-op",
+      "staging_faq_rows": 6,
+      "latest_migration": "id 4, hash prefix c2ec2bdfd4a8"
+    },
+    {
       "command": "agent-browser http://127.0.0.1:3019",
       "exit_code": 0,
-      "checks": ["home content", "FAQ & Support", "preset catalog", "catalog answer", "no error overlay"]
+      "checks": ["home content", "FAQ & Support", "cold catalog load within 60 seconds", "preset catalog", "catalog answer", "no error overlay"]
     }
   ],
   "security": {
@@ -42,8 +55,7 @@
     "client_provider_credentials": false
   },
   "remaining_gates": [
-    "Live OpenAI staging request and confidence calibration are unverified",
-    "Migration application against staging is not performed"
+    "Live OpenAI staging request and confidence calibration are unverified"
   ],
   "handoff": ".dev-kit/hand-off/jev-cs-faq-bot-step0.md",
   "instructions": "phases/jev-cs-faq-bot/README.md"

@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const SUPPORT = { label: 'Support guide', href: '/guides' } as const;
 export const entrySchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
-  category: z.enum(['guides', 'product', 'support']),
+  category: z.string().min(1).max(40),
   question: z.string().min(1).max(200), aliases: z.array(z.string().min(1).max(200)).max(10),
   answer: z.string().min(1).max(2000),
 }).strict();

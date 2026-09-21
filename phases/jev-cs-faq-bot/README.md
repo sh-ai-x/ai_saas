@@ -8,7 +8,7 @@ Support guide CTA opens the existing /guides troubleshooting surface; there is
 no ticket creation or staffed support channel configured in this repo.
 
 Staging: set APP_ENV=staging and DATABASE_URL to a staging database, review
-`apps/web/drizzle/0003_serious_emma_frost.sql`, then run
+`apps/web/drizzle/0003_faq_catalog.sql`, then run
 `pnpm --filter ai-saas-foundation-web db:migrate` against that staging database.
 Production requires APP_ENV=production and DATABASE_URL; missing/failed database
 reads fail closed, without switching to local seeds. Do not run migrations
@@ -21,11 +21,12 @@ Never use NEXT_PUBLIC keys. The adapter uses OpenAI's
 `POST https://api.openai.com/v1/responses` contract with `gpt-4o-mini`,
 `store:false`, no tools, and strict `text.format.type=json_schema` output.
 The model returns only a FAQ ID, category, answerability, and confidence.
-No live provider was needed for verification. Before enabling in staging,
-verify the account budget, region/privacy requirements, model availability, and
-confidence thresholds on synthetic non-personal questions.
+The local Docker smoke stack passes `OPENAI_TIMEOUT_MS=5000` to accommodate
+container network latency. Before enabling in staging, verify the account
+budget, region/privacy requirements, model availability, and confidence
+thresholds on synthetic non-personal questions.
 
-POST /api/faq accepts only `{ "version": "1", "question": "setup guides" }`.
+POST /api/faq accepts only `{ "version": "1", "question": "service overview" }`.
 The body limit is 2048 bytes and the question limit is 500 characters. Responses
 have version, outcome (answer/clarify/handoff), answer (catalog text or null),
 and a fixed support link. Answer responses include faqId; fallbacks include a
@@ -43,7 +44,7 @@ answers against GET catalog entries and renders plain React text.
 
 The per-process limiter permits 60 requests/minute across GET and POST, with no
 IP/user storage. The catalog is cached for 30 seconds per process. OpenAI
-permits one in-flight request/process, a 1500ms deadline, 16KiB response limit,
+permits one in-flight request/process, a 5000ms deadline, 16KiB response limit,
 no retries or redirects, and a 30-second failure cooldown. These are
 instance-local bounds; multiple serverless instances multiply the budget.
 Configure an ingress rate limit before scaling a paid deployment. Logs contain

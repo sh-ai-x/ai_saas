@@ -4,9 +4,11 @@ import type { FaqProvider, Selection } from './provider';
 import { boundedJson } from './bounded-json';
 import { isSensitive, normalize, redact } from './matcher';
 
+export const DEFAULT_OPENAI_TIMEOUT_MS = 5_000;
+
 const decisionSchema = z.object({
   faqId: z.string().min(1).max(40),
-  category: z.enum(['guides', 'product', 'support', 'none']),
+  category: z.string().min(1).max(40),
   answerable: z.boolean(),
   confidence: z.number().min(0).max(1),
 }).strict();
@@ -33,7 +35,9 @@ function outputText(value: unknown) {
 export function parseOpenAi(value: unknown, candidates: FaqEntry[]): Selection {
   const decision = decisionSchema.parse(JSON.parse(outputText(value)));
   const known = new Set([...candidates.map(row => row.id), 'none']);
+  const categories = new Set([...candidates.map(row => row.category), 'none']);
   if (!known.has(decision.faqId)) throw new Error('Unknown FAQ selection');
+  if (!categories.has(decision.category)) throw new Error('Unknown FAQ category');
   return {
     faqId: decision.faqId,
     category: decision.category,
@@ -86,7 +90,7 @@ export function createOpenAiProvider(options: {
                     additionalProperties: false,
                     properties: {
                       faqId: { type: 'string', enum: [...candidates.map(row => row.id), 'none'] },
-                      category: { type: 'string', enum: ['guides', 'product', 'support', 'none'] },
+                      category: { type: 'string', enum: [...new Set([...candidates.map(row => row.category), 'none'])] },
                       answerable: { type: 'boolean' },
                       confidence: { type: 'number', minimum: 0, maximum: 1 },
                     },
@@ -100,7 +104,7 @@ export function createOpenAiProvider(options: {
           return parseOpenAi(await boundedJson(response.body, 16384, controller.signal), candidates);
         };
         return await Promise.race([work(), new Promise<never>((_, reject) => {
-          timer = setTimeout(() => { controller.abort(); reject(new Error('Provider timeout')); }, Math.min(options.timeoutMs ?? 1500, 1500));
+          timer = setTimeout(() => { controller.abort(); reject(new Error('Provider timeout')); }, Math.min(options.timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS));
         })]);
       } catch {
         openUntil = now() + 30000;
