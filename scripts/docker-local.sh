@@ -125,12 +125,22 @@ export BETTER_AUTH_URL="${BETTER_AUTH_URL:-http://localhost:${WEB_PORT}}"
 # migrations or browser traffic target a cloud database. A remote target is
 # possible only with an explicit opt-in for diagnostics.
 local_database_url="postgresql://foundation@postgres:5432/foundation"
-configured_database_url="$(env_file_value WEB_DATABASE_URL)"
-if [[ "${ALLOW_REMOTE_DATABASE:-$(env_file_value ALLOW_REMOTE_DATABASE)}" != "true" ]]; then
-  if [[ "$configured_database_url" == *neon.tech* ]]; then
-    echo "WEB_DATABASE_URL points to Neon; forcing the local Compose database for docker:local."
+configured_database_url="${WEB_DATABASE_URL:-$(env_file_value WEB_DATABASE_URL)}"
+configured_migration_url="${WEB_DATABASE_URL_UNPOOLED:-$(env_file_value WEB_DATABASE_URL_UNPOOLED)}"
+allow_remote_database="${ALLOW_REMOTE_DATABASE:-$(env_file_value ALLOW_REMOTE_DATABASE)}"
+if [[ "$allow_remote_database" != "true" ]]; then
+  if [[ "$configured_database_url" == *neon.tech* || "$configured_migration_url" == *neon.tech* ]]; then
+    echo "A Neon URL was found; forcing the local Compose database for docker:local."
   fi
   export WEB_DATABASE_URL="$local_database_url"
+  export WEB_DATABASE_URL_UNPOOLED="$local_database_url"
+else
+  if [[ -z "$configured_database_url" || -z "$configured_migration_url" ]]; then
+    echo "ALLOW_REMOTE_DATABASE=true requires WEB_DATABASE_URL and WEB_DATABASE_URL_UNPOOLED." >&2
+    exit 1
+  fi
+  export WEB_DATABASE_URL="$configured_database_url"
+  export WEB_DATABASE_URL_UNPOOLED="$configured_migration_url"
 fi
 
 if [[ -z "${APP_SECRET_KEY:-}" && -z "$(env_file_value APP_SECRET_KEY)" ]]; then

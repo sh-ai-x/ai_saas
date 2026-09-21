@@ -23,6 +23,11 @@ collision resolution. The default block is:
 | Foundation API | `8180 + slot * 10` | `8080` |
 | PostgreSQL | `55433 + slot * 10` | `5432` |
 
+The Neon Docker profile has no PostgreSQL service. It derives a separate
+`3200 + slot * 10` web port and `8280 + slot * 10` Foundation port, uses the
+selected branch's pooled URL for runtime traffic, and runs the one-shot
+Drizzle migrator with the branch's direct URL.
+
 The Compose project name is derived from the sanitized Git branch. Compose
 therefore prefixes each worktree's network and volumes independently. A local
 run always points the web migration and application database at the local
@@ -39,10 +44,12 @@ Neon is reserved for cloud-like environments:
 | `production` | protected Neon `production` branch | durable | real data |
 
 Neon connection strings are injected by the environment or CI secret store;
-they are never copied into a worktree's committed files. Drizzle migrations
-run once as an environment release job: `web-migrate` locally, a preview or
-staging migration job in CI, and an explicitly approved production release
-job.
+they are never copied into a worktree's committed files. Application traffic
+uses the pooled URL (`WEB_DATABASE_URL`/`DATABASE_URL`), while Drizzle
+migrations use the direct URL (`WEB_DATABASE_URL_UNPOOLED`/
+`DATABASE_URL_UNPOOLED`). Drizzle migrations run once as an environment
+release job: `web-migrate` locally, a preview or staging migration job in CI,
+and an explicitly approved production release job.
 
 ## Rationale
 
@@ -62,6 +69,7 @@ Positive consequences:
   PostgreSQL volume when the project name is preserved.
 - Local development cannot silently run migrations against Neon.
 - Preview data and credentials are isolated from staging and production.
+- Neon migrations do not use a pooled PgBouncer connection.
 
 Trade-offs:
 
