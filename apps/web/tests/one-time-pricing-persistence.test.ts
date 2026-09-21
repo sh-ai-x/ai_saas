@@ -60,13 +60,13 @@ describe("one-time pricing persistence", () => {
 
   it("rejects a cross-mode flip that does not match the active policy", async () => {
     await setBillingMode("subscription", "one-time-pricing-test", "reset before negative test");
-    const subscription = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-subscription-pro-yearly");
+    const subscription = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-pro");
     expect(subscription).toBeTruthy();
     if (!subscription) throw new Error("seed must contain the subscription plan");
     const input = withAmountMinor(subscription, 12345);
     input.billingMode = "one_time";
-    await expect(updatePricingPlan("plan-subscription-pro-yearly", input, "one-time-pricing-test", "attempt cross-mode flip")).rejects.toThrow(/requires the active catalog mode/);
-    const stored = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-subscription-pro-yearly");
+    await expect(updatePricingPlan("plan-pro", input, "one-time-pricing-test", "attempt cross-mode flip")).rejects.toThrow(/requires the active catalog mode/);
+    const stored = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-pro");
     expect(stored?.billingMode).toBe("subscription");
     expect(stored?.options[0]?.amountMinor).not.toBe(12345);
   });
