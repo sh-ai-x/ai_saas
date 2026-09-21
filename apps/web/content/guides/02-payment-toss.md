@@ -151,12 +151,13 @@ In the Toss sandbox, if a card-authentication code is requested, enter
 If the browser is redirected to the fail URL, inspect the user-facing error
 and retry with the matching test key pair; do not switch to live keys.
 
-For a cardless browser test, `PAYMENT_SANDBOX=true` plus a `test_` client key
-adds the Toss V2 SDK simulation parameter
-`sandbox: { paymentResult: "SUCCESS" }`. Set
-`TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the failure redirect. Live client
-keys can never enable this simulation, and the server still confirms the test
-order normally.
+For a cardless browser test of a one-time payment, `PAYMENT_SANDBOX=true` plus
+a `test_` client key adds the Toss V2 SDK simulation parameter
+`sandbox: { paymentResult: "SUCCESS" }`. Set `TOSS_SDK_SANDBOX_RESULT=FAIL` to
+exercise the failure redirect. Live client keys can never enable this
+simulation. The current Toss V2 `requestBillingAuth()` path does not forward
+this parameter, so subscription tests still require the Toss test-card/auth
+flow and must complete the normal server billing-key approval.
 
 ## 6. One-time payment behavior
 

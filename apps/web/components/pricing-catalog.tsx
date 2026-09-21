@@ -48,7 +48,6 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
           failUrl: String(context.fail_url ?? ""),
           customerEmail: String(context.customer_email ?? ""),
           customerName: String(context.customer_name ?? ""),
-          ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
         };
         if (context.billing_auth === true) {
           await payment.requestBillingAuth(common);
@@ -59,6 +58,7 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
             amount: { value: Number(amount?.value), currency: String(amount?.currency ?? "KRW") },
             orderId: String(context.order_id ?? body.checkoutUrl ?? ""),
             orderName: String(context.order_name ?? "AI SaaS payment"),
+            ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
           });
         }
         setMessage("Toss sandbox checkout opened.");

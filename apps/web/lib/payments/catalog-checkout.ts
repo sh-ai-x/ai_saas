@@ -121,7 +121,10 @@ function createTossCheckout(input: CheckoutInput): CheckoutHandoff {
   const successUrl = isSubscription
     ? process.env.TOSS_BILLING_SUCCESS_URL ?? `${baseUrl}/payments/toss/billing-success`
     : process.env.TOSS_SUCCESS_URL ?? `${baseUrl}/payments/toss/success`;
-  const sdkSandbox = getTossSdkSandbox(clientKey);
+  // Toss V2 supports `sandbox` on requestPayment. The billing-auth SDK path
+  // does not forward that parameter, so subscription auth must remain a real
+  // Toss test-key flow instead of pretending to issue a billing key locally.
+  const sdkSandbox = isSubscription ? undefined : getTossSdkSandbox(clientKey);
   return {
     orderId: input.orderId,
     provider: "toss",

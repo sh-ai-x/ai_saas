@@ -112,12 +112,13 @@ server compares customer, order, amount, KRW currency, status, and provider
 against its pending order before settlement. If Toss asks for a test
 authentication code, enter `000000`.
 
-When `PAYMENT_SANDBOX=true` and the client key starts with `test_`, the web
-checkout also sends the V2 SDK sandbox simulation parameter:
-`sandbox: { paymentResult: "SUCCESS" }`. This completes authentication without
-requiring a card. Set `TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the failure
-redirect instead. The simulation is rejected for live client keys, and the
-server still performs the normal test-key confirmation and order checks.
+For one-time payments, when `PAYMENT_SANDBOX=true` and the client key starts
+with `test_`, the web checkout sends the V2 SDK sandbox simulation parameter:
+`sandbox: { paymentResult: "SUCCESS" }`. This completes payment authentication
+without requiring a card. Set `TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the
+failure redirect instead. Toss's current V2 `requestBillingAuth()` path does
+not forward this parameter, so subscription tests still use the real Toss test
+card/auth flow; do not pretend that a billing key was issued locally.
 
 For one-time mode, switch Admin billing policy to One-time, configure a KRW
 Toss option, and the browser calls `requestPayment()`. The success route then

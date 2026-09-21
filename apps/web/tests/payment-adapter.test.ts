@@ -80,7 +80,7 @@ describe("payment adapter contracts", () => {
     process.env.PAYMENT_SANDBOX = "true";
     delete process.env.TOSS_SDK_SANDBOX_RESULT;
 
-    const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", mode: "one_time", interval: "one_time", currency: "KRW" })));
 
     expect(handoff.checkoutContext.sandbox).toEqual({ paymentResult: "SUCCESS" });
   });
@@ -89,9 +89,19 @@ describe("payment adapter contracts", () => {
     process.env.PAYMENT_SANDBOX = "true";
     process.env.TOSS_SDK_SANDBOX_RESULT = "FAIL";
 
-    const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", mode: "one_time", interval: "one_time", currency: "KRW" })));
 
     expect(handoff.checkoutContext.sandbox).toEqual({ paymentResult: "FAIL" });
+  });
+
+  it("keeps Toss subscription billing auth on the real test-key flow", async () => {
+    process.env.PAYMENT_SANDBOX = "true";
+    delete process.env.TOSS_SDK_SANDBOX_RESULT;
+
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
+
+    expect(handoff.checkoutContext.billing_auth).toBe(true);
+    expect(handoff.checkoutContext.sandbox).toBeUndefined();
   });
 
   it("keeps one-time Toss checkout on the payment authorization path", async () => {
