@@ -103,26 +103,26 @@ docker compose -f docker/prod/compose.yaml up --build
 Open [http://localhost:3000](http://localhost:3000). The Foundation health
 check is [http://localhost:8080/healthz](http://localhost:8080/healthz).
 
-## 4. Prepare a Toss-compatible catalog
+## 4. Use the existing Starter/Pro catalog with Toss
 
-Toss general card payments support `KRW`. The seeded catalog is intentionally
-provider-neutral and currently contains USD mock options, so changing the
-provider alone must not silently change the price or currency.
+Toss general card payments support `KRW`. The existing Starter and Pro option
+IDs are provider-neutral, and the migration changes their currency to KRW while
+preserving the existing amount numbers and option IDs. There is no separate
+Toss plan or Toss mock product.
 
 1. Sign in with the configured Google test account.
 2. Open [Admin payment settings](http://localhost:3000/admin/payments).
 3. Keep the catalog mode on **Subscription** for this flow.
 4. Enable **Toss**. The server checks that both matching sandbox keys exist;
    enabling Toss automatically disables the other active provider.
-5. Open [Admin pricing](http://localhost:3000/admin/pricing).
-6. Edit the subscription option you want to test so its provider is **Toss**,
-   currency is **KRW**, and amount is a positive integer in won. For example,
-   `29000` means ₩29,000. Save with an audit reason.
-7. Keep only the option you intend to test active. The checkout API always
-   loads the amount and currency from this server-side catalog; browser input
-   cannot override them.
+5. The existing Starter and Pro options are already the catalog entries used
+   by checkout. Keep the option you want active; do not create a duplicate Toss
+   option or edit the provider field just for the sandbox.
+6. Open [Billing](http://localhost:3000/billing), choose Starter or Pro, and
+   click the existing subscription option. The public catalog projects the
+   active Toss provider onto the same server-owned option.
 
-If an option remains USD or still points to mock, checkout fails closed with a
+If an existing option remains USD after migration, checkout fails closed with a
 clear configuration error instead of sending an invalid Toss request.
 
 ## 5. Run a subscription sandbox checkout
@@ -176,7 +176,7 @@ amount, status, and idempotency, then marks the pending order succeeded.
 | `MOCK_PAYMENTS_ENABLED` conflicts with Toss | Set `PAYMENT_PROVIDER=toss`, `WEB_PAYMENT_PROVIDER=toss`, and `MOCK_PAYMENTS_ENABLED=false` while using Toss test keys. |
 | `toss mcp unknown` | Use the exact server/package name `tosspayments-integration-guide` / `@tosspayments/integration-guide-mcp`; restart the MCP client. |
 | Admin enable returns missing-key error | Set both `TOSS_CLIENT_KEY` and `TOSS_SECRET_KEY` in the web runtime; the pair must be `test_` keys when `PAYMENT_SANDBOX=true`. |
-| Checkout says currency must be KRW | Edit the active Toss pricing option in Admin pricing; do not convert the amount in the browser. |
+| Checkout says currency must be KRW | Run the web migration and verify the existing Starter/Pro option is KRW; do not create a duplicate Toss option or convert in the browser. |
 | `UNAUTHORIZED_KEY` from Toss | The client/secret pair is mismatched, truncated, or from a different store/MID. Copy both again from API keys. |
 | Billing auth succeeds but approval fails | Confirm the pending order still has the same customer key, order ID, amount, and KRW option; retry is protected by the order idempotency key. |
 
