@@ -229,24 +229,29 @@ a one-shot Drizzle migration job, and the Next.js web console. The local web
 override uses Next.js development mode to avoid the expensive standalone trace
 build on an 8 GB laptop; release-shaped images still use standalone output.
 The browser calls the API through the internal `foundation:8080` service name.
+Each Git worktree receives a separate Compose project, host-port block, and
+PostgreSQL volume. See [ADR-0002](docs/adr/0002-worktree-port-and-database-isolation.md)
+for the local/preview/staging/production database boundary.
 
 ```bash
 cp .env.docker.example .env
 pnpm docker:local
 ```
 
-Open `http://localhost:3100` for the web console and
-`http://localhost:8180/healthz` for the API health check. The Docker-only host
-ports (`3100`, `8180`, and `55433`) are intentionally separate from the
-process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
+The first available slot uses `http://localhost:3100` for the web console and
+`http://localhost:8180/healthz` for the API health check. Other worktrees get
+the next free block (`+10` per slot), and the Compose output prints the exact
+published ports. The Docker-only host ports are intentionally separate from
+the process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
 container URLs remain `web:3000`, `foundation:8080`, and `postgres:5432`.
 The default profile uses mock payments, while the browser has no local/mock
 login fallback. Local Compose PostgreSQL uses trust authentication and does
 not require `POSTGRES_PASSWORD`. For live Google login, fill
 `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the
-ignored root `.env`; use the local default `WEB_DATABASE_URL` or set it to the
-intended Neon connection string. The Google callback for this Docker stack is:
-`http://localhost:3100/api/auth/callback/google`.
+ignored root `.env`; `docker:local` forces `WEB_DATABASE_URL` to the local
+Compose PostgreSQL unless `ALLOW_REMOTE_DATABASE=true` is explicitly set.
+Register the actual published web port shown by Compose for the Google
+callback.
 
 `pnpm docker:local` always reads the root `.env`, rebuilds the images, and
 force-recreates the containers. This is important after changing Google OAuth
@@ -260,10 +265,8 @@ for a single-host portfolio or staging deployment. For multiple web replicas,
 run migrations as a separate release job rather than once per replica.
 
 ```bash
-docker compose --project-name ai-saas-proposal-verified-change \
-  -f docker/prod/compose.yaml -f docker/local/compose.yaml down
-docker compose --project-name ai-saas-proposal-verified-change \
-  -f docker/prod/compose.yaml -f docker/local/compose.yaml down -v  # also removes local data
+pnpm docker:local down
+pnpm docker:local down --volumes  # also removes this worktree's local data
 ```
 
 The production Compose file is a packaging baseline, not a managed high

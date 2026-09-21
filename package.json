@@ -8,6 +8,8 @@
     "web:test": "pnpm --filter ai-saas-foundation-web test:all",
     "web:e2e": "pnpm --filter ai-saas-foundation-web exec jest --config jest.e2e.config.mjs --runInBand",
     "docker:local": "bash scripts/docker-local.sh",
+    "docker:local:down": "bash scripts/docker-local.sh down",
+    "docker:local:purge": "bash scripts/docker-local.sh down --volumes",
     "web:setup-auth": "uv run --locked python scripts/setup-web-auth.py",
     "web:db:generate": "pnpm --filter ai-saas-foundation-web db:generate",
     "web:db:migrate": "pnpm --filter ai-saas-foundation-web db:migrate"
