@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
-from agent_platform.budgets import BudgetPolicy, TokenBudgetLedger, estimate_tokens
+from agent_platform.budgets import BudgetPhase, BudgetPolicy, TokenBudgetLedger, estimate_tokens
 from agent_platform.cache import ContentAddressedContextCache
 from agent_platform.contracts import ApprovalToken, EvidenceReference, Plan, ReleaseReport, RunLifecycle, UsageRecord
 from agent_platform.redaction import redact
@@ -103,12 +103,12 @@ class ProposalVerifiedWorkflow:
                 prompt, safe_context = self.prompt_adapter.build(proposal, cache_lookup.value)
                 estimated_input = estimate_tokens(prompt)
                 if estimated_input > ledger.policy.per_call_input_limit:
-                    decision = ledger.reserve(phase=1, input_tokens=estimated_input, output_tokens=0)
+                    decision = ledger.reserve(phase=BudgetPhase.ANALYZE, input_tokens=estimated_input, output_tokens=0)
                     usage = UsageRecord(run_id, f"{run_id}:analyze", "analyze", estimated_input, 0, estimated_input, True, cache_lookup.hit, len(evidence), decision.status)
                     self.store.record_usage(usage, tenant_id)
                     return self._budget_stop(run, tenant_id, decision.status, decision.reason, values, parsed.requirements, evidence)
                 result = self.model.generate(prompt, context=safe_context, schema="proposal-analysis-v1", idempotency_key=f"{run_id}:analyze")
-                decision = ledger.reserve(phase=1, input_tokens=result.input_tokens, output_tokens=result.output_tokens)
+                decision = ledger.reserve(phase=BudgetPhase.ANALYZE, input_tokens=result.input_tokens, output_tokens=result.output_tokens)
                 usage = UsageRecord(run_id, f"{run_id}:analyze", "analyze", result.input_tokens, result.output_tokens, result.total_tokens, result.estimated, cache_lookup.hit, len(evidence), decision.status)
                 self.store.record_usage(usage, tenant_id)
                 self._event(run_id, tenant_id, "model.usage", usage.__dict__)

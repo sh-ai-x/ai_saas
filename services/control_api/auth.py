@@ -67,7 +67,7 @@ class TenantAuthenticator:
             except (AuthenticationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
                 if isinstance(exc, AuthenticationError):
                     raise
-                raise AuthenticationError("invalid bearer token") from None
+                raise AuthenticationError(f"invalid bearer token: {type(exc).__name__}: {exc}") from exc
             self._validate_tenant(tenant_id)
             if tenant_header and tenant_header != tenant_id:
                 raise AuthenticationError("tenant header does not match bearer token")

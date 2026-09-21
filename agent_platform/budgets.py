@@ -2,26 +2,54 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import IntEnum
 
 from .contracts import BudgetDecision
+
+
+class BudgetPhase(IntEnum):
+    """Named positions for the per-phase token ceilings.
+
+    The tuple-shaped `phase_limits` field used a magic index (0,1,2) which
+    obscured which position corresponded to which phase; the enum below
+    documents the contract and keeps the per-phase accounting readable.
+    """
+
+    INTAKE = 0
+    ANALYZE = 1
+    DISPATCH = 2
 
 
 @dataclass(frozen=True)
 class BudgetPolicy:
     mode: str
-    phase_limits: tuple[int, int, int]
+    intake_limit: int
+    analyze_limit: int
+    dispatch_limit: int
     total_limit: int
     per_call_input_limit: int = 8_000
     max_primary_calls: int = 5
     max_retries: int = 1
+    phase_limits: dict[BudgetPhase, int] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "phase_limits",
+            {
+                BudgetPhase.INTAKE: self.intake_limit,
+                BudgetPhase.ANALYZE: self.analyze_limit,
+                BudgetPhase.DISPATCH: self.dispatch_limit,
+            },
+        )
 
     @classmethod
     def local_lite(cls, mode: str) -> "BudgetPolicy":
         if mode == "plan_only":
-            return cls(mode, (2_000, 9_000, 9_000), 20_000)
+            return cls(mode, 2_000, 9_000, 9_000, 20_000)
         if mode == "verify":
-            return cls(mode, (20_000, 16_000, 5_000), 41_000)
+            return cls(mode, 20_000, 16_000, 5_000, 41_000)
         raise ValueError("mode must be plan_only or verify")
 
 
@@ -33,18 +61,18 @@ class TokenBudgetLedger:
         self.primary_calls = 0
         self.retries = 0
         self.decisions: list[BudgetDecision] = []
-        self._phase_used = [0, 0, 0]
+        self._phase_used: dict[BudgetPhase, int] = {phase: 0 for phase in BudgetPhase}
 
     def reserve(
         self,
         *,
-        phase: int,
+        phase: BudgetPhase,
         input_tokens: int,
         output_tokens: int,
         retry: bool = False,
     ) -> BudgetDecision:
-        if phase not in range(3):
-            raise ValueError("phase must be 0, 1, or 2")
+        if not isinstance(phase, BudgetPhase):
+            raise ValueError("phase must be a BudgetPhase")
         if input_tokens > self.policy.per_call_input_limit:
             return self._decision(False, "budget_exceeded", "per-call input limit exceeded")
         if input_tokens < 0 or output_tokens < 0:

@@ -63,22 +63,27 @@ class ProposalVerifiedChangeAgentTests(unittest.TestCase):
         self.assertEqual(self.sandbox.patch_calls, 0)
 
     def test_req_4_budget_arithmetic_and_exhaustion_are_bounded(self) -> None:
+        from agent_platform.budgets import BudgetPhase
         plan_policy = BudgetPolicy.local_lite("plan_only")
         verify_policy = BudgetPolicy.local_lite("verify")
-        self.assertEqual(plan_policy.phase_limits, (2_000, 9_000, 9_000))
+        self.assertEqual(plan_policy.phase_limits[BudgetPhase.INTAKE], 2_000)
+        self.assertEqual(plan_policy.phase_limits[BudgetPhase.ANALYZE], 9_000)
+        self.assertEqual(plan_policy.phase_limits[BudgetPhase.DISPATCH], 9_000)
         self.assertEqual(plan_policy.total_limit, 20_000)
-        self.assertEqual(verify_policy.phase_limits, (20_000, 16_000, 5_000))
+        self.assertEqual(verify_policy.phase_limits[BudgetPhase.INTAKE], 20_000)
+        self.assertEqual(verify_policy.phase_limits[BudgetPhase.ANALYZE], 16_000)
+        self.assertEqual(verify_policy.phase_limits[BudgetPhase.DISPATCH], 5_000)
         self.assertEqual(verify_policy.total_limit, 41_000)
         self.assertEqual(verify_policy.per_call_input_limit, 8_000)
         ledger = TokenBudgetLedger(verify_policy)
-        self.assertEqual(ledger.reserve(phase=0, input_tokens=8_001, output_tokens=1).status, "budget_exceeded")
+        self.assertEqual(ledger.reserve(phase=BudgetPhase.INTAKE, input_tokens=8_001, output_tokens=1).status, "budget_exceeded")
         for _ in range(5):
-            self.assertTrue(ledger.reserve(phase=0, input_tokens=1, output_tokens=1).allowed)
-        self.assertEqual(ledger.reserve(phase=0, input_tokens=1, output_tokens=1).status, "budget_exceeded")
-        self.assertTrue(ledger.reserve(phase=0, input_tokens=1, output_tokens=1, retry=True).allowed)
-        self.assertEqual(ledger.reserve(phase=0, input_tokens=1, output_tokens=1, retry=True).status, "budget_exceeded")
+            self.assertTrue(ledger.reserve(phase=BudgetPhase.INTAKE, input_tokens=1, output_tokens=1).allowed)
+        self.assertEqual(ledger.reserve(phase=BudgetPhase.INTAKE, input_tokens=1, output_tokens=1).status, "budget_exceeded")
+        self.assertTrue(ledger.reserve(phase=BudgetPhase.INTAKE, input_tokens=1, output_tokens=1, retry=True).allowed)
+        self.assertEqual(ledger.reserve(phase=BudgetPhase.INTAKE, input_tokens=1, output_tokens=1, retry=True).status, "budget_exceeded")
         quota = TokenBudgetLedger(plan_policy, quota_limit=1)
-        self.assertEqual(quota.reserve(phase=0, input_tokens=1, output_tokens=1).status, "quota_paused")
+        self.assertEqual(quota.reserve(phase=BudgetPhase.INTAKE, input_tokens=1, output_tokens=1).status, "quota_paused")
 
     def test_req_5_redaction_cache_and_zero_denominator_are_safe(self) -> None:
         safe = redact_text("token=secret-value card=123456789")
