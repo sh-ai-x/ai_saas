@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { GET as getPricing } from "@/app/api/pricing/route";
-import { getBillingPolicy, selectedPaymentProvider } from "@/lib/pricing/repository";
+import { applySelectedPaymentProvider, getBillingPolicy, selectedPaymentProvider } from "@/lib/pricing/repository";
 import { seededPricingCatalog } from "@/lib/pricing/seed";
 import { updateProviderSetting } from "@/lib/pricing/repository";
 import { createCatalogCheckout } from "@/lib/payments/catalog-checkout";
@@ -41,6 +41,42 @@ describe("the existing Starter and Pro catalog is Toss-compatible", () => {
     } finally {
       await updateProviderSetting("mock", { enabled: true, sandbox: true, publicConfig: {}, secretRef: null }, "test-suite", "restore mock catalog provider");
     }
+  });
+
+  it("does not expose a provider-specific sandbox plan in the public catalog", () => {
+    const providerSpecificPlan = {
+      id: "plan-manual-toss-sandbox",
+      tenantId: "platform",
+      code: "manual-toss-sandbox",
+      name: "Manual Toss Sandbox",
+      description: "Provider-only test fixture",
+      billingMode: "subscription" as const,
+      active: true,
+      isDefault: false,
+      displayOrder: 99,
+      features: [],
+      quotas: {},
+      options: [{
+        id: "option-manual-toss-sandbox",
+        planId: "plan-manual-toss-sandbox",
+        mode: "subscription" as const,
+        interval: "month" as const,
+        provider: "toss" as const,
+        currency: "KRW",
+        amountMinor: 10,
+        compareAtAmountMinor: null,
+        providerProductRef: null,
+        providerPriceRef: null,
+        active: true,
+      }],
+    };
+    const starter = seededPricingCatalog.find((plan) => plan.code === "starter");
+    if (!starter) throw new Error("seeded Starter plan is missing");
+
+    const publicPlans = applySelectedPaymentProvider([starter, providerSpecificPlan], "mock");
+
+    expect(publicPlans.map((plan) => plan.code)).toEqual(["starter"]);
+    expect(publicPlans[0]?.options.every((option) => option.provider === "mock")).toBe(true);
   });
 
   it("honors an explicit live provider over the seeded mock provider", async () => {
