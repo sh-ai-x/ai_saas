@@ -16,8 +16,12 @@ describe("one-time pricing persistence", () => {
   });
 
   after(async () => {
+    // Always restore the subscription policy first so a failed assertion in
+    // the test body does not leave `setBillingMode("one_time", ...)` standing
+    // for the sibling pricing-repository suite.
+    await setBillingMode("subscription", "one-time-pricing-test", "restore subscription policy");
     const lifetime = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-lifetime");
-    assert.ok(lifetime, "seed must contain the lifetime plan");
+    if (!lifetime) return;
     await updatePricingPlan("plan-lifetime", {
       tenantId: lifetime.tenantId,
       code: lifetime.code,
@@ -31,7 +35,6 @@ describe("one-time pricing persistence", () => {
       quotas: lifetime.quotas,
       options: lifetime.options.map((option) => ({ ...option, amountMinor: 7900 })),
     }, "one-time-pricing-test", "restore one-time pricing fixture");
-    await setBillingMode("subscription", "one-time-pricing-test", "restore subscription policy");
   });
 
   it("saves a one-time price before the one-time billing policy is active", async () => {
