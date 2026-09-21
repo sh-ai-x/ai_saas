@@ -40,16 +40,18 @@ Neon, Google, Toss, or Lemon Squeezy credentials in its default local mode.
 ```bash
 cp .env.docker.example .env
 export APP_SECRET_KEY="$(openssl rand -base64 32)"
-docker compose -f docker/prod/compose.yaml up --build
+pnpm docker:local
 ```
 
 Open [http://localhost:3100](http://localhost:3100). The API is available at
 [http://localhost:8180/healthz](http://localhost:8180/healthz). Docker uses
-host ports `3100`, `8180`, and `55432` for the web, API, and PostgreSQL
+host ports `3100`, `8180`, and `55433` for the web, API, and PostgreSQL
 services so it can run beside the process-mode/legacy stack. Internal service
-ports remain `3000`, `8080`, and `5432`. Stop the stack with `docker compose -f
-docker/prod/compose.yaml down`; add `-v` only when the disposable local
-PostgreSQL and Foundation state should be removed.
+ports remain `3000`, `8080`, and `5432`. The local override uses Next.js
+development mode to keep rebuilds practical on an 8 GB laptop. Stop the stack
+with `docker compose --project-name ai-saas-proposal-verified-change -f
+docker/prod/compose.yaml -f docker/local/compose.yaml down`; add `-v` only when
+the disposable local PostgreSQL and Foundation state should be removed.
 
 The local Compose PostgreSQL service uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For a real Google login, fill the server-only
