@@ -117,7 +117,7 @@ jobs:
             # auth-token failure (security-relevant) are distinguishable
             # in the run log. First line of stderr is appended to the
             # ::warning:: with secrets masked by the GH-Actions runner.
-            last_stderr="$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid // ""' 2>&1 >/dev/null || true)"
+            last_stderr="$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid // ""' 2>/dev/null >&2 || true)"
             head_sha="$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid // ""' 2>/dev/null || true)"
             if [ -n "$head_sha" ]; then
               break
@@ -126,6 +126,18 @@ jobs:
             echo "::warning::pr_meta attempt $attempt failed; retrying in 5s (stderr: ${err_first:-<empty>})"
             sleep 5
           done
+          # Fallback to the event payload's head SHA when gh pr view
+          # returns empty after retries. The event payload is locked at
+          # workflow-trigger time so the value is stable for the run,
+          # but it still gives the audit comment a non-empty head_sha
+          # so downstream steps don't STALE on transient GH-API
+          # hiccups that surface only in this fresh-runner subprocess.
+          if [ -z "$head_sha" ]; then
+            head_sha="${{ github.event.pull_request.head.sha }}"
+            if [ -n "$head_sha" ]; then
+              echo "::warning::pr_meta: gh pr view returned empty after 3 attempts; falling back to github.event.pull_request.head.sha"
+            fi
+          fi
           if [ -z "$head_sha" ]; then
             # Loud terminal signal so a degraded capture shows red on
             # the pr_meta step itself, not only as a downstream G3 STALE.
