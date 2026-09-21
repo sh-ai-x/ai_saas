@@ -54,7 +54,7 @@ describe("pricing repository invariants", () => {
         name: "Invalid one-time plan",
         billingMode: "one_time",
         options: [],
-      }, "test-suite", "should reject mode mismatch")).rejects.toThrow(/must match active catalog mode/);
+      }, "test-suite", "should reject mode mismatch")).rejects.toThrow(/requires the active catalog mode/);
 
     await expect(createPricingPlan({
         code: "invalid-interval",
