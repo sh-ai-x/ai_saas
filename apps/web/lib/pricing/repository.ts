@@ -319,10 +319,14 @@ export async function updatePricingPlan(
   reason = "",
 ) {
   validatePlanInput(input, reason);
+  const policy = await getBillingPolicy();
   const db = getDb();
   if (!db) {
     const current = localState.plans.find((plan) => plan.id === planId);
     if (!current) return null;
+    if (input.billingMode !== current.billingMode && input.billingMode !== policy.billingMode) {
+      throw new Error(`plan billingMode change to ${input.billingMode} requires the active catalog mode to also be ${input.billingMode}; current policy is ${policy.billingMode}`);
+    }
     const next = toLocalPlan(planId, input, (input.options ?? current.options).map((option) => ({
       ...option,
       id: option.id ?? `option-${crypto.randomUUID()}`,
@@ -335,6 +339,9 @@ export async function updatePricingPlan(
 
   const current = (await listPricingCatalog(false)).find((plan) => plan.id === planId);
   if (!current) return null;
+  if (input.billingMode !== current.billingMode && input.billingMode !== policy.billingMode) {
+    throw new Error(`plan billingMode change to ${input.billingMode} requires the active catalog mode to also be ${input.billingMode}; current policy is ${policy.billingMode}`);
+  }
   const options = input.options ?? current.options;
   validatePlanOptions(options, input.billingMode);
   const normalizedOptions = options.map((option) => ({
