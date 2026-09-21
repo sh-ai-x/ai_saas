@@ -15,9 +15,9 @@ console. Public pricing reads active catalog records; it does not own pricing.
 
 In `/admin/payments`, select exactly one catalog mode: `subscription` or
 `one_time`. Subscription plans can expose monthly and yearly options. A
-one-time product exposes only a one-time option. An annual $290 subscription
-and a $79 one-time product are separate product policies and are not shown as
-two choices in the same active catalog.
+one-time product exposes only a one-time option. The seeded Toss-compatible
+catalog keeps the existing option IDs and displays the annual Pro option as
+₩29,000 and the one-time product as ₩7,900.
 
 ## 2. Configure the catalog
 
@@ -41,8 +41,9 @@ The schema includes `pricing_catalog_settings`, `pricing_plans`,
 
 ## 4. Keep provider secrets out of the database
 
-Use `PAYMENT_PROVIDER=mock` locally. For sandbox Toss or Lemon Squeezy, set
-provider values in the runtime environment. Safe public identifiers may be
+Use `PAYMENT_PROVIDER=mock` locally when deterministic checkout is needed. For
+the Toss sandbox, set `PAYMENT_PROVIDER=toss`; the existing Starter/Pro
+options are reused after the KRW migration. Safe public identifiers may be
 stored in admin settings; API keys and signing secrets stay in environment
 variables or a secret manager.
 

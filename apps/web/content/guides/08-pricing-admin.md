@@ -43,17 +43,18 @@ Choose the catalog billing model in `/admin/payments` first: exactly one of
 `one_time` or `subscription`. Then create a plan policy and add only valid
 options. A one-time product uses `mode=one_time` and `interval=one_time`; a
 subscription product uses `mode=subscription` and `interval=month` or `year`.
-For example, an annual $290 subscription and a $79 one-time product are
-separate product policies and are never shown together as choices in one
-active catalog. Amounts are integer minor currency units and the checkout API
-resolves them from the database by `optionId`; browser input cannot override
-the amount.
+The seeded Toss-compatible catalog displays the existing annual Pro option as
+₩29,000 and the one-time product as ₩7,900. Amounts are integer minor currency
+units and the checkout API resolves them from the database by `optionId`; browser
+input cannot override the amount.
 
 ## 4. Configure provider adapters
 
 Keep `mock` enabled for local development. For a sandbox, set exactly one of
 `PAYMENT_PROVIDER=toss` or `PAYMENT_PROVIDER=lemon-squeezy` and provide the
-provider's sandbox values through runtime environment variables. Admin public
+provider's sandbox values through runtime environment variables. The seeded
+Starter and Pro options are reused for Toss after the KRW migration; do not
+create a duplicate Toss plan. Admin public
 configuration may contain store, variant, or client identifiers; API keys and
 signing secrets never belong in PostgreSQL or browser JSON.
 
