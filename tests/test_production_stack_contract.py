@@ -94,6 +94,8 @@ class ProductionDockerContractTests(unittest.TestCase):
         script = (ROOT / "scripts/docker-local.sh").read_text(encoding="utf-8")
         self.assertIn("DOCKER_LOCAL_SLOT", script)
         self.assertIn("port_block_is_free", script)
+        self.assertIn("docker port", script)
+        self.assertIn("|| true; }", script)
         self.assertIn('compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-${worktree_slug}}"', script)
         self.assertIn('export WEB_DATABASE_URL="$local_database_url"', script)
         self.assertIn('command_mode="down"', script)

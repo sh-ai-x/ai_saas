@@ -57,7 +57,7 @@ compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-${worktree_slug}}"
 port_from_container() {
   local container="$1"
   local internal_port="$2"
-  docker port "$container" "$internal_port" 2>/dev/null \
+  { docker port "$container" "$internal_port" 2>/dev/null || true; } \
     | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' \
     | head -n 1
 }
