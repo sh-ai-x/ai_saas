@@ -52,7 +52,7 @@ use_isolated_host_port() {
   fi
 }
 
-use_isolated_host_port POSTGRES_PORT 5432 55432
+use_isolated_host_port POSTGRES_PORT 5432 55433
 use_isolated_host_port FOUNDATION_PORT 8080 8180
 use_isolated_host_port WEB_PORT 3000 3100
 use_isolated_host_port FOUNDATION_PUBLIC_URL http://localhost:8080 http://localhost:8180
@@ -65,7 +65,14 @@ if [[ -z "${APP_SECRET_KEY:-}" && -z "$(env_file_value APP_SECRET_KEY)" ]]; then
   echo "APP_SECRET_KEY was empty; generated an ephemeral value for this run."
 fi
 
-compose=(docker compose --env-file "$env_file" -f "$compose_file")
+compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-proposal-verified-change}"
+local_compose_file="$repo_root/docker/local/compose.yaml"
+if [[ ! -f "$local_compose_file" ]]; then
+  echo "Missing local Compose override: $local_compose_file" >&2
+  exit 1
+fi
+
+compose=(docker compose --project-name "$compose_project" --env-file "$env_file" -f "$compose_file" -f "$local_compose_file")
 cd "$repo_root"
 
 if ! "${compose[@]}" up -d --build --force-recreate "$@"; then

@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PROD_COMPOSE = ROOT / "docker/prod/compose.yaml"
+LOCAL_COMPOSE = ROOT / "docker/local/compose.yaml"
 
 
 def service_block(compose: str, service: str, next_service: str | None = None) -> str:
@@ -67,7 +68,7 @@ class ProductionDockerContractTests(unittest.TestCase):
         foundation = service_block(compose, "foundation", "web-migrate")
         web = service_block(compose, "web")
 
-        self.assertIn('"${POSTGRES_PORT:-55432}:5432"', postgres)
+        self.assertIn('"${POSTGRES_PORT:-55433}:5432"', postgres)
         self.assertIn('"${FOUNDATION_PORT:-8180}:8080"', foundation)
         self.assertIn('"${WEB_PORT:-3100}:3000"', web)
         self.assertIn("postgresql://foundation@postgres:5432/foundation", compose)
@@ -80,7 +81,7 @@ class ProductionDockerContractTests(unittest.TestCase):
         env_example = (ROOT / ".env.docker.example").read_text(encoding="utf-8")
 
         for expected in (
-            "POSTGRES_PORT=55432",
+            "POSTGRES_PORT=55433",
             "FOUNDATION_PORT=8180",
             "WEB_PORT=3100",
             "FOUNDATION_PUBLIC_URL=http://localhost:8180",
@@ -91,10 +92,21 @@ class ProductionDockerContractTests(unittest.TestCase):
 
     def test_docker_local_script_promotes_legacy_defaults_but_keeps_explicit_ports(self) -> None:
         script = (ROOT / "scripts/docker-local.sh").read_text(encoding="utf-8")
-        self.assertIn("use_isolated_host_port POSTGRES_PORT 5432 55432", script)
+        self.assertIn("use_isolated_host_port POSTGRES_PORT 5432 55433", script)
         self.assertIn("use_isolated_host_port FOUNDATION_PORT 8080 8180", script)
         self.assertIn("use_isolated_host_port WEB_PORT 3000 3100", script)
         self.assertIn("if [[ -z \"$shell_value\"", script)
+        self.assertIn('compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-proposal-verified-change}"', script)
+
+    def test_docker_local_uses_the_lightweight_development_web_target(self) -> None:
+        compose = LOCAL_COMPOSE.read_text(encoding="utf-8")
+        dockerfile = (ROOT / "apps/web/Dockerfile").read_text(encoding="utf-8")
+        script = (ROOT / "scripts/docker-local.sh").read_text(encoding="utf-8")
+
+        self.assertIn("target: development", compose)
+        self.assertIn('next", "dev", "--hostname", "0.0.0.0", "--port", "3000"', compose)
+        self.assertIn("FROM deps AS development", dockerfile)
+        self.assertIn("docker/local/compose.yaml", script)
 
 
 if __name__ == "__main__":

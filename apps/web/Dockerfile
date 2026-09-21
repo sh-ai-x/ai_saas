@@ -19,6 +19,15 @@ FROM deps AS builder
 COPY apps/web/ ./apps/web/
 RUN pnpm --filter ai-saas-foundation-web build
 
+# Local Docker uses Next dev mode so an 8 GB developer machine does not need
+# to spend several minutes producing standalone tracing output on every
+# rebuild. The production runner above remains unchanged for release-shaped
+# images.
+FROM deps AS development
+
+COPY apps/web/ ./apps/web/
+ENV NODE_ENV=development
+
 # This target is used by docker/prod/compose.yaml as a one-shot migration job.
 # It intentionally retains drizzle-kit and the TypeScript source files.
 FROM deps AS migrator

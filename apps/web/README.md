@@ -46,7 +46,9 @@ cp .env.docker.example .env
 pnpm docker:local
 ```
 
-The Docker browser uses `http://localhost:3100`; the Next.js server reaches the
+The Docker browser uses `http://localhost:3100`; the local Docker override runs
+Next.js in development mode so an 8 GB laptop does not need a standalone trace
+build on each local rebuild. The Next.js server reaches the
 API at `http://foundation:8080` inside the Compose network. The `web-migrate`
 one-shot service applies the committed Drizzle migrations before the web
 container starts. The default Docker profile is local/demo mode with mock
@@ -54,7 +56,7 @@ payments. Local Compose PostgreSQL uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For live Google login, fill the server-only
 Better Auth and Google values in the ignored root `.env`; `apps/web/.env.local`
 is used by process-mode commands, not automatically by Docker Compose.
-`pnpm docker:local` explicitly loads the root `.env`, rebuilds the images, and
+`pnpm docker:local` explicitly loads the root `.env`, rebuilds the local images, and
 force-recreates the containers so changed OAuth values are applied.
 
 The production build is local-only and does not require Vercel, Neon, Stripe,

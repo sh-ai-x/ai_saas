@@ -225,9 +225,10 @@ longer needed.
 ## Full Docker web deployment
 
 The complete local stack is also containerized: PostgreSQL, the Foundation API,
-a one-shot Drizzle migration job, and the Next.js web console. The web image
-uses Next.js standalone output and calls the API through the internal
-`foundation:8080` service name.
+a one-shot Drizzle migration job, and the Next.js web console. The local web
+override uses Next.js development mode to avoid the expensive standalone trace
+build on an 8 GB laptop; release-shaped images still use standalone output.
+The browser calls the API through the internal `foundation:8080` service name.
 
 ```bash
 cp .env.docker.example .env
@@ -236,7 +237,7 @@ pnpm docker:local
 
 Open `http://localhost:3100` for the web console and
 `http://localhost:8180/healthz` for the API health check. The Docker-only host
-ports (`3100`, `8180`, and `55432`) are intentionally separate from the
+ports (`3100`, `8180`, and `55433`) are intentionally separate from the
 process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
 container URLs remain `web:3000`, `foundation:8080`, and `postgres:5432`.
 The default profile uses mock payments, while the browser has no local/mock
@@ -259,8 +260,10 @@ for a single-host portfolio or staging deployment. For multiple web replicas,
 run migrations as a separate release job rather than once per replica.
 
 ```bash
-docker compose -f docker/prod/compose.yaml down
-docker compose -f docker/prod/compose.yaml down -v  # also removes local data
+docker compose --project-name ai-saas-proposal-verified-change \
+  -f docker/prod/compose.yaml -f docker/local/compose.yaml down
+docker compose --project-name ai-saas-proposal-verified-change \
+  -f docker/prod/compose.yaml -f docker/local/compose.yaml down -v  # also removes local data
 ```
 
 The production Compose file is a packaging baseline, not a managed high
