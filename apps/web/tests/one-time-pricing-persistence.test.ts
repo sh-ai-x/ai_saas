@@ -41,6 +41,7 @@ describe("one-time pricing persistence", () => {
   it("saves a one-time price before the one-time billing policy is active", async () => {
     const lifetime = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-lifetime");
     expect(lifetime).toBeTruthy();
+    if (!lifetime) throw new Error("seed must contain the lifetime plan");
     expect((await getBillingPolicy()).billingMode).toBe("subscription");
 
     const updated = await updatePricingPlan("plan-lifetime", withAmountMinor(lifetime, 12345), "one-time-pricing-test", "save one-time price before policy activation");

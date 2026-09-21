@@ -441,7 +441,7 @@ function validatePlanInput(input: PricingPlanInput, reason: string) {
   if (!reason.trim()) throw new Error("reason is required for pricing changes");
 }
 
-function assertBillingModeIsEditable(current: PricingPlan | undefined, next: PricingPlanInput, policy: BillingPolicy) {
+function assertBillingModeIsEditable(current: PricingPlan | undefined, next: PricingPlanInput, policy: PricingPolicy) {
   if (current === undefined) {
     if (next.billingMode !== policy.billingMode) {
       throw new Error(
