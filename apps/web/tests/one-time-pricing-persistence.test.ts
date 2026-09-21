@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-
 import {
   getBillingPolicy,
   listPricingCatalog,
@@ -42,20 +40,20 @@ describe("one-time pricing persistence", () => {
 
   it("saves a one-time price before the one-time billing policy is active", async () => {
     const lifetime = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-lifetime");
-    assert.ok(lifetime, "seed must contain the lifetime plan");
-    assert.equal((await getBillingPolicy()).billingMode, "subscription");
+    expect(lifetime).toBeTruthy();
+    expect((await getBillingPolicy()).billingMode).toBe("subscription");
 
     const updated = await updatePricingPlan("plan-lifetime", withAmountMinor(lifetime, 12345), "one-time-pricing-test", "save one-time price before policy activation");
 
-    assert.equal(updated?.options[0]?.amountMinor, 12345);
+    expect(updated?.options[0]?.amountMinor).toBe(12345);
     const stored = (await listPricingCatalog(false)).find((plan) => plan.id === "plan-lifetime");
-    assert.equal(stored?.options[0]?.amountMinor, 12345);
+    expect(stored?.options[0]?.amountMinor).toBe(12345);
 
     const subscriptionCatalog = await listPricingCatalog(true);
-    assert.equal(subscriptionCatalog.some((plan) => plan.id === "plan-lifetime"), false);
+    expect(subscriptionCatalog.some((plan) => plan.id === "plan-lifetime")).toBe(false);
 
     await setBillingMode("one_time", "one-time-pricing-test", "publish saved one-time price");
     const oneTimeCatalog = await listPricingCatalog(true);
-    assert.equal(oneTimeCatalog.find((plan) => plan.id === "plan-lifetime")?.options[0]?.amountMinor, 12345);
+    expect(oneTimeCatalog.find((plan) => plan.id === "plan-lifetime")?.options[0]?.amountMinor).toBe(12345);
   });
 });
