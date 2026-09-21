@@ -294,7 +294,7 @@ export async function recordTossSubscription(input: {
 export async function createPricingPlan(input: PricingPlanInput, actorUserId = "local-admin", reason = "") {
   validatePlanInput(input, reason);
   const policy = await getBillingPolicy();
-  if (input.billingMode !== policy.billingMode) throw new Error(`plan billingMode must match active catalog mode: ${policy.billingMode}`);
+  assertBillingModeIsCompatible(input, policy);
   const planId = `plan-${crypto.randomUUID()}`;
   const options = (input.options ?? []).map((option) => ({ ...option, id: option.id ?? `option-${crypto.randomUUID()}`, planId }));
   validatePlanOptions(options, input.billingMode);
@@ -324,7 +324,7 @@ export async function updatePricingPlan(
   if (!db) {
     const current = localState.plans.find((plan) => plan.id === planId);
     if (!current) return null;
-    assertBillingModeTransitionAllowed(current, input, policy);
+    assertBillingModeIsEditable(current, input, policy);
     const next = toLocalPlan(planId, input, (input.options ?? current.options).map((option) => ({
       ...option,
       id: option.id ?? `option-${crypto.randomUUID()}`,
@@ -337,7 +337,7 @@ export async function updatePricingPlan(
 
   const current = (await listPricingCatalog(false)).find((plan) => plan.id === planId);
   if (!current) return null;
-  assertBillingModeTransitionAllowed(current, input, policy);
+  assertBillingModeIsEditable(current, input, policy);
   const options = input.options ?? current.options;
   validatePlanOptions(options, input.billingMode);
   const normalizedOptions = options.map((option) => ({
@@ -441,7 +441,15 @@ function validatePlanInput(input: PricingPlanInput, reason: string) {
   if (!reason.trim()) throw new Error("reason is required for pricing changes");
 }
 
-function assertBillingModeTransitionAllowed(current: PricingPlan, next: PricingPlanInput, policy: BillingPolicy) {
+function assertBillingModeIsEditable(current: PricingPlan | undefined, next: PricingPlanInput, policy: BillingPolicy) {
+  if (current === undefined) {
+    if (next.billingMode !== policy.billingMode) {
+      throw new Error(
+        `plan billingMode ${next.billingMode} requires the active catalog mode to also be ${next.billingMode}; current policy is ${policy.billingMode}`,
+      );
+    }
+    return;
+  }
   if (next.billingMode !== current.billingMode && next.billingMode !== policy.billingMode) {
     throw new Error(
       `plan billingMode change to ${next.billingMode} requires the active catalog mode to also be ${next.billingMode}; current policy is ${policy.billingMode}`,
