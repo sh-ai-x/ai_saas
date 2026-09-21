@@ -294,7 +294,7 @@ export async function recordTossSubscription(input: {
 export async function createPricingPlan(input: PricingPlanInput, actorUserId = "local-admin", reason = "") {
   validatePlanInput(input, reason);
   const policy = await getBillingPolicy();
-  assertBillingModeIsCompatible(input, policy);
+  assertBillingModeIsEditable(undefined, input, policy);
   const planId = `plan-${crypto.randomUUID()}`;
   const options = (input.options ?? []).map((option) => ({ ...option, id: option.id ?? `option-${crypto.randomUUID()}`, planId }));
   validatePlanOptions(options, input.billingMode);
