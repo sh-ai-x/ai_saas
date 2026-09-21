@@ -1,0 +1,19 @@
+{
+  "phase": "toss-subscription-sandbox",
+  "schema_version": "1.0.0",
+  "steps": [
+    {
+      "name": "toss-subscription-sandbox-e2e",
+      "started_at": "2026-09-20T22:52:31+0900",
+      "status": "completed",
+      "completed_at": "2026-09-21T00:09:13+0900",
+      "step": 0,
+      "verification": [
+        "pnpm --dir apps/web test",
+        "pnpm --dir apps/web lint",
+        "uv run --locked python -m unittest tests/test_payment_sandbox_api.py tests/test_billing.py tests/test_integration_contracts.py"
+      ]
+    }
+  ],
+  "worktree": "feat/subscription-toss-payment"
+}

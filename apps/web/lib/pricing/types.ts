@@ -41,6 +41,37 @@ export type ProviderSetting = {
   secretRef: string | null;
 };
 
+export type PaymentOrder = {
+  id: string;
+  tenantId: string;
+  userId: string | null;
+  pricingOptionId: string;
+  provider: PricingProvider;
+  mode: PricingMode;
+  status: "pending" | "succeeded" | "failed" | "cancelled";
+  externalOrderRef: string | null;
+  externalPaymentRef: string | null;
+  amountMinor: number;
+  currency: string;
+  idempotencyKey: string;
+  metadata: Record<string, unknown>;
+};
+
+export type SubscriptionRecord = {
+  id: string;
+  tenantId: string;
+  userId: string | null;
+  pricingOptionId: string;
+  provider: "toss";
+  externalCustomerRef: string;
+  externalSubscriptionRef: string;
+  status: "active" | "cancelled" | "past_due";
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  metadata: Record<string, unknown>;
+};
+
 export type PricingPolicy = {
   id: string;
   billingMode: BillingMode;

@@ -1,310 +1,63 @@
-# Production-Ready AI SaaS Foundation — Cost-Tiered MSA
+# PRD — Toss Payments Subscription Sandbox Integration
 
 ## 1. Frame
 
-- **Goal:** Ship a reusable AI SaaS foundation that starts from the `mysaas` vertical slice and provides Google auth, tenant/admin boundaries, provider-neutral billing, metering, durable agent runs, and a low-cost deployment path.
-- **Target user:** A fullstack AI engineer building a portfolio or early enterprise AI product with a near-zero fixed infrastructure budget.
-- **Situation:** The current baseline has a working Next.js/Better Auth/Drizzle/Neon/Inngest shape, but its auth, admin, credit, payment, worker, and deployment contracts are not yet hardened into a reusable foundation.
+- Goal: Connect the existing subscription catalog and admin Toss enable switch to a verified Toss Payments V2 sandbox flow that can be exercised at localhost:3000 without charging a real payment method.
+- Target user: A SaaS product administrator and developer validating a subscription checkout locally before production payment contracting.
+- Situation: The catalog has subscription options and a Toss adapter, but the browser uses the normal one-time payment flow, admin provider selection can be shadowed by the mock environment default, and the server has no complete billing-auth-to-recurring-approval path.
 
 ## 2. Validate
 
-### Evidence
+### Independent evidence
 
-1. **Existing implementation signal:** `../mysaas/my-saas` already contains Next.js 16.3, Better Auth, Drizzle, Neon-compatible PostgreSQL, Inngest, admin routes, credit transactions, and provider checkout paths.
-2. **Approved product signal:** The approved foundation proposal requires Google OAuth, multi-tenancy, admin operations, metering, Toss/Lemon Squeezy/mock payments, agent execution, observability, and reproducible deployment.
-3. **Cost/architecture signal:** Official Vercel, Inngest, Cloudflare, and AWS documentation supports free-tier hosting for demos, bounded managed workflows, and usage-based Fargate Spot workers; the plan therefore separates free portfolio mode from optional low-cost worker mode.
+1. **Toss Payments official V2 billing guide** — subscription services must issue a billing key after the first authentication and call the automatic billing approval API on each billing period; the browser flow uses `requestBillingAuth()` and the server receives `authKey` and `customerKey`. Source: [Toss Payments billing guide](https://docs.tosspayments.com/guides/v2/billing), [billing window integration](https://docs.tosspayments.com/guides/v2/billing/integration). Date: 2026-09-20.
+2. **Repository implementation evidence** — `apps/web/components/pricing-catalog.tsx:16-29` currently submits one generic checkout and opens only `checkoutUrl`; `apps/web/app/payments/toss/success/route.ts:5-28` confirms only a normal `paymentKey`; `apps/web/lib/pricing/repository.ts:278-283` lets `PAYMENT_PROVIDER` override the persisted admin provider setting. Date: 2026-09-20.
+3. **User/runtime signal** — the requested behavior is specifically that enabling Toss from the admin payment screen makes subscription test payment work locally, after a previous Foundation startup failure caused by an invalid `APP_SECRET_KEY`. This requires a reproducible sandbox setup and an end-to-end contract instead of a UI-only toggle. Date: 2026-09-20.
 
-### Quantified value
+### Value score
 
-- `LTV_per_user`: 1,000 value units per adopted template
-- `reachable_users_year1`: 10 portfolio users or derivative projects
-- `total_cost`: 2,000 value units of implementation and low-volume infrastructure
-- `value_score = (1,000 × 10) / 2,000 = 5.0`
+Assumption for this implementation decision: $120 expected first-year value per validated SaaS user, 50 reachable early users, and $1,200 engineering/runtime cost.
 
-### Ambiguity
-
-- `ambiguity_score: 3/10`
-- Locked decisions: `mysaas` is the initial baseline; Neon + Drizzle + Better Auth + Vercel/Cloudflare Free are the initial web/data options; Inngest is the default workflow path; Fargate Spot is an optional worker-only path; Toss and Lemon Squeezy use Ports-and-Adapters.
-
-## 3. Non-goals
-
-1. **Domain-specific agent workflows:** The foundation exposes run/tool/checkpoint contracts only. If requested, add a domain module after the foundation acceptance gates pass.
-2. **Always-on paid infrastructure:** No paid Vercel/Cloudflare plan, ALB, NAT Gateway, Redis cluster, multi-AZ worker fleet, or per-service database is provisioned by this plan. If requested, create a separate scale ADR and budget gate.
-3. **Live payment processing in local development:** Local and test environments use the mock adapter and provider sandboxes. If a real charge is requested locally, reject the scope and require a sandbox environment.
-4. **Automatic physical extraction of every logical service:** The first build may use a modular monolith; only the worker boundary is eligible for the low-cost Fargate Spot profile.
-
-## 4. Phase plan
-
-Phase directory: `phases/ai-saas-foundation/`
-
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 0 | baseline-contracts | none | Repository skeleton, contract packages, environment/profile rules, and runnable checks |
-| 1 | identity-tenant-admin | 0 | Google session, tenant/RBAC boundary, admin operations, and audit contract |
-| 2 | billing-adapters-ledger | 0, 1 | Ports-and-Adapters billing, Toss/Lemon/mock contracts, webhook inbox, and atomic ledger |
-| 3 | run-worker-streaming | 0, 1, 2 | Run state machine, metering reservation, Inngest baseline, optional worker boundary, and SSE replay |
-| 4 | low-cost-deployment-observability | 0–3 | Free profile, optional Fargate Spot worker profile, OTel/redaction, CI, and evaluator evidence |
-
-The authoritative step state is `phases/ai-saas-foundation/index.json`.
-
-## 5. Acceptance criteria
-
-- **REQ-1:** A clean checkout can start the local foundation with Docker and validate its contract/configuration profile without paid cloud resources.
-- **REQ-2:** Google login/session, tenant scope, admin authorization, reason-required mutation, before/after audit, and cross-tenant denial are covered by tests or executable contract checks.
-- **REQ-3:** Toss, Lemon Squeezy, and mock payment adapters implement shared capability ports; raw provider events are verified, deduplicated, normalized, and applied to an atomic ledger exactly once.
-- **REQ-4:** A run reserves credits before model work, persists state/checkpoint events, supports SSE replay/reconnect, and handles worker interruption through idempotent retry.
-- **REQ-5:** The free profile has explicit quota pause behavior; the optional AWS profile uses Fargate Spot only for checkpointed worker tasks without ALB/NAT or inbound worker access; CI and evidence artifacts are reproducible.
-
-## 6. Handoff to build
-
-The plan is ready for `/dev-kit:build` in dependency order. Build must preserve
-the copied SOT under `docs/sot/` as tracked project documentation, avoid
-secrets, and keep every step within its declared ownership and acceptance
-contract. After build, run `/dev-kit:babysit-pr` with the Ralph unattended flags
-and finish at the human merge boundary.
-
-## 7. Real integration extension — Ralph plan
-
-The local vertical slice remains the default no-credential mode, but the
-foundation now also defines a real integration path. Credentials are injected
-only at runtime; no provider secret or authorization code is committed. A
-provider is enabled only after its configuration validator passes.
-
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 7 | integration-contracts-and-validators | 6 | Versioned auth/payment/agent API contracts, fail-closed environment validation, and deterministic provider fixtures |
-| 8 | google-oauth-provider | 7 | Server-side Google authorization URL, code exchange, token/userinfo verification, session cookie, and callback route |
-| 9 | sandbox-payment-provider | 7 | Toss or Lemon Squeezy sandbox checkout/confirmation/webhook routes, one-provider selection, and exactly-once ledger effects |
-| 10 | agent-provider-runtime | 7 | Provider-neutral model port with OpenAI, Anthropic, and Gemini HTTP adapters, bounded usage, redaction, and run integration |
-| 11 | setup-guide-console | 8–10 | Dedicated `/guides` Markdown editor, hierarchical left sidebar with separate Toss/Lemon Squeezy pages, environment examples, and a link back to the console |
-| 12 | integration-e2e-verification | 8–11 | Contract, config, adapter, API, browser, and sandbox fixture verification with step output evidence |
-| 13 | neon-production-database | 7, 12 | Linked Neon production branch, committed policy, ignored connection env flow, read-only connectivity evidence, and web setup guide |
-| 14 | sandbox-checkout-handoff | 9, 11 | Provider-correct Toss browser SDK handoff, Lemon Squeezy store/variant checkout, safe redirect routes, and adapter fixture coverage |
-
-### Real integration constraints
-
-- Google OAuth uses the authorization-code web-server flow. The browser sees
-  only the authorization URL and session result; client secrets, access tokens,
-  ID tokens, and codes stay server-side.
-- `PAYMENT_PROVIDER` selects exactly one provider. `APP_ENV=local|staging`
-  forces sandbox/test mode; production requires an explicit live deployment
-  approval. Toss and Lemon Squeezy remain adapter-compatible but are never
-  enabled simultaneously.
-- `AGENT_PROVIDER=local` is the deterministic default. `openai`, `anthropic`,
-  and `gemini` require a runtime-injected API key and bounded model settings.
-  Provider errors fail the run without retry storms or silent paid fallback.
-- Every externally reachable callback/webhook has a versioned API contract,
-  raw-body verification, idempotency, and a replayable test fixture.
-- The web GUIDE is a presentation layer over these contracts. It does not
-  store secrets, call providers directly, or bypass the existing console API.
-
-### New acceptance criteria
-
-- **REQ-6:** Invalid/missing integration settings fail before the server binds;
-  no mixed live providers, production mock payments, or unbounded agent model
-  calls are accepted.
-- **REQ-7:** A configured Google client can complete authorization-code exchange
-  and create a server-owned session; invalid state, issuer, audience, expiry,
-  or unverified email is rejected.
-- **REQ-8:** A configured Toss or Lemon Squeezy sandbox can create a pending
-  order, confirm/reconcile it, verify a webhook, and apply credit exactly once.
-- **REQ-9:** A configured Agent provider can execute a bounded run through the
-  same metering/checkpoint/SSE path; provider credentials never enter output or
-  telemetry.
-- **REQ-10:** The browser contains a dedicated `/guides` route with
-  category-based setup guides for local, Google, separate Toss and Lemon
-  Squeezy payments, Agent, verification, and operations; the sidebar links the
-  guides back to the `/` console without breaking the local profile.
-- **REQ-11:** The cloud database setup uses the linked Neon PostgreSQL
-  production branch with no committed credentials; `neon.ts`, policy plan/
-  deploy, read-only connectivity, ignored env injection, and a web-visible
-  Markdown setup guide are reproducible.
-- **REQ-12:** A real sandbox checkout receives only browser-safe handoff data:
-  Toss uses the client SDK with server-owned amount/order/redirect values, and
-  Lemon Squeezy uses configured store/variant JSON:API relationships with
-  signed-webhook-authoritative entitlement. Provider-specific fixtures reject
-  missing or mismatched checkout identity before any ledger effect.
-
-## 8. Admin-controlled product and pricing extension — `mysaas` reference
-
-The next build slice follows the useful boundaries already present in
-`../mysaas/my-saas`: a dedicated admin area, plans managed through CRUD routes,
-provider-specific product references, and a public pricing surface. The
-foundation normalizes those ideas into relational tables rather than keeping
-all prices in a single JSON user record or hardcoded landing-page components.
-
-### Data-first decisions
-
-- Neon PostgreSQL is the cloud source of truth; Drizzle ORM owns the schema and
-  migrations in `apps/web/db` and `apps/web/drizzle`.
-- The active catalog selects exactly one billing mode: `one_time` or
-  `subscription`. Subscription plans may expose monthly and yearly options;
-  one-time products expose only a one-time option. A $290 annual subscription
-  and a $79 one-time product therefore belong to separate product policies and
-  are never presented as two payment choices for the same active catalog.
-- Toss and Lemon Squeezy are adapters behind the same checkout contract. Only
-  one live provider is selected per environment; `mock` remains the local
-  default.
-- Provider credentials never enter PostgreSQL. Admin settings store only
-  safe public identifiers and a secret reference such as an environment-key
-  name.
-- Public landing, authenticated user app, and admin console are separate route
-  surfaces. Admin mutations require a server-side admin guard and emit audit
-  context.
-
-### Phase extension
-
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 15 | pricing-data-model | 13, 14 | Drizzle/Neon schema, migration, seed catalog, repository contract, and pricing SOT |
-| 16 | public-app-admin-surfaces | 15 | Separate landing, user app, admin layout, pricing CRUD UI, and DB-backed public catalog |
-| 17 | payment-mode-adapters | 15, 16 | One-time/subscription checkout selection and admin provider settings using shared adapters |
-| 18 | pricing-verification | 15–17 | Schema, API, browser, and local fallback verification with step output evidence |
-
-### New requirements
-
-- **REQ-13:** The database has normalized `pricing_catalog_settings`,
-  `pricing_plans`, `pricing_options`,
-  `payment_provider_settings`, `payment_orders`, `subscriptions`,
-  `billing_events`, and `admin_audit_events` tables with tenant-safe keys,
-  provider identity constraints, and no committed secret values.
-- **REQ-14:** Public pricing is read from the active catalog; the landing page
-  does not expose admin controls, while `/app` and `/admin` have distinct
-  navigation and layouts.
-- **REQ-15:** Admins can create, edit, activate, order, and archive plans and
-  pricing options; changes validate one-time/monthly/yearly semantics and are
-  auditable with actor, reason, and before/after data.
-- **REQ-16:** Checkout accepts a pricing-option identity, not a client-supplied
-  amount. The server resolves amount, currency, mode, interval, and provider,
-  verifies the option matches the active catalog billing mode, then returns
-  only browser-safe handoff data.
-- **REQ-17:** Local development works without `DATABASE_URL` through a clearly
-  marked in-memory seed fallback; configured Neon mode uses Drizzle queries and
-  a committed migration. The fallback is never silently used in production.
-- **REQ-18:** The schema-first implementation is verified by typecheck,
-  migration/config checks, API contract tests, and a browser smoke path for
-  landing → app → admin → pricing mode selection.
-
-## 9. Google login identity and session extension — `mysaas` reference
-
-The next slice adopts the proven identity boundary from
-`../mysaas/my-saas`: Better Auth owns the authorization-code flow and Drizzle
-owns the PostgreSQL tables. Google authentication is identity proof only; it
-does not grant admin access, a billing entitlement, or agent permissions.
-
-### Data-first decisions
-
-- `app_user` is the local principal. The Google subject is never used as the
-  local user primary key and email changes do not create a second identity.
-- `account` stores the provider binding using `providerId = google` and the
-  stable Google subject in `accountId`. Provider access/refresh tokens are
-  server-only fields and are never returned by an API or written to logs.
-- `session` stores revocable, expiring server sessions. Browser auth uses an
-  httpOnly, secure-in-production cookie; agent, billing, and admin routes
-  resolve authorization from the server session.
-- `verification` supports Better Auth's verification contract. OAuth state,
-  redirect URI, issuer, audience, expiry, and callback destination are
-  validated before a session is created.
-- Admin role is stored on `app_user.role` and checked server-side. A Google
-  email is not an admin allowlist by itself; any bootstrap allowlist is a
-  one-time server-side promotion path with an audit event.
-- Local development remains credential-free through the existing demo session
-  profile. Production fails closed unless `BETTER_AUTH_SECRET`,
-  `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
-  `DATABASE_URL` are present.
-
-### Phase extension
-
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 20 | google-auth-data-model | 19 | Better Auth-compatible user, account, session, verification schema, migration, and auth SOT update |
-| 21 | google-auth-runtime | 20 | Better Auth Drizzle adapter, Google OAuth route handler, session API, and fail-closed environment contract |
-| 22 | google-auth-surfaces | 21 | Google sign-in/sign-out UI, session-aware workspace/admin navigation, and safe callback/error UX |
-| 23 | google-auth-verification | 20–22 | Schema/API/browser verification, callback negative cases, migration evidence, and setup guide |
-
-### New requirements
-
-- **REQ-19:** Drizzle defines `app_user`, `session`, `account`, and
-  `verification` with foreign keys, unique provider/session identities,
-  expiry fields, role state, and no committed credential values.
-- **REQ-20:** A configured Google OAuth flow uses Better Auth's server handler
-  and Drizzle adapter; client code can start sign-in and read only a safe
-  session projection. Missing production credentials fail closed before a
-  provider redirect is issued.
-- **REQ-21:** An authenticated session is required for user workspace actions;
-  admin routes require the server-side admin role or existing protected local
-  test guard. Google login alone never bypasses tenant, billing, or admin
-  authorization.
-- **REQ-22:** Sign-out revokes the server session, callback failures do not
-  create partial users/sessions, and expired/replayed/mismatched callback
-  state returns a safe error without leaking authorization codes or tokens.
-- **REQ-23:** The web setup guide documents Google Cloud Console redirect URIs,
-  runtime-only secrets, Neon migration, local demo mode, and production
-  verification without embedding any secret or real account data.
-
-
-# Current Task PRD — Admin Pricing to Landing Catalog Consistency
-
-## 1. Frame
-
-- **Goal:** Make an admin pricing edit persist to the PostgreSQL pricing tables and become the exact catalog shown by the public landing page on the next read.
-- **Target user:** A SaaS product administrator maintaining plans and prices from /admin/pricing.
-- **Situation:** The administrator can save a pricing value, but the admin view, database rows, public pricing API, and landing page can show different catalogs.
-
-## 2. Validate
-
-### Evidence
-
-1. **Direct incident report** — The user reported that values edited at /admin/pricing do not match the database or landing page (2026-09-19).
-2. **Existing test gap** — apps/web/tests/api-contract.test.ts and apps/web/tests/pricing-repository.test.ts delete DATABASE_URL, so the current suite does not exercise the PostgreSQL write/read path (2026-09-19).
-3. **Independent runtime topology** — Admin pricing, public pricing, and the landing page use separate read paths (apps/web/app/api/admin/pricing, apps/web/app/api/pricing, and apps/web/app/page.tsx), which can drift unless they share a tested projection and cache contract (2026-09-19).
-
-### Quantified value
-
-- LTV_per_user: $240 estimated annual value of a retained paying customer.
-- reachable_users_year1: 25 administrators/customers exposed to the catalog.
-- total_cost: 12 engineering hours × $100/hour = $1,200; no additional infrastructure cost.
-- value_score = ($240 × 25) / $1,200 = 5.0.
-
-These are planning estimates, not revenue claims. The fix clears the required 3.0 threshold because a stale price can directly invalidate conversion and payment expectations.
+`value_score = ($120 × 50) / $1,200 = 5.0` — PASS (threshold ≥ 3.0).
 
 ### Ambiguity loop
 
-- ambiguity_score_0: 10 — The failure could be caused by stale page caching, incomplete option synchronization, or a database/runtime configuration mismatch.
-- ambiguity_score_1: 7 — Code inspection established that admin writes and public reads are separate paths, and the database update path does not remove options omitted from an update payload.
-- ambiguity_score_2: 5 — The landing page is not explicitly force-dynamic, while the public API is; the test plan therefore includes both route-level and rendered landing assertions.
-- ambiguity_score_3: 3 — The acceptance contract is narrowed to one invariant: after an admin update, the persisted database projection, admin reread, public API, and landing props must be identical for active catalog data.
+`ambiguity_score: 10 → 8 → 6 → 4 → 3` — PASS (threshold ≤ 3).
+
+- 10: provider and subscription behavior were not yet mapped to code.
+- 8: MCP guidance fixed the provider contract to Toss V2 billing auth and recurring approval.
+- 6: repository tracing identified the env-provider override, generic browser payment call, and missing billing-auth route.
+- 4: the web payment order/subscription tables were selected as the settlement authority for the catalog flow; the existing Foundation console payment path remains backward-compatible.
+- 3: the phase is limited to first sandbox charge, idempotent settlement, and a documented local path; production scheduling and live operations remain out of scope.
 
 ## 3. Non-goals
 
-1. **No pricing schema redesign.** Existing normalized tables and billing-mode semantics remain authoritative; if a schema change is later needed, open a separate migration plan.
-2. **No payment-provider behavior change.** Checkout adapters, provider credentials, and webhook processing are out of scope; reviewers should file a separate billing task for provider changes.
-3. **No admin authorization redesign.** Existing server-side admin guards remain in place; authorization changes must be handled in the auth/RBAC workstream.
-4. **No visual redesign of pricing UI.** The work changes data consistency and cache behavior only; visual changes belong in a separate UI proposal.
+1. **Live charging or production capture.** Rationale: the user explicitly requested sandbox-only validation. Breach response: reject the scope change and create a separate production-readiness plan with contract, key, webhook, and security review.
+2. **Full production subscription operations.** Rationale: recurring schedules, retries, dunning, cancellation policy, refunds, and webhook tunnel operations are not required to validate the first sandbox charge. Breach response: record the request as a separate lifecycle/operations phase after this sandbox contract is green.
+3. **Replacing the Foundation billing adapter or adding another provider.** Rationale: the web pricing order/subscription tables are the source of truth for this catalog flow, while the existing Foundation Toss path remains backward-compatible for the workspace console. Breach response: defer provider abstraction changes and preserve the current Toss-only change set.
+4. **Authentication, pricing visual redesign, or unrelated admin authorization changes.** Rationale: only the payment selection and checkout contracts are in scope. Breach response: create a separate plan with its own tests and worktree.
 
 ## 4. Phase plan
 
-Phase directory: phases/admin-pricing-landing-sync/
+Phase index: `phases/toss-subscription-sandbox/index.json`
 
-| Step | Name | Dependency | Outcome |
-|---:|---|---|---|
-| 0 | pricing-sync-failing-contracts | none | Failing tests reproduce admin → database → public API → landing divergence before production changes. |
-| 1 | pricing-sync-implementation | 0 | The smallest implementation fix makes option persistence and public/landing reads use one current database projection. |
-| 2 | pricing-sync-verification | 1 | Database, route, landing, lint, typecheck, and production build checks prove the invariant and prevent regressions. |
+### Step 0 — toss-subscription-sandbox-e2e
 
-### Dependency DAG
-
-- step1 → step0 (implementation follows the failing contracts)
-- step2 → step1 (verification follows the implementation)
+A red-first, end-to-end implementation covering the Toss V2 billing-auth browser handoff, server billing-key exchange and first recurring sandbox approval, idempotent entitlement/credit settlement, admin provider activation, container configuration, and setup-guide instructions.
 
 ## 5. Acceptance criteria
 
-1. **AC-0:** apps/web/tests/pricing-sync.contract.test.ts contains a red-first regression test that edits a plan through the admin path, reads the persisted rows, then compares admin reread, public API, and landing data; the test fails against the current implementation for the reproduced divergence.
-2. **AC-1:** The implementation makes an admin update authoritative in PostgreSQL, removes or reconciles omitted child options, prevents stale public landing data, and makes the AC-0 test pass without weakening admin guards or billing-mode validation.
-3. **AC-2:** A real-PostgreSQL integration check plus the full web test, lint, typecheck, and production build commands pass; the recorded output contains exit codes and test counts.
-4. **AC-3:** Code sanity review confirms one canonical catalog projection, no duplicated pricing source, no committed secrets, and no unrelated UI/payment/auth refactor.
+1. Subscription and one-time checkout modes call their correct Toss V2 SDK methods while returning no secret or billing key.
+2. Billing auth success performs server-side billing-key issuance and first sandbox approval with order/amount/customer validation and exactly-once effects.
+3. Admin Toss enable is honored in local/test mode, validates sandbox keys, records an audit reason, and preserves live-provider safety.
+4. Local Compose and setup documentation make the localhost:3000 sandbox path reproducible, including generated `APP_SECRET_KEY` and official MCP setup.
+5. Web type/tests and focused Python billing tests pass without live payment calls.
+
+Each item maps 1:1 to the acceptance criteria in `phases/toss-subscription-sandbox/step0.md`.
 
 ## 6. Hand-off
 
-The plan is ready for /dev-kit:build in dependency order. The design review artifact is /dev-kit:proposal admin-pricing/admin-pricing-landing-sync. Build must start with the failing contract test, then implement only the smallest fix required by the observed failure, and finish with real PostgreSQL plus full web verification.
-
+- Interview contract: skipped and recorded because this worktree had no interview hand-off and the user supplied an explicit ordered implementation request.
+- Review artifact: `/dev-kit:proposal toss-payment/subscription-sandbox`.
+- Next invocation: `/dev-kit:build`.
+- Build must use the step's TDD order: capture RED, implement GREEN, refactor, then run the declared verification commands.

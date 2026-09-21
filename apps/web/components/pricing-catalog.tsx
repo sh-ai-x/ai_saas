@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 
+import { loadTossSdk } from "@/lib/payments/toss-sdk";
 import type { BillingMode, PricingPlan } from "@/lib/pricing/types";
 
 function formatPrice(amountMinor: number, currency: string, interval: string) {
-  const value = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountMinor / 100);
+  const value = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountMinor / (currency.toUpperCase() === "KRW" ? 1 : 100));
   return interval === "one_time" ? value : `${value} / ${interval}`;
 }
 
@@ -22,9 +23,43 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ optionId }),
       });
-      const body = (await response.json()) as { checkoutUrl?: string; provider?: string; mode?: string; error?: string };
+      const body = (await response.json()) as {
+        checkoutUrl?: string;
+        provider?: string;
+        mode?: string;
+        error?: string;
+        checkoutContext?: Record<string, unknown>;
+      };
       if (!response.ok) throw new Error(body.error ?? "Checkout could not be created");
-      setMessage(`${body.provider} ${body.mode} checkout ready.`);
+      if (body.provider === "toss") {
+        const context = body.checkoutContext;
+        const clientKey = typeof context?.client_key === "string" ? context.client_key : "";
+        const customerKey = typeof context?.customer_key === "string" ? context.customer_key : "";
+        if (!context || !clientKey || !customerKey) throw new Error("Toss checkout context is incomplete");
+        const TossPayments = await loadTossSdk();
+        const payment = TossPayments(clientKey).payment({ customerKey });
+        const common = {
+          method: "CARD" as const,
+          successUrl: String(context.success_url ?? ""),
+          failUrl: String(context.fail_url ?? ""),
+          customerEmail: String(context.customer_email ?? ""),
+          customerName: String(context.customer_name ?? ""),
+        };
+        if (context.billing_auth === true) {
+          await payment.requestBillingAuth(common);
+        } else {
+          const amount = context.amount as { value?: unknown; currency?: unknown } | undefined;
+          await payment.requestPayment({
+            ...common,
+            amount: { value: Number(amount?.value), currency: String(amount?.currency ?? "KRW") },
+            orderId: String(context.order_id ?? body.checkoutUrl ?? ""),
+            orderName: String(context.order_name ?? "AI SaaS payment"),
+          });
+        }
+        setMessage("Toss sandbox checkout opened.");
+      } else {
+        setMessage(`${body.provider} ${body.mode} checkout ready.`);
+      }
       if (body.checkoutUrl && body.provider !== "mock") window.open(body.checkoutUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout could not be created");
