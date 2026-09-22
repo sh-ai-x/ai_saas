@@ -27,8 +27,17 @@ jobs:
         run: docker build --file docker/dev/Dockerfile --tag ai-saas-foundation:ci .
       - name: Validate stage compose override merges cleanly
         # docker:stage is prod compose + stage override. Surface merge-time
-        # errors at PR time, not at operator runtime.
-        run: docker compose --env-file /dev/null -f docker/prod/compose.yaml -f docker/stage/compose.yaml config -q
+        # errors at PR time, not at operator runtime. The stage override
+        # uses ${VAR:?required} substitution for secrets, so we feed a
+        # dummy env file (mktemp, never committed) to satisfy compose.
+        run: |
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+          printf 'DATABASE_URL=postgresql://ci/ci\nDATABASE_URL_UNPOOLED=postgresql://ci/ci\nAPP_SECRET_KEY=%s\nBETTER_AUTH_SECRET=%s\n' \
+            "$(printf 'x%.0s' {1..32})" \
+            "$(printf 'x%.0s' {1..32})" > "$tmp"
+          docker compose --env-file "$tmp" \
+            -f docker/prod/compose.yaml -f docker/stage/compose.yaml config -q
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.0
