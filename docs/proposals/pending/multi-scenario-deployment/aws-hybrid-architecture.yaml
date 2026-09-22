@@ -1,7 +1,7 @@
 title: Multi-Scenario Deployment Architecture with AWS Integration
 status: ready-for-review
 date: 2026-09-22
-tags: [aws, multi-cloud, deployment, ecs, fargate, bedrock, vercel, fly-io, cost-minimal, portfolio, ai-engineer]
+tags: [aws, cloudflare, fly-io, vercel, langchain, langgraph, langsmith, jev, cost-minimal, portfolio, ai-engineer]
 
 before:
   summary: |
@@ -25,16 +25,17 @@ before:
 after:
   summary: |
     A **cost-minimal** deployment matrix scoped to what a single AI engineer
-    can actually run and demo. The baseline is **Vercel (web) + Fly.io
-    (foundation Docker) + Neon (Postgres) + Bedrock (managed LLM, pay-per-
-    token)**, no GPU self-hosting, no multi-region. AWS appears only as
-    the optional prod-promotion target once product-market fit justifies
-    the spend. The agent gets a real LLM adapter (OpenAI Chat Completions
-    API), a multi-model benchmark harness, and a signed Git/CI delivery
-    adapter. AWS heavy services (ECS Fargate, Aurora Serverless v2, Cloud
-    Front, multi-region, SageMaker) are listed explicitly as **deferred to a
-    separate cost-justified proposal** — they ship only when traffic or
-    compliance demands them, not on day one.
+    can actually run and demo. The candidate baseline is **Cloudflare
+    + Fly.io + Neon + Bedrock** for the deploy surface, **LangChain /
+    LangGraph / LangSmith** for the AI engineering stack, and the
+    existing **JEV (bottom-right FAQ bot, PR #31)** as the visible product
+    surface. Cloudflare Workers + Containers + R2 + D1 covers the edge
+    layer with a generous free tier; Fly.io hosts the long-running Python
+    foundation; Neon holds the run/approval/usage ledger; Bedrock provides
+    managed LLM access without GPU management. **AWS heavy services
+    (ECS Fargate, Aurora Serverless v2, CloudFront, multi-region, SageMaker)
+    are deferred to a separate cost-justified proposal** — they ship only
+    when traffic or compliance demands them, not on day one.
   files:
     - path: infra/aws/terraform/main.tf
       change: |
@@ -118,6 +119,9 @@ cons:
   - 'Three platforms to operate (Vercel + Fly.io + AWS). On-call must know all three. Mitigated by Terraform owning AWS and runbooks for Fly/Vercel.'
   - 'Aurora Serverless v2 ACU minimum is 0.5; idle cost ~$40/month even when zero traffic. Mitigated by stopping stage outside business hours.'
   - 'Bedrock pay-per-token can spike if a runaway run burns the budget. Mitigated by the existing `TokenBudgetLedger` failing closed at plan-only 20k / verify 41k tokens; cost ceiling per run is hard-coded into the kernel, not a soft alert.'
+  - 'Cloudflare Workers runtime is JavaScript / WASM (Python via Pyodide is experimental). The long-running Python foundation does NOT move to Workers — it stays on Fly.io. Workers host the edge BFF, the rate limiter, and the approval webhook, not the agent kernel.'
+  - 'LangSmith tracing adds egress to api.smith.langchain.com. The kernel `redaction.py` already strips tenant ID + secrets before the trace payload; required env `LANGCHAIN_TRACING_V2=true` is a hard requirement, not opt-in.'
+  - 'JEV (bottom-right FAQ bot, PR #31) is the visible product surface for the agent. JEV and the proposal-to-verified-change agent share the same StructuredModelPort and TracePort; one Bedrock invocation budget covers both.'
   - 'Bedrock quotas vary by region; us-east-1 has the broadest catalog but is the slowest for KR users. Mitigated by cross-region inference profile + CloudFront latency routing.'
   - 'Terraform state in S3 + DynamoDB adds one more piece to bootstrap. Mitigated by infra/aws/terraform/bootstrap.sh one-shot script.'
   - 'ECS Fargate cold start (10–30s) shows up on the verify path. Mitigated by min_capacity=1 in prod, autoscale on CPU.'
@@ -262,29 +266,108 @@ sections:
       verify run: $0.40 (Haiku) / $0.10 (Groq 70B). Quarterly review
       re-runs the benchmark and adjusts.
 
+  - title: Cloudflare, JEV, and the Lang* stack (candidate additions)
+    body: |
+      **Cloudflare** (candidate edge layer)
+
+      | Service | Role | Replaces / supplements |
+      |---|---|---|
+      | Workers | Edge BFF, rate limiter, approval webhook | Replaces some Vercel middleware work |
+      | Workers Containers (NEW 2025) | Long-running Docker at the edge | Candidate alternative to Fly.io for the foundation |
+      | Pages | Static frontend | Replaces Vercel for the marketing pages |
+      | R2 | S3-compatible object storage, free egress | Replaces S3 for review artifacts |
+      | D1 | SQLite-compatible serverless DB | Subset replacement for Neon (run ledger only, not audit log) |
+      | KV | Low-latency key-value store | Approval tokens, idempotency keys, hot cache |
+      | Workers AI | Edge inference (`@cf/meta/llama-3.1-8b-instruct`, etc.) | Replaces Bedrock for low-stakes JEV routing calls |
+      | Vectorize | Managed vector DB | Deferred — proposal rules forbid vector DB in v1 |
+
+      Pricing (cost-minimal baseline):
+
+      | Resource | $/mo (low) | $/mo (typical) |
+      |---|---:|---:|
+      | Workers Paid plan (10M requests) | $5 | $5 |
+      | Workers Containers (autoscale to 0, ~1 vCPU / 4 GB) | $0 idle, ~$2/run-hour | $5–10 |
+      | Pages (unlimited) | $0 | $0 |
+      | R2 (10 GB storage, 1M reads, free egress) | $0 | $1 |
+      | D1 (5 GB, 5M reads) | $0 | $0 |
+      | KV (100k reads/day) | $0 | $0 |
+      | Workers AI (1M input + 0.5M output tokens) | $0.30 | $1–3 |
+      | **Total** | **~$5** | **~$12–18** |
+
+      Workers Containers is the standout: ~$2/hr for a 1 vCPU / 4 GB
+      container, autoscale-to-zero, no minimum. For a portfolio piece
+      that gets sporadic traffic, this beats Fly.io's $5/mo floor.
+
+      **JEV (bottom-right FAQ bot)** — already shipped at PR #31
+      (`feat/faq-ai-provider`). JEV / Gateway pattern:
+
+      - JEV is the **user-facing surface** of the same agent kernel.
+      - It uses the same `StructuredModelPort` (Bedrock in prod, fake in CI).
+      - The catalog FAQ answers in `matcher.ts` short-circuit to no provider
+        call; the OpenAI / Bedrock call only fires on a fixed-matching
+        miss.
+      - Cost ceiling per JEV request: 1 Bedrock call, max 80 output tokens.
+        For 10k miss-route requests / month: ~$0.30–1.50.
+
+      JEV in the deploy surface:
+
+      ```
+      browser ──▶ Vercel (Next.js web)  ◀─── JEV widget (apps/web/components/faq-widget.tsx)
+                         │
+                         ├─▶ /api/faq ──►  Fly.io foundation ──▶ Bedrock (JEV miss route)
+                         │                              │
+                         │                              └─▶ R2 (review artifact cache)
+                         │
+                         └─▶ Cloudflare Workers (rate limit + auth)
+      ```
+
+      **Lang* stack** (LangChain / LangGraph / LangSmith) — promoted from
+      optional to **primary**. The current `services/agent_orchestrator/langgraph_runtime.py`
+      and `services/observability/adapter.py` are scaffolding; they flip to
+      default in the next PR (`feat/langchain-default`).
+
+      | Lang* component | Role | Wired today |
+      |---|---|---|
+      | **LangChain** | `ChatModel.with_structured_output()` for the LLM adapter; Pydantic-validated JSON Schema | Scaffold (`model_port.py`); OFF |
+      | **LangGraph** | `StateGraph` with `human_approval` interrupt; `SqliteSaver` (Local Lite) + `AsyncPostgresSaver` (prod) | Scaffold (`langgraph_runtime.py`); OFF |
+      | **LangSmith** | Trace collection + dataset upload + LLM-as-judge evaluators | Scaffold (`observability/adapter.py`); OFF |
+
+      Promotion path:
+
+      1. `feat/langchain-default` — `LangChainStructuredModel` replaces `FakeStructuredModel` as the default for the proposal-to-verified-change agent and JEV. One PR.
+      2. `feat/langgraph-runtime` — `StateGraph` replaces the in-process `workflow.py` step chain; `SqliteSaver` for Local Lite; `AsyncPostgresSaver` for Fly.io foundation. One PR.
+      3. `feat/langsmith-tracing` — `LangSmithTracer` wraps every event; `benchmarks/cases/*.yaml` uploaded as a dataset; `scripts/run-release-gates.py` calls `langsmith.evaluation.evaluate(...)`. One PR.
+
+      All three keep the kernel's import-boundary intact (Lang* lives in
+      `services/`, never in `agent_platform/`).
+
   - title: Migration path (phased)
     body: |
       The proposal ships as four phases, each independently shippable.
 
-      **Phase 1 (already done)** — Local Lite + offline slice.
-      PR #33. `agent_platform/`, `project_packs/`, `services/`,
-      `infra/profiles/local-lite/`.
+      **Phase 1 (already done)** — Local Lite + offline slice + JEV.
+      PR #33 (proposal-to-verified-change agent) and PR #31 (JEV / faq-ai-provider).
+      `agent_platform/`, `project_packs/`, `services/`, `infra/profiles/local-lite/`,
+      `apps/web/components/faq-widget.tsx`, `apps/web/lib/faq/`.
 
-      **Phase 2 (in progress)** — Vercel + Fly.io + multi-model.
+      **Phase 2 (in progress)** — Vercel + Fly.io + multi-model + Lang* stack.
       Branch `docs/proposal-deployment-spec`. `LLM_PROVIDER` env wiring,
       OpenAI-compatible adapter, `docker:stage`, benchmark harness.
+      Three sub-PRs promote LangChain / LangGraph / LangSmith from scaffold
+      to default (see `§Cloudflare, JEV, and the Lang* stack`).
 
-      **Phase 3 (next, ~2 weeks)** — AWS managed services.
-      Add `infra/aws/terraform/` (VPC, RDS, S3, ECS, ALB, IAM, Secrets
-      Manager). Wire Fly.io foundation to point at RDS / S3 / Bedrock.
-      Enable Bedrock in stage; A/B test against Groq for cost.
+      **Phase 3 (next, ~2 weeks)** — Cloudflare edge layer + cost-minimal baseline.
+      Add `infra/cloudflare/` (Workers, R2, D1, KV, Containers). Wire the
+      Vercel web → Cloudflare Workers rate-limiter + approval webhook.
+      JEV miss-route moves to Workers AI where cost wins; Bedrock stays
+      for high-stakes calls. Workers Containers becomes the alt-host for
+      the foundation Docker image (replaces Fly.io for the demo).
 
       **Phase 4 (later, only when traffic justifies)** — Multi-region AWS.
       Route 53 failover, Aurora cross-region replica, Tokyo warm standby.
       **No SageMaker in any phase.** If a model Bedrock lacks becomes
       required, the cost-minimal path is Ollama on a rented GPU box (~$0.30/hr
-      spot), not SageMaker. Full scenario 4 cost model validated against
-      actual production traffic before committing.
+      spot), shut down when idle. That decision lives in a separate proposal.
 
       Each phase is gated by the same release gates (recall, precision,
       latency, tokens, zero-tolerance checks). No phase is "done" without
