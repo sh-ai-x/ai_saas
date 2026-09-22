@@ -24,6 +24,18 @@
     "user_interrupt": false,
     "safety_valve": 8,
     "phase": "toss-subscription-sandbox"
+  },
+  {
+    "cycle": 3,
+    "stage": "plan",
+    "status": "converged",
+    "evidence_count": 4,
+    "value_score": 5.0,
+    "ambiguity_score": 3,
+    "narrowed_delta": [3, 2, 2],
+    "dedup_metric": "no-identical-ambiguity-cycle",
+    "user_interrupt": false,
+    "safety_valve": 8,
+    "phase": "jev-cs-faq-bot"
   }
-]
 ]

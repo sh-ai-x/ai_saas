@@ -1,0 +1,16 @@
+{
+  "phase": "jev-cs-faq-bot",
+  "schema_version": "1.0.0",
+  "steps": [
+    {
+      "completed_at": "2026-09-20T21:50:31+0900",
+      "depends_on": [],
+      "duration_seconds": 791.0,
+      "name": "vertical-faq-support-bot",
+      "started_at": "2026-09-20T21:37:20+0900",
+      "status": "completed",
+      "step": 0
+    }
+  ],
+  "worktree": "feat/faq-ai-provider"
+}

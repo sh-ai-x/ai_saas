@@ -21,3 +21,25 @@
 - non_goals: schema redesign; payment-provider changes; authorization redesign; visual pricing redesign.
 - breach_response: defer each request to a separate scoped plan and keep this change limited to catalog consistency.
 
+# frame — jev-cs-faq-bot
+
+- goal: Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses JEV only as a bounded category/FAQ router when fixed matching misses.
+- target_user: A product user trying to resolve a common setup, login, pricing, or agent-run question without opening a support request.
+- situation: The application has a Drizzle FAQ table and seed data but no API, JEV decision path, or visible FAQ surface, so users cannot discover or use the catalog.
+
+# interview — jev-cs-faq-bot
+
+- status: SKIPPED
+- reason: The user supplied explicit implementation scope and the JEV SOT/proposal artifacts already record the safety, provider, cost, latency, and fallback decisions.
+
+# gate-2 cycle 1 — jev-cs-faq-bot
+
+- evidence: 4 independent repository/provider/workflow/privacy signals recorded in PRD §2.
+- LTV: 240 value units × 25 users = 6,000 / cost 1,200 = value_score 5.0.
+- ambiguity: 10 → 7 → 5 → 3; narrowed by fixing the catalog-owned answer boundary, one-call JEV routing, and deterministic fallback contract.
+- next: implement the single vertical slice and verify the live-provider gate separately.
+
+# gate-3 — jev-cs-faq-bot
+
+- non_goals: open-ended generation; account/billing/ticket mutations; RAG/memory/tools/attachments; live-provider dependency in local/test.
+- breach_response: defer each request to a separate security/evaluation plan and keep this phase read-only, bounded, and catalog-backed.

@@ -1,0 +1,30 @@
+title: OpenAI-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
+status: design-discussion
+date: 2026-09-20
+tags:
+  - faq
+  - cs-support
+  - openai
+  - drizzle
+  - confidence-gating
+  - cost-control
+  - safety
+
+sections:
+  - title: Executive decision
+    body: |
+      Build one vertical slice: Drizzle owns a versioned FAQ catalog, exact/alias matching answers known questions without a provider call, and a server-only OpenAI Responses adapter makes one strict JSON Schema routing decision only on a miss or ambiguity. Application code maps validated FAQ IDs to allowlisted answers; low confidence, timeout, malformed output, missing credentials, and provider failure return a fixed clarification/support fallback.
+
+  - title: Layered architecture
+    body: |
+      `catalog/repository → deterministic matcher → provider port/OpenAI adapter → confidence and safety policy → versioned HTTP API → bottom-right widget`.
+
+      OpenAI receives bounded redacted text and a small candidate set. The widget never calls OpenAI and never owns FAQ decisions. The service has no tools, memory, RAG, account actions, billing actions, or generated answer text.
+
+  - title: Acceptance gates
+    body: |
+      Exact/alias paths make zero provider calls. OpenAI misses are limited to one bounded request using `gpt-4o-mini` and strict JSON Schema. The API returns typed `answer`, `clarify`, or `handoff` outcomes. Tests cover redaction, confidence, malformed provider output, timeout, rate limit, and fallback. Local and CI remain deterministic without an OpenAI key.
+
+  - title: Evidence and risk controls
+    body: |
+      OpenAI documents GPT-4o mini as a fast, affordable model with Responses API and Structured Outputs support, and its strict JSON Schema mode is used to constrain the router result. The implementation must measure its own p95/p99, provider-call rate, confidence calibration, unknown recall, false-answer rate, fallback rate, and spend before staging enablement. [src:https://developers.openai.com/api/docs/models/gpt-4o-mini;ts:2026-09-20;type:primary] [src:https://developers.openai.com/ko-KR/api/docs/guides/structured-outputs;ts:2026-09-20;type:primary]
