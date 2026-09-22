@@ -16,6 +16,9 @@ RUN pnpm install --frozen-lockfile --filter ai-saas-foundation-web...
 
 FROM deps AS builder
 
+ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
+ENV NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+
 COPY apps/web/ ./apps/web/
 RUN pnpm --filter ai-saas-foundation-web build
 

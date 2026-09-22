@@ -299,6 +299,10 @@ regular user; role promotion is an explicit server-side operation.
 
 ## 9. Troubleshooting
 
+For the complete local Docker incident runbook, including the port-conflict
+and build-time `NEXT_PUBLIC_*` failure modes, see
+[Google OAuth local troubleshooting](../troubleshooting/google-oauth-local.md).
+
 | Symptom | Check |
 |---|---|
 | `redirect_uri_mismatch` | Browser origin, port, path, scheme, and trailing slash match the Google client exactly. |

@@ -68,6 +68,37 @@ Center and stay in the app runtime.
 Create a local ignored env file or export the values in the shell. Do not put
 real keys in a committed example file.
 
+## 4. Run the temporary isolated-port sandbox
+
+The temporary Compose override keeps this Toss sandbox separate from the
+default stack. The browser uses `3001`, Foundation listens on `8081`, and
+Postgres listens on `5433` inside the Compose network (`55433` on the host).
+The web container therefore calls `http://foundation:8081`, and every service
+uses the Postgres URL with port `5433`.
+
+```bash
+export APP_SECRET_KEY="$(openssl rand -hex 32)"
+export TOSS_CLIENT_KEY="test_ck_your_client_key"
+export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
+export PAYMENT_PROVIDER=toss
+export PAYMENT_SANDBOX=true
+export MOCK_PAYMENTS_ENABLED=false
+
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml up --build
+```
+
+Open `http://localhost:3001`. Stop only this isolated stack with:
+
+```bash
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml down
+```
+
+Do not use `-v` unless the disposable sandbox database should be removed.
+
 ```bash
 cp .env.docker.example .env
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
@@ -104,7 +135,7 @@ docker compose -f docker/prod/compose.yaml up --build
 Open [http://localhost:3000](http://localhost:3000). The Foundation health
 check is [http://localhost:8080/healthz](http://localhost:8080/healthz).
 
-## 4. Use the existing Starter/Pro catalog with Toss
+## 5. Use the existing Starter/Pro catalog with Toss
 
 Toss general card payments support `KRW`. The existing Starter and Pro option
 IDs are provider-neutral, and the migration changes their currency to KRW while
@@ -126,7 +157,7 @@ Toss plan or Toss mock product.
 If an existing option remains USD after migration, checkout fails closed with a
 clear configuration error instead of sending an invalid Toss request.
 
-## 5. Run a subscription sandbox checkout
+## 6. Run a subscription sandbox checkout
 
 Open [Billing](http://localhost:3000/billing), choose the active KRW Toss
 subscription, and click the option. The flow is:
@@ -159,7 +190,7 @@ simulation. The current Toss V2 `requestBillingAuth()` path does not forward
 this parameter, so subscription tests still require the Toss test-card/auth
 flow and must complete the normal server billing-key approval.
 
-## 6. One-time payment behavior
+## 7. One-time payment behavior
 
 Switch the catalog policy to **One-time** in Admin, create/select a KRW Toss
 one-time option, and use the same Billing page. The SDK calls
@@ -167,7 +198,7 @@ one-time option, and use the same Billing page. The SDK calls
 calls `/v1/payments/confirm` on the server, validates `paymentKey`, `orderId`,
 amount, status, and idempotency, then marks the pending order succeeded.
 
-## 7. What this setup does not do
+## 8. What this setup does not do
 
 - It never enables live Toss mode on a local/test `APP_ENV`.
 - It does not send Toss secret keys to the client or store them in the catalog.
@@ -177,7 +208,7 @@ amount, status, and idempotency, then marks the pending order succeeded.
   call the billing approval API at the desired period, so add a reviewed cron
   or job worker before using this for production subscriptions.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Check |
 |---|---|
