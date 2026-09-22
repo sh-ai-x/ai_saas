@@ -1,0 +1,267 @@
+title: Branch + Deployment Strategy
+status: ready-for-review
+date: 2026-09-22
+tags: [git, branch-strategy, deployment, vercel, fly-io, neon, ci, hotfix, rollback]
+
+before:
+  summary: |
+    Branch and deploy conventions are scattered across worktree names, ad-hoc
+    GitHub Actions, and individual operator memory. There is no documented
+    mapping from branch class to environment; the worktree-guard hook
+    enforces "no main edits" but does not specify what each new branch
+    SHOULD be named. Hotfixes have no documented fast-path. Rollback
+    procedures exist as tribal knowledge (Vercel CLI flags, flyctl flags)
+    but are not in the repo. AWS Phase 3 has no branch-to-env mapping yet.
+  evidence:
+    - '.worktrees/ — 50+ active worktrees with mixed prefix conventions (feat/, fix/, plan/, design/, docs/, chore/, refactor/, test/)'
+    - 'No vercel.json deploymentEnabled rule; every PR triggers a preview regardless of branch type'
+    - '.github/workflows/fly-deploy.yml missing — Fly foundation deploys via manual `flyctl deploy` today'
+    - 'No branch protection documented; PRs merge without recorded approvals in some cases'
+    - 'No `release/*` branch precedent; version bumps go straight main → tag via /dev-kit:ship'
+
+after:
+  summary: |
+    A typed branch vocabulary, explicit branch-protection rules, a PR
+    lifecycle tied to Vercel + Fly + Neon previews, hotfix + rollback
+    paths per surface, and an extension path for AWS Phase 3 that
+    requires no rule changes. The worktree-guard hook remains as the
+    hard block; this proposal is the soft guidance that complements it.
+  files:
+    - path: vercel.json
+      change: |
+        Add `git.deploymentEnabled` per-branch map; auto-deploy for main /
+        feat/* / fix/* / release*; skip docs / plan / design / chore that
+        only touch docs or non-app paths.
+    - path: .github/workflows/fly-deploy.yml
+      change: |
+        New workflow: `flyctl deploy --strategy bluegreen` on push to main,
+        plus workflow_dispatch for manual stage deploys.
+    - path: .github/workflows/branch-cleanup.yml
+      change: |
+        Weekly janitor: delete remote branches whose PR is merged or
+        closed, prune local refs, post a summary comment.
+    - path: docs/runbooks/hotfix.md
+      change: |
+        Operator runbook: hotfix branch off main, fast-track review,
+        Vercel auto + Fly bluegreen + post-mortem PR template.
+    - path: docs/runbooks/rollback.md
+      change: |
+        Per-surface rollback recipes (Vercel / Fly / Neon / LangSmith
+        datasets / secrets) with copy-pasteable commands.
+
+pros:
+  - 'Branch class is a single tag (`feat/`, `fix/`, `release/`, `hotfix/`) — no one has to guess what a branch is for.'
+  - 'Auto-deploys from `feat/*` give every PR a free preview without explicit bot action.'
+  - 'Hotfix path is one branch + one PR + one review + merge; no special tooling.'
+  - 'Vercel rollback is a single CLI call (`vercel rollback`); Fly rollback is a single CLI call (`fly releases rollback`). Both keep N previous releases for instant restore.'
+  - 'AWS Phase 3 fits the same matrix with one extra column — no rule changes needed.'
+  - 'PR preview slot math (per-PR Fly app + Neon preview branch) prevents the "40 worktrees on port 3100" collision from leaking into prod.'
+  - 'Branch cleanup is automated weekly; no orphaned refs accumulate.'
+
+cons:
+  - 'Per-PR Fly preview apps cost real money (~$5/mo each if kept warm). Mitigated by auto-destroy on PR close; only open PRs incur cost.'
+  - 'Vercel preview URLs leak app code paths to anyone with the URL. Mitigated by `vercel.json` password protection on preview deployments if a leak is detected.'
+  - 'Branch protection rules can be bypassed by repo admins. Mitigated by `Include administrators: true` and PR body check.'
+  - 'Linear history requirement blocks some cherry-pick workflows. Mitigated by `release/*` being semi-protected with force-merge allowed.'
+  - 'The branch taxonomy is opinionated; new contributors may pick the wrong prefix. Mitigated by a CLAUDE.md snippet and the worktree-guard hint message.'
+
+limitations:
+  - 'No monorepo-aware deploys yet. If a single PR touches `apps/web/`, `services/`, and `infra/`, Vercel + Fly both deploy independently; there is no coordination gate. AWS Phase 3 will need a `deploy-coordinator.yml` if cross-service atomicity becomes important.'
+  - 'No canary deploys to a percentage of users. Vercel supports it on Pro plan; Fly supports it natively via bluegreen weights. Both are out of scope until Phase 4 (prod-full).'
+  - 'No DB-migration-gated deploys. A PR that adds a migration and a code rollback can leave the schema ahead of the code. Mitigated by Neon branching (preview DB per PR) and the convention "expand-migrate-then-contract" but not enforced by automation.'
+  - 'Branch cleanup is weekly; long-running PRs may stick around for 7 days. Acceptable; urgent cleanup is a manual `git push origin --delete`.'
+
+sections:
+  - title: Branch taxonomy
+    body: |
+      | Prefix | Lifetime | Source | Merges into | Auto-deploys to |
+      |---|---|---|---|---|
+      | `main` | permanent | — | — | Production |
+      | `feat/<slug>` | days | `main` | `main` via PR | PR preview (Vercel + Fly) |
+      | `fix/<slug>` | hours–days | `main` | `main` via PR | PR preview + hotfix path |
+      | `docs/<slug>` | hours | `main` | `main` via PR | none |
+      | `chore/<slug>` | hours | `main` | `main` via PR | PR preview (may include infra) |
+      | `refactor/<slug>` | days | `main` | `main` via PR | PR preview |
+      | `plan/<slug>` | days–weeks | `main` | none (closed) | none |
+      | `design/<slug>` | days | `main` | none (closed) | none |
+      | `release/<version>` | hours | `main` | `main` (fast-forward) | Stage + Prod canary |
+      | `hotfix/<slug>` | hours | `main` | `main` + any `release/*` | Prod fast-path |
+
+  - title: Branch protection rules
+    body: |
+      **`main` is protected in GitHub**:
+
+      - Require pull request reviews: ✅ 1 approval (configurable per repo)
+      - Require status checks: ✅ `/dev-kit:maintenance`, `/dev-kit:review (3-dim)`, `foundation-ci`
+      - Require linear history: ✅ (squash merge preferred)
+      - Require up-to-date branches: ✅
+      - Include administrators: ✅
+      - Allow force push: ❌
+      - Allow deletion: ❌
+
+      **`release/*` is semi-protected**: same status checks, but force-merge (no squash) allowed for cherry-picks.
+
+  - title: PR lifecycle
+    body: |
+      ```
+      feat/<slug>
+         │
+         ├── (1) Open PR  ──────▶  Vercel PR preview + Fly preview slot
+         │                            │
+         │                            ├── /dev-kit:maintenance  (code-sanity + docs)
+         │                            ├── /dev-kit:review (3-dim)
+         │                            ├── foundation-ci         (web type/tests)
+         │                            └── agent-ci             (uv pytest)
+         │
+         ├── (2) Iterate  ──────▶  each push re-runs all checks + redeploys preview
+         │
+         ├── (3) Reviews  ──────▶  human + LLM judge verdicts both required
+         │
+         ├── (4) Squash-merge to main
+         │           │
+         │           ▼
+         │      main is updated
+         │           │
+         │           ├── Vercel auto-deploys to production
+         │           ├── Fly foundation auto-deploys (bluegreen)
+         │           └── Tag v<X.Y.Z> created by /dev-kit:ship if review verdict = Approve
+         │
+         └── (5) Branch auto-deleted by GitHub after merge
+      ```
+
+      One PR = one merged commit on main = one production deploy.
+
+  - title: Branch to environment mapping
+    body: |
+      | Branch | Vercel | Fly foundation | Fly inference (if any) | Neon branch | LangSmith project |
+      |---|---|---|---|---|---|
+      | `main` | prod domain | `ai-saas-foundation` (bluegreen) | `ai-saas-inference` | prod | `ai-saas-foundation-prod` |
+      | `release/<v>` | staging release | stage `ai-saas-foundation` | stage inference | stage branch | `ai-saas-foundation-stage` |
+      | `feat/<slug>` (PR) | preview URL | preview slot (`stage: slot+1`) | (reuses main) | preview branch (Neon branching API) | `ai-saas-foundation-pr-<n>` |
+      | `hotfix/<slug>` | direct prod deploy | prod | preview slot | prod (no branch) | `ai-saas-foundation-hotfix-<n>` |
+
+      No automatic deploys from `docs/*`, `plan/*`, `design/*`.
+
+  - title: Vercel deployment config
+    body: |
+      `vercel.json` (repo root) drives web deploys:
+
+      ```json
+      {
+        "git": {
+          "deploymentEnabled": {
+            "main": true,
+            "feat/*": true,
+            "fix/*": true,
+            "release/*": true,
+            "docs/*": false,
+            "chore/*": false,
+            "plan/*": false,
+            "design/*": false
+          }
+        },
+        "github": { "silent": false, "autoAlias": true },
+        "buildCommand": "pnpm --filter ai-saas-foundation-web build",
+        "outputDirectory": "apps/web/.next",
+        "framework": "nextjs",
+        "regions": ["icn1"]
+      }
+      ```
+
+      Behavior:
+      - Every push to `feat/*` / `fix/*` creates a preview URL.
+      - Push to `release/*` deploys to a named staging alias (`stage.<domain>`).
+      - Merge to `main` deploys to the production alias (`<domain>`).
+      - PR comment posts the preview URL.
+
+  - title: Fly.io foundation deploy
+    body: |
+      `.github/workflows/fly-deploy.yml` (NEW):
+
+      ```yaml
+      on:
+        push:
+          branches: [main]
+        workflow_dispatch:
+          inputs:
+            app:
+              description: 'Fly app name'
+              required: true
+              default: 'ai-saas-foundation-stage'
+      jobs:
+        deploy:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: superfly/flyctl-actions/setup-flyctl@master
+            - run: flyctl deploy --strategy bluegreen --wait-timeout 300
+      ```
+
+      - Merge to `main` → Fly deploys `ai-saas-foundation` (prod) via bluegreen.
+      - Manual `workflow_dispatch` → deploys to stage.
+
+  - title: PR preview slot allocation
+    body: |
+      - Each PR gets a Fly app `ai-saas-foundation-pr-<n>` (n = PR number).
+      - Created by a bot on PR open; deleted on PR close.
+      - DB: each preview app points at a Neon preview branch (Neon branching API), auto-deleted with the app.
+
+  - title: Hotfix path
+    body: |
+      ```bash
+      # 1. Cut from main
+      git fetch origin main
+      git worktree add -b hotfix/<slug> .worktrees/hotfix-<slug> origin/main
+
+      # 2. Fix + commit + open PR titled "hotfix: <one-line>"
+      #    PR auto-deploys Vercel preview + Fly preview slot for smoke
+
+      # 3. After 1 review approval + green CI, merge
+
+      # 4. Vercel auto-deploys prod on merge; Fly deploys prod via bluegreen
+
+      # 5. Post-mortem PR opens within 24h
+      ```
+
+  - title: Rollback paths
+    body: |
+      | What broke | Rollback |
+      |---|---|
+      | Vercel (web) | `vercel rollback` to previous deployment |
+      | Fly foundation | `fly releases rollback --app ai-saas-foundation` |
+      | Neon schema | `neon branches restore <previous-branch>` |
+      | LangSmith dataset | restore from git history of `benchmarks/cases/*.yaml` |
+      | Secrets | rotate via `fly secrets set` or Vercel env update |
+
+      The Fly bluegreen strategy means rollback is always to the previous release, never to "no release". Vercel keeps every deployment for 90 days; rollback is instant.
+
+  - title: AWS Phase 3 extension
+    body: |
+      This strategy extends unchanged. The branch → environment map gets a third column (AWS infra):
+
+      | Branch | Vercel | Fly foundation | AWS ECS service |
+      |---|---|---|---|
+      | `main` | prod | — | `ai-saas-foundation-prod` (terraform apply) |
+      | `release/*` | stage | — | `ai-saas-foundation-stage` |
+      | `feat/*` | preview | preview slot | preview ECS service (one task, auto-destroyed on PR close) |
+      | `hotfix/*` | prod | — | prod ECS service (same as main) |
+
+      Terraform changes ship via `feat/<slug>` PRs; `terraform plan` output is posted as a PR comment. Drift detection runs nightly (`terraform plan -detailed-exitcode` against the deployed state).
+
+  - title: Out of scope
+    body: |
+      - **LangChain / LangGraph / LangSmith integration** — deferred. When that lands, the LangSmith project column fills in from `LANGCHAIN_PROJECT` env.
+      - **Ollama / local LLM serving** — deferred per operator call.
+      - **Cost ceilings per branch** — handled by [`aws-hybrid-architecture.yaml`](./aws-hybrid-architecture.yaml) §6.
+      - **On-call rotation** — handled by `docs/runbooks/aws-prod.md` (Phase 3).
+
+      This document is the **deployment contract**. Add to it only when branch or deploy topology changes; promote it from "pending" to "applied" when a CI workflow validates it end-to-end.
+
+  - title: Hand-off
+    body: |
+      - Phase 1 of Phase 2 (this branch): `vercel.json` + `fly-deploy.yml` + this proposal land in one PR.
+      - Phase 2 of Phase 2: `branch-cleanup.yml` + `docs/runbooks/{hotfix,rollback}.md` ship when first hotfix happens.
+      - Phase 3 (AWS): the `AWS Phase 3 extension` table above becomes real when Terraform lands.
+
+      Cross-references:
+      - [`aws-hybrid-architecture.yaml`](./aws-hybrid-architecture.yaml) for the four-scenario deployment matrix
+      - [`docs/proposals/applied/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.yaml`](../../applied/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.yaml) for the product rules this strategy must preserve

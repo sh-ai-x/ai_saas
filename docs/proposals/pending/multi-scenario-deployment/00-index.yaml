@@ -1,0 +1,55 @@
+title: Multi-Scenario Deployment — umbrella
+status: ready-for-review
+date: 2026-09-22
+tags: [index, deployment, architecture, multi-cloud]
+
+sections:
+  - title: Overview
+    body: |
+      This umbrella holds the proposals that map the ai-saas-foundation
+      deployment story across platforms (local, Vercel, Fly.io, AWS) and
+      across branch types. Each sub-topic below is a self-contained
+      proposal reviewed on its own merits.
+
+  - title: Sub-topics
+    body: |
+      - [AWS Hybrid Architecture](aws-hybrid-architecture.html) — four-scenario
+        matrix (solo / side-project / prod-lite / prod-full), AWS service
+        map, cost model, phased migration, open questions.
+      - [Branch + Deployment Strategy](branch-and-deploy-strategy.html) —
+        branch taxonomy, branch-to-environment mapping, Vercel + Fly
+        auto-deploy rules, hotfix + rollback paths, AWS Phase 3 extension.
+
+  - title: How to read these together
+    body: |
+      The AWS Hybrid Architecture proposal answers "what services do we
+      use and how much does it cost". The Branch + Deployment Strategy
+      proposal answers "what branch deploys to which environment and
+      what happens on rollback".
+
+      They share the scenario matrix in spirit: scenario 1 = solo/laptop
+      (AWS Hybrid §1), no branch auto-deploys (Branch+Deploy §1). Scenario
+      4 = prod-full multi-region, only `main` and `release/*` deploy
+      automatically (Branch+Deploy §1, §4).
+
+  - title: Lifecycle
+    body: |
+      Both sub-topics are `ready-for-review`. Move to `pending/` once
+      reviewed; promote to `applied/` once the Vercel + Fly auto-deploy
+      config in `vercel.json` + `.github/workflows/fly-deploy.yml` lands
+      and a CI workflow validates the matrix end-to-end.
+
+  - title: Hand-off
+    body: |
+      - Phase 2 implementation: `vercel.json` + `fly-deploy.yml` + this
+        proposal land in one PR.
+      - Phase 3 (AWS): the matrices merge when Terraform lands.
+      - Phase 4 (multi-region): the AWS Phase 3 extension tables in
+        [Branch + Deployment Strategy](branch-and-deploy-strategy.html)
+        §AWS Phase 3 become real.
+
+  - title: Related (outside this umbrella)
+    body: |
+      - [`idea-proposal-to-verified-change-agent.yaml`](../../applied/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.yaml) — the product rules (R1–R14) this umbrella must preserve.
+      - `docs/proposals/applied/proposal-to-verified-change-agent/deployment-spec.md` — companion deployment doc.
+      - `rules/proposal-to-verified-change-agent.md` — binding rules baked into the rules directory.
