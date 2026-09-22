@@ -138,13 +138,15 @@ limitations:
 sections:
   - title: Scenario matrix
     body: |
-      Four scenarios, each with an explicit platform choice and budget.
+      Four scenarios. **Scope column** tells you whether each scenario is
+      in scope for this proposal (and therefore ships in this PR / its
+      follow-ups) or deferred to a separate cost-justified proposal:
 
-      | Scenario | Web | Foundation | DB | LLM | Sandbox | $/mo (low) | $/mo (typical) |
-      |---|---|---|---|---|---|---:|---:|
-      | 1. Solo / laptop | localhost:3100 | localhost:8180 | local Postgres | Ollama (CPU/GPU) | DeterministicSandbox | $0 | $0 |
-      | 2. Side project (Vercel + Fly) | Vercel | Fly.io (Docker, auto-stop) | **Neon free** | Groq / Together free tier | Fly.io sandbox worker (1× shared-cpu-1x) | $0 | $0–7 |
-      | 3. **Portfolio demo (cost-minimal, ≤ $5/mo)** | **Vercel Hobby** | **Fly.io auto-stop** | **Neon free** | **Workers AI free + Bedrock fallback** | **DeterministicSandbox in Fly.io** | **$0** | **$0–5** |
+      | Scenario | Scope | Web | Foundation | DB | LLM | Sandbox | $/mo (low) | $/mo (typical) |
+      |---|---|---|---|---|---|---|---:|---:|
+      | 1. Solo / laptop | **in scope** | localhost:3100 | localhost:8180 | local Postgres | Ollama (CPU/GPU) | DeterministicSandbox | $0 | $0 |
+      | 2. Side project (Vercel + Fly) | **in scope** | Vercel | Fly.io (Docker, auto-stop) | **Neon free** | Groq / Together free tier | Fly.io sandbox worker (1× shared-cpu-1x) | $0 | $0–7 |
+      | 3. **Portfolio demo (cost-minimal, ≤ $5/mo)** | **in scope — baseline** | **Vercel Hobby** | **Fly.io auto-stop** | **Neon free** | **Workers AI free + Bedrock fallback** | **DeterministicSandbox in Fly.io** | **$0** | **$0–5** |
       | 4. Production full (AWS multi-region, deferred) | CloudFront→Vercel | ECS Fargate (2×) | Aurora Serverless v2 | Bedrock only | ECS Fargate sandbox | $400 | $1,200 |
 
       The agent's contract does not change across scenarios. Only env vars

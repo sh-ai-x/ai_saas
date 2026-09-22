@@ -25,6 +25,10 @@ jobs:
           ! rg -n -i 'BEGIN (RSA|OPENSSH|PRIVATE)|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|card=[0-9]{6,}|Bearer [A-Za-z0-9._~-]+' foundation services evaluators infra scripts tests config docker README.md
       - name: Build the local runtime image
         run: docker build --file docker/dev/Dockerfile --tag ai-saas-foundation:ci .
+      - name: Validate stage compose override merges cleanly
+        # docker:stage is prod compose + stage override. Surface merge-time
+        # errors at PR time, not at operator runtime.
+        run: docker compose --env-file /dev/null -f docker/prod/compose.yaml -f docker/stage/compose.yaml config -q
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.0

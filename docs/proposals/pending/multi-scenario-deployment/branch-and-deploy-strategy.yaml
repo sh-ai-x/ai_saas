@@ -27,27 +27,40 @@ after:
     requires no rule changes. The worktree-guard hook remains as the
     hard block; this proposal is the soft guidance that complements it.
   files:
+    # All entries below are `status: planned` (declared-not-shipped).
+    # They land in follow-up PRs, not this proposal. Reviewers reading
+    # `after.files` should not infer these ship in this PR.
     - path: vercel.json
+      status: planned
       change: |
         Add `git.deploymentEnabled` per-branch map; auto-deploy for main /
         feat/* / fix/* / release*; skip docs / plan / design / chore that
         only touch docs or non-app paths.
     - path: .github/workflows/fly-deploy.yml
+      status: planned
       change: |
         New workflow: `flyctl deploy --strategy bluegreen` on push to main,
         plus workflow_dispatch for manual stage deploys.
     - path: .github/workflows/branch-cleanup.yml
+      status: planned
       change: |
         Weekly janitor: delete remote branches whose PR is merged or
         closed, prune local refs, post a summary comment.
     - path: docs/runbooks/hotfix.md
+      status: planned
       change: |
         Operator runbook: hotfix branch off main, fast-track review,
         Vercel auto + Fly bluegreen + post-mortem PR template.
     - path: docs/runbooks/rollback.md
+      status: planned
       change: |
         Per-surface rollback recipes (Vercel / Fly / Neon / LangSmith
         datasets / secrets) with copy-pasteable commands.
+    - path: .github/workflows/ci.yml
+      change: |
+        Add a "Validate stage compose override merges cleanly" step that
+        runs `docker compose -f docker/prod/compose.yaml -f docker/stage/compose.yaml --env-file /dev/null config -q`.
+        Ships in this PR.
 
 pros:
   - 'Branch class is a single tag (`feat/`, `fix/`, `release/`, `hotfix/`) — no one has to guess what a branch is for.'

@@ -104,17 +104,26 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       FAQ_OPENAI_ENABLED: ${FAQ_OPENAI_ENABLED:-false}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # OpenAI vars are only set when FAQ_OPENAI_ENABLED=true; the
+      # web app reads env at request time, so a missing KEY with
+      # FAQ_OPENAI_ENABLED=false is a no-op (deterministic fixture
+      # path). This avoids shipping empty secrets into the web
+      # container by default.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-__unset__}
       OPENAI_API_URL: ${OPENAI_API_URL:-https://api.openai.com/v1/responses}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-5000}
       PAYMENT_PROVIDER: ${WEB_PAYMENT_PROVIDER:-mock}
       PAYMENT_SANDBOX: ${PAYMENT_SANDBOX:-true}
-      TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
-      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      # TOSS_* keys are loaded by `docker compose up --profile toss` only.
+      # Default stage profile stays on PAYMENT_PROVIDER=mock + MOCK_PAYMENTS_ENABLED=true
+      # (set in foundation env above). To run with real Toss: pass
+      # `--profile toss` and export TOSS_CLIENT_KEY / TOSS_SECRET_KEY / etc.
+      TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-__unset__}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-__unset__}
       TOSS_SDK_SANDBOX_RESULT: ${TOSS_SDK_SANDBOX_RESULT:-SUCCESS}
       TOSS_API_BASE_URL: ${TOSS_API_BASE_URL:-https://api.tosspayments.com}
-      TOSS_WEBHOOK_SECRET: ${TOSS_WEBHOOK_SECRET:-}
+      TOSS_WEBHOOK_SECRET: ${TOSS_WEBHOOK_SECRET:-__unset__}
       TOSS_SUCCESS_URL: ${TOSS_SUCCESS_URL:-http://localhost:${WEB_PORT}/payments/toss/success}
       TOSS_BILLING_SUCCESS_URL: ${TOSS_BILLING_SUCCESS_URL:-http://localhost:${WEB_PORT}/payments/toss/billing-success}
       TOSS_FAIL_URL: ${TOSS_FAIL_URL:-http://localhost:${WEB_PORT}/payments/toss/fail}
