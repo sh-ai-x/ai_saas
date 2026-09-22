@@ -155,7 +155,7 @@ describe('FAQ repository and bounded wire validation', () => {
     }
   });
   it('keeps migration seed equal to local seed', () => {
-    const sql = readFileSync(resolve(__dirname, '../drizzle/0004_faq_english.sql'), 'utf8');
+    const sql = readFileSync(resolve(__dirname, '../drizzle/0005_faq_english.sql'), 'utf8');
     expect(sql).toContain('UPDATE "faq_entries"');
     for (const row of seedFaqs) for (const value of [row.id, row.category, row.question, ...row.aliases, row.answer]) expect(sql).toContain(value);
   });
