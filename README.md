@@ -207,6 +207,76 @@ Never commit either `.env.local` file, Neon credentials, Google secrets, or the
 Better Auth secret. The full category-based guides are also rendered at
 `/guides`.
 
+### Drizzle database workflow
+
+Drizzle is the schema and migration source of truth for the web database:
+
+- schema: `apps/web/db/schema/`
+- migration output: `apps/web/drizzle/`
+- configuration: `apps/web/drizzle.config.ts`
+- migration history: `neondb.drizzle.__drizzle_migrations`
+
+After changing a schema file, generate and review a migration before applying
+it:
+
+```bash
+pnpm web:db:generate
+git diff -- apps/web/drizzle
+```
+
+Apply the committed migration to the intended environment with the unpooled
+connection string. Drizzle prefers `DATABASE_URL_UNPOOLED` and falls back to
+`DATABASE_URL` for local PostgreSQL; it never selects a Neon branch implicitly:
+
+```bash
+# local Docker: web-migrate runs this automatically during docker:local
+pnpm docker:local
+
+# an explicitly selected Neon preview or staging branch
+DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
+```
+
+For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
+then load its ignored connection variables before running the migration. Never
+use the production connection string from a developer worktree. The normal
+cloud sequence is: create branch from `staging` → run Drizzle migration → run
+verification checks → delete the preview branch when the worktree or PR is
+retired.
+
+`pnpm docker:local` intentionally forces the web migration and application to
+the worktree-local PostgreSQL database, even if `.env` contains a Neon URL.
+For an explicit remote-preview diagnostic only, opt in for that invocation:
+
+```bash
+ALLOW_REMOTE_DATABASE=true \
+WEB_DATABASE_URL="$DATABASE_URL" \
+WEB_DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" \
+pnpm docker:local
+```
+
+Review the target branch and migration output before using this escape hatch;
+the web process uses the pooled `WEB_DATABASE_URL`, while the Docker
+`web-migrate` service uses the direct `WEB_DATABASE_URL_UNPOOLED`.
+
+### Docker runtime with Neon
+
+Use the Neon Compose profile when the web console must run against a Neon
+preview or staging branch. It does not start a local PostgreSQL container:
+
+```bash
+cp .env.neon.example .env.neon
+# Fill DATABASE_URL with the pooled URL and DATABASE_URL_UNPOOLED with the
+# direct URL from the selected Neon branch, then add the runtime secrets.
+pnpm docker:neon
+```
+
+`docker:neon` derives an isolated `3200`/`8280` host-port block per worktree.
+The web container receives the pooled `DATABASE_URL`; the one-shot
+`web-migrate` container receives only `DATABASE_URL_UNPOOLED`. Stop that
+worktree with `pnpm docker:neon:down`. Create/select the Neon branch with Neon
+MCP or the Neon CLI before copying its URLs; the Docker command never creates,
+deletes, or promotes a Neon branch.
+
 ## Docker path
 
 Docker Compose starts the local PostgreSQL companion and the same HTTP surface.
@@ -225,24 +295,33 @@ longer needed.
 ## Full Docker web deployment
 
 The complete local stack is also containerized: PostgreSQL, the Foundation API,
-a one-shot Drizzle migration job, and the Next.js web console. The web image
-uses Next.js standalone output and calls the API through the internal
-`foundation:8080` service name.
+a one-shot Drizzle migration job, and the Next.js web console. The local web
+override uses Next.js development mode to avoid the expensive standalone trace
+build on an 8 GB laptop; release-shaped images still use standalone output.
+The browser calls the API through the internal `foundation:8080` service name.
+Each Git worktree receives a separate Compose project, host-port block, and
+PostgreSQL volume. See [ADR-0002](docs/adr/0002-worktree-port-and-database-isolation.md)
+for the local/preview/staging/production database boundary.
 
 ```bash
 cp .env.docker.example .env
 pnpm docker:local
 ```
 
-Open `http://localhost:3000` for the web console and
-`http://localhost:8080/healthz` for the API health check. The default profile
-uses mock payments, while the browser has no local/mock login fallback. Local
-Compose PostgreSQL uses trust authentication and does not require
-`POSTGRES_PASSWORD`. For live Google login, fill `BETTER_AUTH_SECRET`,
-`GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the ignored root `.env`; use
-the local default `WEB_DATABASE_URL` or set it to the intended Neon connection
-string. The Google callback for this local container remains:
-`http://localhost:3000/api/auth/callback/google`.
+The first available slot uses `http://localhost:3100` for the web console and
+`http://localhost:8180/healthz` for the API health check. Other worktrees get
+the next free block (`+10` per slot), and the Compose output prints the exact
+published ports. The Docker-only host ports are intentionally separate from
+the process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
+container URLs remain `web:3000`, `foundation:8080`, and `postgres:5432`.
+The default profile uses mock payments, while the browser has no local/mock
+login fallback. Local Compose PostgreSQL uses trust authentication and does
+not require `POSTGRES_PASSWORD`. For live Google login, fill
+`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in the
+ignored root `.env`; `docker:local` forces `WEB_DATABASE_URL` to the local
+Compose PostgreSQL unless `ALLOW_REMOTE_DATABASE=true` is explicitly set.
+Register the actual published web port shown by Compose for the Google
+callback.
 
 `pnpm docker:local` always reads the root `.env`, rebuilds the images, and
 force-recreates the containers. This is important after changing Google OAuth
@@ -256,8 +335,8 @@ for a single-host portfolio or staging deployment. For multiple web replicas,
 run migrations as a separate release job rather than once per replica.
 
 ```bash
-docker compose -f docker/prod/compose.yaml down
-docker compose -f docker/prod/compose.yaml down -v  # also removes local data
+pnpm docker:local down
+pnpm docker:local down --volumes  # also removes this worktree's local data
 ```
 
 The production Compose file is a packaging baseline, not a managed high

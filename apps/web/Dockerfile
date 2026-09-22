@@ -16,8 +16,20 @@ RUN pnpm install --frozen-lockfile --filter ai-saas-foundation-web...
 
 FROM deps AS builder
 
+ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
+ENV NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+
 COPY apps/web/ ./apps/web/
 RUN pnpm --filter ai-saas-foundation-web build
+
+# Local Docker uses Next dev mode so an 8 GB developer machine does not need
+# to spend several minutes producing standalone tracing output on every
+# rebuild. The production runner above remains unchanged for release-shaped
+# images.
+FROM deps AS development
+
+COPY apps/web/ ./apps/web/
+ENV NODE_ENV=development
 
 # This target is used by docker/prod/compose.yaml as a one-shot migration job.
 # It intentionally retains drizzle-kit and the TypeScript source files.

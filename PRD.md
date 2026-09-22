@@ -121,3 +121,55 @@ Each requirement is verified in `phases/proposal-to-verified-change/step0.md` by
 ## 6. Handoff to build
 
 The proposal is approved and the implementation plan is ready for `/dev-kit:build` in the isolated branch `plan/proposal-to-verified-change-agent`. The applied design record is [the accepted proposal](docs/proposals/applied/proposal-to-verified-change-agent/idea-proposal-to-verified-change-agent.html). Build must preserve the kernel/Project Pack boundary, keep all model/provider calls bounded, and produce real step output evidence. After build, run review/security gates before any merge or private-repository push.
+
+---
+
+# OpenAI-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
+
+## 1. Frame
+
+- **Goal:** Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses one bounded OpenAI Structured Output call only when fixed matching misses.
+- **Target user:** A product user trying to resolve a common setup, workspace, or support question without opening a support request.
+- **Situation:** The application has a Drizzle FAQ table and seed data but no API, AI routing path, or visible FAQ surface.
+
+## 2. Decision
+
+Use the existing `FaqProvider` port with a direct OpenAI Responses API adapter using `gpt-4o-mini` and strict JSON Schema output. LangChain/LangGraph are intentionally not added: they are orchestration libraries, not model access, and this fixed FAQ flow has no graph, tool, memory, or RAG requirement. Direct HTTP keeps the dependency and latency budget smaller.
+
+The model returns only `faqId`, `category`, `answerable`, and `confidence`. Application code validates those fields and returns answer prose owned by the Drizzle catalog. Exact/alias matches remain zero-cost and never call OpenAI.
+
+### Independent evidence
+
+1. OpenAI lists GPT-4o mini as a fast, affordable small model with Structured Outputs support, Responses API support, and $0.15/$0.60 per million input/output tokens. [src:https://developers.openai.com/api/docs/models/gpt-4o-mini;ts:2026-09-20;type:primary]
+2. OpenAI Structured Outputs with `text.format` and `strict: true` is designed to make the response conform to the supplied JSON Schema. [src:https://developers.openai.com/ko-KR/api/docs/guides/structured-outputs;ts:2026-09-20;type:primary]
+3. The Responses API supports `store: false`, bounded `max_output_tokens`, and no tools for this stateless classification request. [src:https://developers.openai.com/api/reference/cli/resources/responses/methods/create;ts:2026-09-20;type:primary]
+
+## 3. Cost, latency, accuracy, and safety policy
+
+- Exact/alias match: zero provider calls.
+- AI miss path: one call, at most five public FAQ candidates, no conversation history or account context.
+- Output: strict schema, known FAQ ID allowlist, category check, confidence `>= .85`, answerable gate, catalog-only answer text.
+- Budget: `gpt-4o-mini`, `max_output_tokens=80`, 1.5-second provider deadline, no retries, one in-flight request, 30-second circuit cooldown, and 60 API requests/minute per process.
+- Privacy: normalized/redacted question, server-only `OPENAI_API_KEY`, `store:false`, no tools, no persistence, no tenant/account/payment data.
+- Failure: disabled/missing key, timeout, malformed output, rate limit, provider error, low confidence, or unknown ID returns deterministic clarification/handoff.
+
+## 4. Non-goals
+
+1. Open-ended generated answers, RAG, embeddings, memory, attachments, or arbitrary tools.
+2. Account, billing, payment, password, or ticket mutations.
+3. Browser-to-provider calls or client-side provider credentials.
+4. Live provider calls in local/CI; tests use mocked HTTP and the default remains provider-free.
+
+## 5. Acceptance criteria
+
+- **REQ-1:** Drizzle owns `faq_entries`; migration/seed data and repository tests are committed.
+- **REQ-2:** Exact/alias matches make zero provider calls; misses make at most one bounded OpenAI call and never return provider-generated prose.
+- **REQ-3:** `GET /api/faq` and `POST /api/faq` expose versioned validated contracts with deterministic `answer`, `clarify`, and `handoff` outcomes.
+- **REQ-4:** The root layout renders a right-bottom widget with presets, free text, loading/error states, catalog-only answers, and a support CTA.
+- **REQ-5:** Focused tests, typecheck, full web test/build, browser smoke, and diff checks pass without live credentials or production writes.
+
+## 6. Operational gate
+
+Enable only in staging first with `FAQ_OPENAI_ENABLED=true`, a server-injected `OPENAI_API_KEY`, and a measured synthetic FAQ set. Record p50/p95/p99 latency, provider-call rate, confidence calibration, correct-routing rate, false-answer rate, fallback rate, and monthly spend before production promotion. The model price and provider limits are reference data, not this product's SLO.
+
+Phase directory remains `phases/jev-cs-faq-bot/` for continuity with the already-created plan artifacts; its implementation/provider naming is OpenAI-based.

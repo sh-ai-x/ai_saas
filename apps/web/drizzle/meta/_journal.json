@@ -22,6 +22,27 @@
       "when": 1789784587150,
       "tag": "0002_fluffy_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789788000000,
+      "tag": "0003_toss_catalog_krw",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789895455546,
+      "tag": "0004_faq_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789967381000,
+      "tag": "0005_faq_english",
+      "breakpoints": true
     }
   ]
 }

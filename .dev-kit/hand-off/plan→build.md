@@ -18,7 +18,7 @@
 
 ### Build order
 
-1. Step 0: `toss-subscription-sandbox-e2e` — red-first contracts and end-to-end implementation for browser handoff, server billing-key exchange, first recurring sandbox charge, admin enablement, configuration, and setup guide.
+1. `step0`: implement the complete vertical slice: schema/catalog, repository, matcher, OpenAI provider port/adapter, policy, API, widget, tests, and verification.
 
 ### Required verification
 
@@ -35,6 +35,36 @@ Do not add live keys, real card data, or live payment calls. Production recurrin
 ### Next hand-off
 
 On success, continue to `/dev-kit:review` and `/dev-kit:security`; inspect the per-step two-commit protocol and verification evidence before any release action.
+
+---
+
+## jev-cs-faq-bot
+
+- Phase: `jev-cs-faq-bot`
+- Branch/worktree: `feat/faq-ai-provider`
+- Proposal: `docs/proposals/reviewing/faq-support/jev-cs-faq-bot.html`
+- Goal: expose the Drizzle FAQ catalog through a bottom-right support widget and use OpenAI Structured Outputs only for bounded routing on deterministic misses.
+
+### Build order
+
+1. `step0`: implement the complete vertical slice: schema/catalog, repository, matcher, OpenAI provider port/adapter, policy, API, widget, tests, and verification.
+
+### Required evidence
+
+- Exact/alias matches must make zero provider calls.
+- OpenAI receives only normalized/redacted user text and bounded questions; it never supplies answer prose or arbitrary URLs.
+- No provider credentials in client code, database, fixtures, or logs.
+- Local/CI remain provider-free and deterministic. A live OpenAI key is a separate staging enablement gate.
+- Do not modify auth, billing, account state, payment state, or production data.
+
+### Safety boundary
+
+- Exact/alias match: zero provider calls.
+- AI miss path: one call, at most five public FAQ candidates, no conversation history or account context.
+
+### Next hand-off
+
+After build completes, run `/dev-kit:review`, `/dev-kit:security`, and `/dev-kit:ship`. Do not create or push a private remote until the review/security gates and human merge boundary are complete.
 
 ---
 

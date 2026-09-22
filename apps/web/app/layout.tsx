@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { FaqWidget } from "@/components/faq-widget";
 
 export const metadata: Metadata = {
   title: "AI SaaS Foundation Console",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>{children}<FaqWidget /></body>
     </html>
   );
 }

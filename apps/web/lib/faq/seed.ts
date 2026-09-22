@@ -1,0 +1,9 @@
+import { catalogSchema } from './contracts';
+export const seedFaqs = catalogSchema.parse([
+  { id: 'faq-getting-started', category: 'general', question: 'What is AI SaaS Foundation?', aliases: ['service overview', 'what can I do here?'], answer: 'AI SaaS Foundation is a foundation service for authentication, project runs, billing, and administration in one web console.' },
+  { id: 'faq-google-login', category: 'authentication', question: 'How do I sign in with Google?', aliases: ['Google login', 'how to log in', 'sign up'], answer: 'Select Continue with Google on the login screen. If Google OAuth is not configured, the login screen shows setup guidance.' },
+  { id: 'faq-local-development', category: 'development', question: 'How do I run the project locally?', aliases: ['local setup', 'development environment', 'getting started'], answer: 'From the repository root, run pnpm install. Use pnpm docker:local for Docker or pnpm --filter ai-saas-foundation-web dev to run only the web console.' },
+  { id: 'faq-agent-run', category: 'runs', question: 'How do I start an agent run?', aliases: ['start a run', 'run an agent', 'run usage'], answer: 'Start a run from the project screen in the web console. Review its status and events on the run details screen.' },
+  { id: 'faq-pricing-billing', category: 'billing', question: 'Where can I check pricing and billing options?', aliases: ['pricing', 'billing', 'plans', 'subscription'], answer: 'Check the public Pricing screen for active plans and billing options. Administrators can manage the catalog and billing mode in Admin Pricing.' },
+  { id: 'faq-support', category: 'support', question: 'What if the FAQ does not answer my question?', aliases: ['contact support', 'support request', 'not resolved', 'talk to a person'], answer: 'Try asking a more specific question. If you still need help, use the support guide to contact the team.' },
+]);

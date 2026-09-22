@@ -303,3 +303,8 @@ footer { justify-content: space-between; margin-top: 38px; padding-top: 18px; bo
   .admin-header { align-items: flex-start; flex-direction: column; }
   .option-row { grid-template-columns: 1fr 1fr; }
 }
+
+.faq-widget { position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 10px; }
+.faq-panel { display: grid; gap: 16px; width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 110px); overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--surface); box-shadow: 0 12px 40px #0008; font-size: 13px; line-height: 1.6; }
+.faq-panel a { color: var(--accent); }
+.faq-panel [role="alert"] { color: var(--danger); }

@@ -25,6 +25,7 @@ export PAYMENT_SANDBOX=true
 export PAYMENT_PROVIDER=toss
 export MOCK_PAYMENTS_ENABLED=false
 export WEB_PAYMENT_PROVIDER=toss
+export TOSS_SDK_SANDBOX_RESULT=SUCCESS
 ```
 
 ## 2. Connect the official Toss Integration Guide MCP
@@ -52,6 +53,37 @@ The Foundation container requires a generated secret, which fixes the common
 `APP_SECRET_KEY must be a generated value with at least 32 characters` startup
 error:
 
+## 4. Run the temporary isolated-port sandbox
+
+The temporary Compose override keeps this Toss sandbox separate from the
+default stack. The browser uses `3001`, Foundation listens on `8081`, and
+Postgres listens on `5433` inside the Compose network (`55433` on the host).
+The web container therefore calls `http://foundation:8081`, and every service
+uses the Postgres URL with port `5433`.
+
+```bash
+export APP_SECRET_KEY="$(openssl rand -hex 32)"
+export TOSS_CLIENT_KEY="test_ck_your_client_key"
+export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"
+export PAYMENT_PROVIDER=toss
+export PAYMENT_SANDBOX=true
+export MOCK_PAYMENTS_ENABLED=false
+
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml up --build
+```
+
+Open `http://localhost:3001`. Stop only this isolated stack with:
+
+```bash
+docker compose -p ai-saas-toss-sandbox \
+  -f docker/prod/compose.yaml \
+  -f docker/prod/compose.toss-sandbox.yaml down
+```
+
+Do not use `-v` unless the disposable sandbox database should be removed.
+
 ```bash
 cp .env.docker.example .env
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
@@ -74,21 +106,24 @@ runtime and credentials.
 Open [http://localhost:3000/guides?guide=payment-toss](http://localhost:3000/guides?guide=payment-toss).
 The Foundation health endpoint is [http://localhost:8080/healthz](http://localhost:8080/healthz).
 
-## 4. Enable Toss and configure a KRW option
+## 5. Enable Toss on the existing Starter/Pro catalog
 
 1. Sign in with the configured Google test account and open
    `/admin/payments`.
 2. Keep the billing mode on **Subscription**, then enable **Toss**. The API
    requires both matching test keys and disables the other active provider.
-3. Open `/admin/pricing`, edit the subscription option, select provider
-   **Toss**, and use currency **KRW**. Selecting Toss in the editor sets KRW;
-   enter the amount in won, for example `29000` means ₩29,000. Save an audit
-   reason.
+3. The migration converts the existing Starter and Pro option IDs to KRW while
+   preserving their amounts and IDs. Do not create a second Toss plan or a
+   separate Toss mock option.
+4. Open `/billing` and choose the existing Starter or Pro subscription. When
+   Toss is active, the same option is projected as a Toss option and opens
+   `requestBillingAuth()`.
 
-Toss general card payments support KRW. Existing USD mock options are not
- silently converted by the server; an invalid Toss currency fails closed.
+Toss general card payments support KRW. The migration is idempotent and updates
+existing USD rows only; a missing migration must be fixed before checkout rather
+than converted in the browser.
 
-## 5. Subscription sandbox flow
+## 6. Subscription sandbox flow
 
 From `/billing`, select the active Toss subscription:
 
@@ -108,12 +143,20 @@ server compares customer, order, amount, KRW currency, status, and provider
 against its pending order before settlement. If Toss asks for a test
 authentication code, enter `000000`.
 
+For one-time payments, when `PAYMENT_SANDBOX=true` and the client key starts
+with `test_`, the web checkout sends the V2 SDK sandbox simulation parameter:
+`sandbox: { paymentResult: "SUCCESS" }`. This completes payment authentication
+without requiring a card. Set `TOSS_SDK_SANDBOX_RESULT=FAIL` to exercise the
+failure redirect instead. Toss's current V2 `requestBillingAuth()` path does
+not forward this parameter, so subscription tests still use the real Toss test
+card/auth flow; do not pretend that a billing key was issued locally.
+
 For one-time mode, switch Admin billing policy to One-time, configure a KRW
 Toss option, and the browser calls `requestPayment()`. The success route then
 calls `/v1/payments/confirm` server-side and applies the same amount/order and
 idempotency checks.
 
-## 6. Scope and troubleshooting
+## 7. Scope and troubleshooting
 
 - Live Toss mode is not enabled in local/test profiles. Automatic billing may
   require a Toss risk review/contract before production use.
@@ -127,7 +170,8 @@ idempotency checks.
   credentials.
 - Missing-key admin error: both `TOSS_CLIENT_KEY` and `TOSS_SECRET_KEY` must be
   present in the web runtime and start with `test_` while sandbox is enabled.
-- Currency error: edit the active option to Toss/KRW in `/admin/pricing`.
+- Currency error: run the web migration and verify `option-pro-monthly` or
+  `option-pro-yearly` is KRW; do not create a duplicate Toss option.
 - `toss mcp unknown`: use the exact server/package names above and restart the
   MCP client; MCP documentation access is separate from Toss key issuance.
 

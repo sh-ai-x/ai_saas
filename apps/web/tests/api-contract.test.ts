@@ -42,13 +42,13 @@ describe("pricing and admin API contracts", () => {
     delete process.env.ADMIN_API_TOKEN;
   });
 
-  it("returns the subscription catalog with annual Pro at 290 USD", async () => {
+  it("returns the subscription catalog with the existing annual Pro option in KRW", async () => {
     const response = await getPublicPricing();
     expect(response.status).toBe(200);
     const body = await bodyOf(response);
     expect(body.billing.billingMode).toBe("subscription");
     const options = body.plans.flatMap((plan: any) => plan.options);
-    expect(options.some((option: any) => option.interval === "year" && option.amountMinor === 29000)).toBe(true);
+    expect(options.some((option: any) => option.interval === "year" && option.amountMinor === 29000 && option.currency === "KRW")).toBe(true);
     expect(options.some((option: any) => option.amountMinor === 7900)).toBe(false);
   });
 
