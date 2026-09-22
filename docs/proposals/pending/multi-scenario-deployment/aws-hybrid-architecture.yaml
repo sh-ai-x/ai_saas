@@ -1,7 +1,7 @@
 title: Multi-Scenario Deployment Architecture with AWS Integration
 status: ready-for-review
 date: 2026-09-22
-tags: [aws, cloudflare, fly-io, vercel, langchain, langgraph, langsmith, jev, cost-minimal, portfolio, ai-engineer]
+tags: [aws, cloudflare, fly-io, vercel, langchain, langgraph, langsmith, jev, free-tier, under-5-usd-mo, ai-engineer]
 
 before:
   summary: |
@@ -24,18 +24,20 @@ before:
 
 after:
   summary: |
-    A **cost-minimal** deployment matrix scoped to what a single AI engineer
-    can actually run and demo. The candidate baseline is **Cloudflare
-    + Fly.io + Neon + Bedrock** for the deploy surface, **LangChain /
-    LangGraph / LangSmith** for the AI engineering stack, and the
-    existing **JEV (bottom-right FAQ bot, PR #31)** as the visible product
-    surface. Cloudflare Workers + Containers + R2 + D1 covers the edge
-    layer with a generous free tier; Fly.io hosts the long-running Python
-    foundation; Neon holds the run/approval/usage ledger; Bedrock provides
-    managed LLM access without GPU management. **AWS heavy services
-    (ECS Fargate, Aurora Serverless v2, CloudFront, multi-region, SageMaker)
-    are deferred to a separate cost-justified proposal** — they ship only
-    when traffic or compliance demands them, not on day one.
+    A **$5/mo or less** deployment matrix built on free tiers + pay-per-token
+    only, scoped to what a single AI engineer can actually run and demo. The
+    baseline is **Cloudflare (Workers + R2 + D1 + KV + Workers AI) + Fly.io
+    auto-stop + Vercel Hobby + Neon DB free tier + LangSmith free** for the
+    deploy surface, **LangChain / LangGraph / LangSmith** for the AI
+    engineering stack, and the existing **JEV (bottom-right FAQ bot, PR #31)**
+    as the visible product surface. **Neon DB** holds the run/approval/usage
+    ledger with serverless Postgres + branching API for PR previews (no
+    data re-seed per preview). Workers AI free tier (10K neurons/day) is the
+    primary LLM path; Bedrock is pay-per-token fallback (≤ $1/mo cap) when
+    the quality gate fails. AWS heavy services (RDS, ECS Fargate,
+    CloudFront, multi-region, SageMaker) are deferred to a separate
+    cost-justified proposal — they ship only when traffic or compliance
+    demands them.
   files:
     - path: infra/aws/terraform/main.tf
       change: |
@@ -141,8 +143,8 @@ sections:
       | Scenario | Web | Foundation | DB | LLM | Sandbox | $/mo (low) | $/mo (typical) |
       |---|---|---|---|---|---|---:|---:|
       | 1. Solo / laptop | localhost:3100 | localhost:8180 | local Postgres | Ollama (CPU/GPU) | DeterministicSandbox | $0 | $0 |
-      | 2. Side project (Vercel + Fly) | Vercel | Fly.io (Docker) | Neon free | Groq / Together free tier | Fly.io sandbox worker (1× shared-cpu-1x) | $0 | $7 |
-      | 3. Production lite (Vercel + Fly + AWS managed) | Vercel Pro | Fly.io (Docker, scale-to-2) | Neon launch | Bedrock (Claude Haiku) | Fly.io sandbox worker | $50 | $200 |
+      | 2. Side project (Vercel + Fly) | Vercel | Fly.io (Docker, auto-stop) | **Neon free** | Groq / Together free tier | Fly.io sandbox worker (1× shared-cpu-1x) | $0 | $0–7 |
+      | 3. **Portfolio demo (cost-minimal, ≤ $5/mo)** | **Vercel Hobby** | **Fly.io auto-stop** | **Neon free** | **Workers AI free + Bedrock fallback** | **DeterministicSandbox in Fly.io** | **$0** | **$0–5** |
       | 4. Production full (AWS multi-region, deferred) | CloudFront→Vercel | ECS Fargate (2×) | Aurora Serverless v2 | Bedrock only | ECS Fargate sandbox | $400 | $1,200 |
 
       The agent's contract does not change across scenarios. Only env vars
@@ -233,38 +235,121 @@ sections:
         (existing `auth.py` checks `x-tenant-id`). No shared DB row crosses
         tenants.
 
-  - title: Cost model (Terraform plan output drives review)
+  - title: Cost model — $5/mo or less target
     body: |
-      The CI step `terraform plan -out=tfplan` produces a dollar figure for
-      every resource. The PR comment includes the diff vs the previous
-      plan output. The cost review is part of the maintenance gate.
+      **Hard target**: total monthly spend ≤ $5 USD for a single AI engineer
+      running the portfolio demo. This is the ceiling; actual spend on a
+      quiet demo is ~$0/mo (everything fits in free tiers). The only
+      pay-per-token line is Workers AI (often free) and a small Bedrock
+      allowance for quality-gate failures.
 
-      | Resource | Scenario 3 ($/mo) | Scenario 4 ($/mo, deferred) |
-      |---|---:|---:|
-      | Fly.io foundation (1× shared-cpu-1x, always-on) | $5 | n/a |
-      | Fly.io sandbox worker (1× shared-cpu-1x) | $5 | n/a |
-      | Neon Postgres (Launch / Scale plan) | $0–19 | $0–19 |
-      | Vercel (Hobby / Pro) | $0 | $20 |
-      | Bedrock (1M input + 0.5M output tokens / mo) | $5–15 | $30–80 |
-      | S3 (artifacts, 10 GB, Glacier after 90 d) | $1 | $3 |
-      | CloudWatch logs + metrics | $2 | $5 |
-      | Secrets Manager (5 secrets) | $1 | $2 |
-      | ECS Fargate foundation (2 tasks) | n/a | $70 |
-      | ECS Fargate sandbox (1 task) | n/a | $50 |
-      | Aurora Serverless v2 (avg 1.5 ACU) | n/a | $180 |
-      | ALB + WAF | n/a | $30 |
-      | Route 53 + ACM | n/a | $5 |
-      | CloudFront (1 TB egress) | n/a | $85 |
-      | **Total (cost-minimal baseline)** | **~$5–25** | **~$540–580** |
+      The CI step `terraform plan -out=tfplan` produces a dollar figure
+      for every resource. The PR comment includes the diff vs the previous
+      plan output. Cost drift > $1/mo blocks merge.
 
-      **Portfolio target**: scenario 3 runs end-to-end on $5–25/mo for a
-      single AI engineer. Scenario 4 (multi-region AWS) is documented but
-      not built until traffic or compliance justifies the spend.
+      **Portfolio baseline (scenario "demo", $0–5/mo):**
 
-      The benchmark harness records `tokens_per_run`. Cost ceiling per
-      plan_only run: $0.20 (Haiku) / $0.05 (Groq 70B). Cost ceiling per
-      verify run: $0.40 (Haiku) / $0.10 (Groq 70B). Quarterly review
-      re-runs the benchmark and adjusts.
+      | Resource | Tier | $/mo (low) | $/mo (typical) | Cap |
+      |---|---|---:|---:|---|
+      | Vercel (web) | Hobby | $0 | $0 | Free tier: 100 GB egress, unlimited previews |
+      | Cloudflare Workers | Free | $0 | $0 | 100K req/day free |
+      | Cloudflare Pages | Free | $0 | $0 | Unlimited static hosting |
+      | Cloudflare R2 (artifacts) | Free | $0 | $0 | 10 GB storage, free egress |
+      | Cloudflare D1 (run ledger) | Free | $0 | $0 | 5 GB, 5M reads/day |
+      | Cloudflare KV (idempotency keys, approval tokens) | Free | $0 | $0 | 100K reads/day |
+      | Cloudflare Workers AI | Free + pay-per-token | $0 | $0–1 | 10K neurons/day free; over-cap at $0.01/1K neurons |
+      | Fly.io foundation (Docker, auto-stop) | Free allowance | $0 | $0–2 | shared-cpu-1x, auto_stop=true, scales to 0 |
+      | **Neon DB** (Postgres) | **Free** | **$0** | **$0** | **0.5 GB storage, 191 compute hours/mo, branching API unlimited** |
+      | Bedrock (Claude Haiku, fallback) | Pay-per-token | $0 | $0–1 | Capped at $1/mo; only fires on quality-gate fail |
+      | LangSmith | Free | $0 | $0 | 5K traces/mo, 1 dataset |
+      | Domain (fly.dev / vercel.app / workers.dev) | Free | $0 | $0 | Use platform subdomains; no custom domain in baseline |
+      | **Total** | | **$0** | **$0–5** | **Hard ceiling $5/mo** |
+
+      **Cost ceiling per workflow run** (hard-coded in `TokenBudgetLedger`):
+
+      | Run mode | Max input tokens | Max output tokens | Worst-case cost (Haiku) |
+      |---|---:|---:|---:|
+      | `plan_only` | 20,000 | 4,000 | $0.03 |
+      | `verify` | 41,000 | 8,000 | $0.06 |
+
+      At 100 runs/month, worst-case Haiku cost = $3–6/mo. Workers AI
+      free tier covers most of this; Bedrock kicks in only when Workers
+      AI quality drops below the release gate.
+
+      **Scenario 4 (multi-region AWS, deferred)** is documented but
+      NOT in scope. Cost ceiling if/when it ships: $0–5/mo target
+      applies only to the portfolio demo.
+
+      Quarterly review re-runs the benchmark, re-checks free-tier
+      utilization, and adjusts. No tier upgrade without an explicit
+      proposal.
+
+  - title: Neon DB — serverless Postgres with branching API
+    body: |
+      **Neon DB** is the only database in the cost-minimal baseline. It
+      ships with a serverless Postgres engine and a **branching API** that
+      makes PR previews trivial without re-seeding data.
+
+      **Free tier (sufficient for the portfolio demo):**
+
+      | Resource | Limit | Use |
+      |---|---:|---|
+      | Storage | 0.5 GB | run ledger, usage records, events, reports |
+      | Compute | 191 hours/month auto-suspend | foundation idle: free; burst: ~$0.16/extra hour |
+      | Branches | unlimited | one branch per PR preview |
+      | Projects | unlimited (1 active) | one project for the demo |
+      | Data transfer | 5 GB/month | Cloudflare R2 for blob egress, Neon for SQL only |
+
+      **Branching API for PR previews** (no Aurora / no RDS required):
+
+      ```bash
+      # Per-PR preview: create a database branch from main
+      curl -X POST https://console.neon.tech/api/v2/projects/<id>/branches \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        -d '{"branch": {"parent_id": "main", "name": "pr-33"}}'
+
+      # Returns {branch: {id, connection_uri: "postgresql://...branch=pr-33..."}}
+      # Fly.io preview app uses this as DATABASE_URL; deletes on PR close
+      ```
+
+      The foundation reads `DATABASE_URL` at startup; switching to the
+      preview branch is a one-line env var change. No data re-seed, no
+      restore-from-snapshot.
+
+      **Why Neon over Aurora for the demo**:
+
+      | Reason | Neon | Aurora |
+      |---|---|---|
+      | Idle cost | $0 (auto-suspend) | $60/mo minimum (0.5 ACU floor) |
+      | Branching API | built-in, free | requires RDS Proxy + custom snapshot/restore |
+      | Setup | one API call | Terraform module + IAM + VPC subnet group |
+      | Best for | portfolios, side projects, ephemeral previews | multi-AZ HA, regulatory compliance |
+      | Promotes to | Neon Scale ($19/mo) when traffic grows | already at prod tier |
+
+      The proposal stays on Neon for the baseline. The `branch+deploy`
+      strategy maps `feat/<slug>` PRs to a Neon preview branch; the
+      preview app reads it via env; the branch is deleted on PR close.
+
+      **Drizzle migrations against Neon**:
+
+      ```bash
+      # Generate migrations locally
+      pnpm --filter ai-saas-foundation-web db:generate
+
+      # Apply to main Neon DB
+      DATABASE_URL=$NEON_MAIN_URL pnpm db:migrate
+
+      # Apply to preview branch
+      DATABASE_URL=$NEON_PR_URL pnpm db:migrate
+      ```
+
+      Drizzle uses the unpooled URL for migrations (`DATABASE_URL_UNPOOLED`)
+      and the pooled URL for runtime traffic (see `docker/stage/compose.yaml`).
+
+      **When Neon breaks** (out of free tier, latency, region issue):
+      first step is `neon branches restore <prev>`; second step is a
+      separate proposal that cost-justifies Aurora or RDS. No tier-upgrade
+      happens silently.
 
   - title: Cloudflare, JEV, and the Lang* stack (candidate additions)
     body: |
@@ -387,10 +472,11 @@ sections:
 
   - title: Open questions for review
     body: |
-      1. **Aurora vs Neon for prod?** Aurora gives full AWS integration but
-         ~$60/mo idle floor. Neon Launch stays free until 0.5 GB. Decide
-         based on whether RDS failover and cross-region replica are
-         must-haves. **Default stays on Neon** for the cost-minimal baseline.
+      1. **Neon free tier limits** — 0.5 GB storage, 191 compute hours/mo,
+         5 GB data transfer. Sufficient for the demo; if a release adds
+         a heavy analytics table, the first step is `VACUUM FULL` and
+         archiving events older than 30 days. Tier upgrade (Launch $19/mo)
+         is a separate proposal only if we hit a real ceiling.
       2. **No SageMaker in any phase.** If a model Bedrock lacks becomes
          required, the cost-minimal path is Ollama on a rented GPU box
          (~$0.30/hr spot, RunPod / Vast.ai / Lambda Labs), shut down when
@@ -399,8 +485,9 @@ sections:
          Bedrock `InputTokenCount` per tenant; alert at 2× weekly average.
          Open: what is the right Slack channel?
       4. **On-call rotation** — even on the cost-minimal path, two
-         platforms (Vercel + Fly.io) means the on-call needs runbooks for
-         both. See `docs/runbooks/` which this proposal creates.
+         platforms (Vercel + Fly.io + Cloudflare) means the on-call needs
+         runbooks for all three. See `docs/runbooks/` which this proposal
+         creates.
 
   - title: Hand-off
     body: |
