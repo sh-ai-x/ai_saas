@@ -1,7 +1,7 @@
 title: Multi-Scenario Deployment Architecture with AWS Integration
 status: ready-for-review
 date: 2026-09-22
-tags: [aws, multi-cloud, deployment, ecs, fargate, sagemaker, bedrock, vercel, fly-io, cost, architecture]
+tags: [aws, multi-cloud, deployment, ecs, fargate, bedrock, vercel, fly-io, cost-minimal, portfolio, ai-engineer]
 
 before:
   summary: |
@@ -20,20 +20,21 @@ before:
     - 'services/delivery_gateway/gateway.py:42 — DeliveryPort.sign/validate is a contract only; no real Git/CI adapter'
     - 'services/agent_orchestrator/model_port.py:1-40 — only FakeStructuredModel + PromptContextAdapter exist; no remote adapter'
     - 'infra/aws/ — directory exists but is empty; no AWS provisioning documented'
-    - 'No tests/exercises for production-tier LLM providers (Together, Bedrock, SageMaker)'
+    - 'No tests/exercises for production-tier LLM providers (Together, Bedrock)'
 
 after:
   summary: |
-    A four-scenario deployment matrix that matches the right platform to the
-    workload, with AWS as the production-grade backbone for heavy compute
-    (managed inference, artifact storage, sandbox worker) and Vercel / Fly.io
-    staying for what they are best at (CDN for the web, low-ops long-running
-    Docker for the foundation). The agent gets a real LLM adapter that
-    speaks the OpenAI Chat Completions API, a multi-model benchmark harness,
-    and a signed Git/CI delivery adapter. AWS is provisioned via Terraform
-    (or CDK) under infra/aws/, with three environments: dev (single AZ,
-    minimal), stage (multi-AZ, mirrors prod), prod (multi-region active/active
-    with Route53 + CloudFront failover).
+    A **cost-minimal** deployment matrix scoped to what a single AI engineer
+    can actually run and demo. The baseline is **Vercel (web) + Fly.io
+    (foundation Docker) + Neon (Postgres) + Bedrock (managed LLM, pay-per-
+    token)**, no GPU self-hosting, no multi-region. AWS appears only as
+    the optional prod-promotion target once product-market fit justifies
+    the spend. The agent gets a real LLM adapter (OpenAI Chat Completions
+    API), a multi-model benchmark harness, and a signed Git/CI delivery
+    adapter. AWS heavy services (ECS Fargate, Aurora Serverless v2, Cloud
+    Front, multi-region, SageMaker) are listed explicitly as **deferred to a
+    separate cost-justified proposal** — they ship only when traffic or
+    compliance demands them, not on day one.
   files:
     - path: infra/aws/terraform/main.tf
       change: |
@@ -65,12 +66,9 @@ after:
     - path: infra/aws/terraform/bedrock.tf
       change: |
         Bedrock model access for Claude Sonnet, Haiku, Llama 3.1 70B.
-        Cross-region inference profile for resilience.
-    - path: infra/aws/terraform/sagemaker.tf
-      change: |
-        Optional SageMaker endpoint for self-hosted Qwen2.5-Coder-32B
-        behind an OpenAI-compatible inference container (serving
-        stack: vLLM + HuggingFace tokenizer).
+        Cross-region inference profile for resilience. SageMaker is
+        NOT in scope for the cost-minimal baseline; if a model not in
+        Bedrock becomes required, that goes to a separate proposal.
     - path: services/agent_orchestrator/remote_model.py
       change: |
         OpenAICompatibleStructuredModel adapter (Ollama, vLLM, Bedrock
@@ -114,19 +112,19 @@ pros:
   - 'Sandbox worker moves to ECS Fargate with allowlisted task definitions; same contract as the Local Lite DeterministicSandbox but with real subprocess isolation.'
   - 'Multi-region failover for the foundation API (active/active via Route53 + ALB); RPO ≤ 5 min via Aurora cross-region replication for prod.'
   - 'DeliveryPort gains a real GitHub adapter with scoped tokens; signed PR + repository_dispatch workflow = auditable hand-off without ambient deploy credentials.'
-  - 'Bedrock gives managed Claude / Llama without managing GPUs; SageMaker endpoint exists only when self-hosted beats Bedrock on $/token.'
+  - 'Bedrock gives managed Claude / Llama without managing GPUs. SageMaker self-hosting is intentionally excluded from the cost-minimal baseline — pay-per-token Bedrock beats self-hosting until traffic justifies a dedicated endpoint, and that decision lives in a separate proposal when traffic arrives.'
 
 cons:
   - 'Three platforms to operate (Vercel + Fly.io + AWS). On-call must know all three. Mitigated by Terraform owning AWS and runbooks for Fly/Vercel.'
   - 'Aurora Serverless v2 ACU minimum is 0.5; idle cost ~$40/month even when zero traffic. Mitigated by stopping stage outside business hours.'
-  - 'Self-hosted SageMaker endpoint is the most expensive single resource (~$2/hr for a ml.g5.2xlarge). Mitigated by autoscale-to-zero and only running the benchmark model.'
+  - 'Bedrock pay-per-token can spike if a runaway run burns the budget. Mitigated by the existing `TokenBudgetLedger` failing closed at plan-only 20k / verify 41k tokens; cost ceiling per run is hard-coded into the kernel, not a soft alert.'
   - 'Bedrock quotas vary by region; us-east-1 has the broadest catalog but is the slowest for KR users. Mitigated by cross-region inference profile + CloudFront latency routing.'
   - 'Terraform state in S3 + DynamoDB adds one more piece to bootstrap. Mitigated by infra/aws/terraform/bootstrap.sh one-shot script.'
   - 'ECS Fargate cold start (10–30s) shows up on the verify path. Mitigated by min_capacity=1 in prod, autoscale on CPU.'
 
 limitations:
-  - 'No Kubernetes. Fargate is the highest abstraction; no DaemonSet, no custom operators. If we later need GPU-aware scheduling across many models, ECS will not be enough — that goes to EKS.'
-  - 'Bedrock does not (yet) expose Qwen models. SageMaker endpoint is the only path to Qwen2.5-Coder-32B self-hosted; cost-vs-quality tradeoff must be benchmarked monthly.'
+  - 'No Kubernetes, no ECS Fargate, no SageMaker, no Aurora, no multi-region in the baseline. The cost-minimal path is Vercel + Fly.io + Neon + Bedrock only. AWS service expansion (ECS, Aurora, multi-region) requires a separate cost-justified proposal.'
+  - 'Bedrock does not (yet) expose Qwen models. If a Qwen-only workflow is needed, that goes to a separate proposal with its own cost ceiling (likely Ollama on a rented GPU box, not SageMaker).'
   - 'Multi-region active/active is for read-mostly endpoints. The LangGraph checkpoint store is single-region primary with async cross-region copy; failover loses the in-flight checkpoint but does not lose history.'
   - 'No SOC2 / HIPAA / PCI controls in scope. The proposal ships the IaC for VPC + KMS + IAM boundaries, but the compliance audit itself is a separate track.'
   - 'Sandbox worker on Fargate inherits the same allowlist semantics as the Local Lite DeterministicSandbox; production-grade untrusted-code isolation (gVisor / Firecracker microVM) is a separate proposal.'
@@ -141,7 +139,7 @@ sections:
       | 1. Solo / laptop | localhost:3100 | localhost:8180 | local Postgres | Ollama (CPU/GPU) | DeterministicSandbox | $0 | $0 |
       | 2. Side project (Vercel + Fly) | Vercel | Fly.io (Docker) | Neon free | Groq / Together free tier | Fly.io sandbox worker (1× shared-cpu-1x) | $0 | $7 |
       | 3. Production lite (Vercel + Fly + AWS managed) | Vercel Pro | Fly.io (Docker, scale-to-2) | Neon launch | Bedrock (Claude Haiku) | Fly.io sandbox worker | $50 | $200 |
-      | 4. Production full (AWS multi-region) | CloudFront → Vercel | ECS Fargate (2× tasks) | Aurora Serverless v2 | Bedrock + SageMaker endpoint | ECS Fargate sandbox | $400 | $1,200 |
+      | 4. Production full (AWS multi-region, deferred) | CloudFront→Vercel | ECS Fargate (2×) | Aurora Serverless v2 | Bedrock only | ECS Fargate sandbox | $400 | $1,200 |
 
       The agent's contract does not change across scenarios. Only env vars
       (`LLM_BASE_URL`, `DATABASE_URL`, `FOUNDATION_API_URL`) change.
@@ -164,7 +162,7 @@ sections:
       | Route 53 + ACM | DNS + TLS | Scenario 4 |
       | CloudFront | Edge CDN with two origins | Scenario 4 |
       | Bedrock | Managed Claude / Llama / Mistral | Scenarios 3–4 |
-      | SageMaker | Self-hosted Qwen / DeepSeek when Bedrock lacks them | Optional, scenario 4 |
+      | SageMaker | **Out of baseline.** Add only via a separate proposal that justifies the GPU $/hr vs Bedrock $/token. | None |
       | Terraform state: S3 + DynamoDB lock | IaC state | All |
 
   - title: LLM provider strategy
@@ -179,7 +177,7 @@ sections:
       | Default (Vercel/Fly) | Groq / Together | llama-3.1-8b / qwen-72b free | low-cost staging |
       | Quality (prod lite) | AWS Bedrock | claude-haiku-4-5 / llama-3.1-70b | scenario 3 |
       | Frontier (prod full) | AWS Bedrock | claude-sonnet-4-5 | scenario 4, hot path |
-      | Self-hosted (prod full) | SageMaker endpoint | qwen2.5-coder-32b-instruct | scenario 4, when Bedrock lacks the model |
+      | Self-hosted | Deferred to a separate proposal | n/a | Only if Bedrock lacks the required model |
 
       All four tiers are exercised by the benchmark harness
       (`scripts/run-benchmark.py`) against the fixed regression set under
@@ -214,10 +212,11 @@ sections:
       The agent's existing rules R7 / R12 carry over without modification.
 
       - **IAM task execution role** has `bedrock:InvokeModel`,
-        `sagemaker:InvokeEndpoint`, `secretsmanager:GetSecretValue` on the
+        `secretsmanager:GetSecretValue` on the
         prefix `ai-saas/<env>/*`, `s3:PutObject` on the artifact bucket,
         `logs:CreateLogStream` on the foundation log group. Nothing else.
-      - **Bedrock / SageMaker invocation logs** are written to a dedicated
+        `sagemaker:*` is not granted in the cost-minimal baseline.
+      - **Bedrock invocation logs** are written to a dedicated
         CloudWatch log group with 30-day retention. Tenant ID is redacted
         before write (the kernel `redaction.py` already does this).
       - **Secrets** live in Secrets Manager under `ai-saas/<env>/<key>`;
@@ -236,20 +235,27 @@ sections:
       every resource. The PR comment includes the diff vs the previous
       plan output. The cost review is part of the maintenance gate.
 
-      | Resource | Scenario 3 ($/mo) | Scenario 4 ($/mo) |
+      | Resource | Scenario 3 ($/mo) | Scenario 4 ($/mo, deferred) |
       |---|---:|---:|
-      | ECS Fargate foundation (2 tasks, 1 vCPU / 2 GB) | $36 (Fly only) | $70 |
-      | ECS Fargate sandbox (1 task, 2 vCPU / 4 GB) | $5 (Fly only) | $50 |
-      | Aurora Serverless v2 (0.5–4 ACU avg 1.5) | $0 (Neon) | $180 |
-      | ALB | n/a | $20 |
-      | S3 (artifacts, 100 GB) | $3 | $30 |
-      | Bedrock (1M input + 0.5M output tokens / mo) | $30 | $80 |
-      | SageMaker endpoint (g5.2xlarge, autoscale to 0) | n/a | $0 idle, ~$300 if kept warm |
-      | CloudWatch logs + metrics | $5 | $20 |
-      | Secrets Manager (10 secrets) | $2 | $4 |
+      | Fly.io foundation (1× shared-cpu-1x, always-on) | $5 | n/a |
+      | Fly.io sandbox worker (1× shared-cpu-1x) | $5 | n/a |
+      | Neon Postgres (Launch / Scale plan) | $0–19 | $0–19 |
+      | Vercel (Hobby / Pro) | $0 | $20 |
+      | Bedrock (1M input + 0.5M output tokens / mo) | $5–15 | $30–80 |
+      | S3 (artifacts, 10 GB, Glacier after 90 d) | $1 | $3 |
+      | CloudWatch logs + metrics | $2 | $5 |
+      | Secrets Manager (5 secrets) | $1 | $2 |
+      | ECS Fargate foundation (2 tasks) | n/a | $70 |
+      | ECS Fargate sandbox (1 task) | n/a | $50 |
+      | Aurora Serverless v2 (avg 1.5 ACU) | n/a | $180 |
+      | ALB + WAF | n/a | $30 |
       | Route 53 + ACM | n/a | $5 |
       | CloudFront (1 TB egress) | n/a | $85 |
-      | **Total** | **~$80** | **~$540–840** |
+      | **Total (cost-minimal baseline)** | **~$5–25** | **~$540–580** |
+
+      **Portfolio target**: scenario 3 runs end-to-end on $5–25/mo for a
+      single AI engineer. Scenario 4 (multi-region AWS) is documented but
+      not built until traffic or compliance justifies the spend.
 
       The benchmark harness records `tokens_per_run`. Cost ceiling per
       plan_only run: $0.20 (Haiku) / $0.05 (Groq 70B). Cost ceiling per
@@ -273,10 +279,12 @@ sections:
       Manager). Wire Fly.io foundation to point at RDS / S3 / Bedrock.
       Enable Bedrock in stage; A/B test against Groq for cost.
 
-      **Phase 4 (later, ~1 month)** — Multi-region + SageMaker.
-      Route 53 failover, Aurora cross-region replica, Tokyo warm standby,
-      SageMaker endpoint for the one model Bedrock lacks (Qwen2.5-Coder-32B).
-      Full scenario 4 cost model validated against production traffic.
+      **Phase 4 (later, only when traffic justifies)** — Multi-region AWS.
+      Route 53 failover, Aurora cross-region replica, Tokyo warm standby.
+      **No SageMaker in any phase.** If a model Bedrock lacks becomes
+      required, the cost-minimal path is Ollama on a rented GPU box (~$0.30/hr
+      spot), not SageMaker. Full scenario 4 cost model validated against
+      actual production traffic before committing.
 
       Each phase is gated by the same release gates (recall, precision,
       latency, tokens, zero-tolerance checks). No phase is "done" without
@@ -299,16 +307,17 @@ sections:
       1. **Aurora vs Neon for prod?** Aurora gives full AWS integration but
          ~$60/mo idle floor. Neon Launch stays free until 0.5 GB. Decide
          based on whether RDS failover and cross-region replica are
-         must-haves.
-      2. **SageMaker endpoint is optional** until a model is needed that
-         Bedrock lacks. We provision the IAM permissions now; the endpoint
-         is created in Phase 4 only if benchmark data shows it wins.
+         must-haves. **Default stays on Neon** for the cost-minimal baseline.
+      2. **No SageMaker in any phase.** If a model Bedrock lacks becomes
+         required, the cost-minimal path is Ollama on a rented GPU box
+         (~$0.30/hr spot, RunPod / Vast.ai / Lambda Labs), shut down when
+         idle. That decision lives in a separate proposal.
       3. **Cost anomaly alerts** — CloudWatch anomaly detection on
          Bedrock `InputTokenCount` per tenant; alert at 2× weekly average.
          Open: what is the right Slack channel?
-      4. **On-call rotation** — three platforms (Vercel + Fly + AWS) means
-         the on-call needs runbooks for all three. See `docs/runbooks/`
-         which this proposal creates.
+      4. **On-call rotation** — even on the cost-minimal path, two
+         platforms (Vercel + Fly.io) means the on-call needs runbooks for
+         both. See `docs/runbooks/` which this proposal creates.
 
   - title: Hand-off
     body: |
