@@ -158,16 +158,21 @@ def test_jsonl_only_garbled_lines(tmp_path: Path) -> None:
 
 
 def test_jsonl_assistant_with_bold_wrapped_verdict(tmp_path: Path) -> None:
-    """Bold-wrapped `**Verdict:**` (PR-comment format) is NOT recognized.
+    """Bold-wrapped `**Verdict:**` is accepted as a secondary fallback.
 
-    extract-verdict.py only matches the non-bold `Verdict:` form (the
-    contract the agent's prompt requires). Bold-wrapped is what the
-    PR-comment renderer emits, which the gate's separate comment-body
-    parser (`maintenance_gate.py:extract_verdict`) handles. Keeping
-    the two parsers distinct avoids the silent-Approve bug from
-    issue #612 — if we silently accepted bold-wrapped here, a
-    wrapper change that flips one form to the other would still
-    silently pass.
+    extract-verdict.py still PREFERS the strict non-bold form
+    (`Verdict:`) — that is the contract the agent's prompt requires.
+    But the agent's wrapper in practice emits Markdown-bold-wrapped
+    verdict lines inside assistant message content (issue #625), and
+    the PR-comments fallback in `_verdict_comments_fallback.sh` is
+    flaky enough (race window between the wrapper posting the comment
+    and the CI runner's `gh pr view` seeing it) that the file parser
+    must also accept the bold form or the gate PARSE_FAILEDs on every
+    run when the wrapper output envelope is bold-wrapped only. Strict
+    wins over lenient; lenient resolves the file only when the entire
+    scan produced zero strict hits, preserving the issue #612
+    false-positive guard for tool echoes that quote the prompt's
+    plain `Verdict:` line.
     """
     target = tmp_path / "agent.json"
     _write_jsonl(
@@ -178,7 +183,41 @@ def test_jsonl_assistant_with_bold_wrapped_verdict(tmp_path: Path) -> None:
     )
     result = _run([str(target)])
     assert result.returncode == 0
-    assert result.stdout.strip() == PARSE_FAILED
+    assert result.stdout.strip() == "Approve"
+
+
+def test_jsonl_assistant_strict_wins_over_lenient(tmp_path: Path) -> None:
+    """When both strict and lenient forms appear, the strict match wins.
+
+    The lenient regex is only a fallback — it must not override a
+    non-bold strict match elsewhere in the scan (issue #612 false-
+    positive guard for tool-echoed verdict lines).
+    """
+    target = tmp_path / "agent.json"
+    _write_jsonl(
+        target,
+        [
+            _assistant_msg("Verdict: Changes Requested\n**Verdict:** Approve"),
+        ],
+    )
+    result = _run([str(target)])
+    assert result.returncode == 0
+    # Last-match-wins within a single text — strict last wins here.
+    assert result.stdout.strip() == "Changes Requested"
+
+
+def test_jsonl_assistant_lenient_changes_requested(tmp_path: Path) -> None:
+    """Lenient regex accepts `**Verdict:** Changes Requested`."""
+    target = tmp_path / "agent.json"
+    _write_jsonl(
+        target,
+        [
+            _assistant_msg("Some explanation\n**Verdict:** Changes Requested"),
+        ],
+    )
+    result = _run([str(target)])
+    assert result.returncode == 0
+    assert result.stdout.strip() == "Changes Requested"
 
 
 def test_jsonl_single_approve(tmp_path: Path) -> None:

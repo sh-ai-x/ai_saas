@@ -41,6 +41,24 @@ import sys
 from pathlib import Path
 
 VERDICT_RE = re.compile(r"Verdict:\s*(Approve|Blocked|Changes Requested)\b")
+# Issue #625 secondary form: the agent's wrapper (or its result-type
+# summary) emits Markdown-bold-wrapped verdict lines
+# (`**Verdict:** <Word>`) inside assistant message content. Strict
+# VERDICT_RE misses those. The PR-comments fallback
+# (`.github/workflows/_verdict_from_comment.py:VERDICT_RE_LENIENT`) is
+# the primary recovery path for PR comments, but it is flaky in
+# practice (race windows + gh pr view consistency delays have caused
+# the fallback to exhaust 6 attempts without finding a verdict that
+# was visible via a fresh API call after the run completed). To keep
+# the file parser from forcing the gate into PARSE_FAILED on every run
+# when the wrapper output envelope is bold-wrapped only, accept the
+# bold form as a secondary match. Strict hits always win; lenient is
+# used only when strict produced zero matches across the entire scan,
+# preserving the issue #612 false-positive guard for tool echoes that
+# quote the prompt's plain `Verdict:` line.
+VERDICT_RE_LENIENT = re.compile(
+    r'(?:^|\n)\s*\*?\*?Verdict:\*?\*?\s*(Approve|Blocked|Changes Requested)\b'
+)
 
 # Issue #625: MINIMAX wrapper emits only `type=result` summary messages;
 # the verdict is in one of those. Other message types (user, tool_use,
@@ -119,6 +137,7 @@ def extract(path: Path) -> str:
     if len(text) < 10:
         return ""
     last_verdict = ""
+    last_lenient_verdict = ""
     for line in text.splitlines():
         line = line.strip()
         if not line or not line.startswith("{"):
@@ -141,16 +160,39 @@ def extract(path: Path) -> str:
             continue
         texts = _extract_texts(msg)
         for t in texts:
+            # Strict first (issue #612 contract). The wrapper's
+            # bold-wrapped form is intentionally NOT matched here so
+            # that quoted/echoed verdict lines in tool messages don't
+            # accidentally satisfy the gate.
             m = VERDICT_RE.search(t)
             if m:
                 last_verdict = m.group(1)
+                continue
+            # Lenient second pass: the agent's wrapper emits
+            # `**Verdict:** <Word>` inside assistant message content,
+            # which strict VERDICT_RE misses (issue #625 secondary
+            # recovery — primary recovery is the PR-comments fallback
+            # in `_verdict_comments_fallback.sh`, but that fallback is
+            # flaky enough that the file parser must also accept the
+            # bold form to avoid repeated PARSE_FAILED on every run).
+            # Only reaches this branch when strict did not match in
+            # the same text, so a strict hit on this message wins; a
+            # lenient hit is recorded only as a fallback candidate.
+            ml = VERDICT_RE_LENIENT.search(t)
+            if ml:
+                last_lenient_verdict = ml.group(1)
+    # Strict wins over lenient. Lenient only resolves the file when
+    # the entire scan produced zero strict hits — keeping the issue
+    # #612 false-positive guard for tool echoes intact.
+    if last_verdict:
+        return last_verdict
+    if last_lenient_verdict:
+        return last_lenient_verdict
     # No candidate message contained a `Verdict:` line — emit the
     # sentinel so the gate hard-fails (issue #612 fix; the no-file /
     # HTML / unreadable cases above still return "" for the caller's
     # tolerance path).
-    if not last_verdict:
-        return PARSE_FAILED
-    return last_verdict
+    return PARSE_FAILED
 
 
 def extract_from_comments(path: Path) -> str:
