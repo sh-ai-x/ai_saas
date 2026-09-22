@@ -92,6 +92,7 @@ services:
       PAYMENT_SANDBOX: ${PAYMENT_SANDBOX:-true}
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      TOSS_SDK_SANDBOX_RESULT: ${TOSS_SDK_SANDBOX_RESULT:-SUCCESS}
       TOSS_API_BASE_URL: ${TOSS_API_BASE_URL:-https://api.tosspayments.com}
       TOSS_WEBHOOK_SECRET: ${TOSS_WEBHOOK_SECRET:-}
       TOSS_SUCCESS_URL: ${TOSS_SUCCESS_URL:-http://localhost:3000/payments/toss/success}

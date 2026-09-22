@@ -31,6 +31,8 @@ describe("payment adapter contracts", () => {
   const originalTossKey = process.env.TOSS_CLIENT_KEY;
   const originalStoreId = process.env.LEMONSQUEEZY_STORE_ID;
   const originalVariantId = process.env.LEMONSQUEEZY_VARIANT_ID;
+  const originalPaymentSandbox = process.env.PAYMENT_SANDBOX;
+  const originalTossSdkSandboxResult = process.env.TOSS_SDK_SANDBOX_RESULT;
 
   beforeAll(() => {
     process.env.TOSS_CLIENT_KEY = "test_toss_client_key";
@@ -45,6 +47,10 @@ describe("payment adapter contracts", () => {
     else process.env.LEMONSQUEEZY_STORE_ID = originalStoreId;
     if (originalVariantId === undefined) delete process.env.LEMONSQUEEZY_VARIANT_ID;
     else process.env.LEMONSQUEEZY_VARIANT_ID = originalVariantId;
+    if (originalPaymentSandbox === undefined) delete process.env.PAYMENT_SANDBOX;
+    else process.env.PAYMENT_SANDBOX = originalPaymentSandbox;
+    if (originalTossSdkSandboxResult === undefined) delete process.env.TOSS_SDK_SANDBOX_RESULT;
+    else process.env.TOSS_SDK_SANDBOX_RESULT = originalTossSdkSandboxResult;
   });
 
   it("creates a mock subscription handoff without exposing provider secrets", async () => {
@@ -58,6 +64,7 @@ describe("payment adapter contracts", () => {
   });
 
   it("creates a Toss client-side context without returning secret keys", async () => {
+    process.env.PAYMENT_SANDBOX = "false";
     const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
     expect(handoff.provider).toBe("toss");
     expect(handoff.checkoutUrl).toBe("");
@@ -67,6 +74,34 @@ describe("payment adapter contracts", () => {
     expect(handoff.checkoutContext.customer_key).toMatch(/^customer-/);
     expect("secret_key" in handoff.checkoutContext).toBe(false);
     expect(handoff.checkoutContext.amount).toBeInstanceOf(Object);
+  });
+
+  it("adds Toss SDK success simulation when sandbox mode is enabled", async () => {
+    process.env.PAYMENT_SANDBOX = "true";
+    delete process.env.TOSS_SDK_SANDBOX_RESULT;
+
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", mode: "one_time", interval: "one_time", currency: "KRW" })));
+
+    expect(handoff.checkoutContext.sandbox).toEqual({ paymentResult: "SUCCESS" });
+  });
+
+  it("supports deterministic Toss SDK failure simulation", async () => {
+    process.env.PAYMENT_SANDBOX = "true";
+    process.env.TOSS_SDK_SANDBOX_RESULT = "FAIL";
+
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", mode: "one_time", interval: "one_time", currency: "KRW" })));
+
+    expect(handoff.checkoutContext.sandbox).toEqual({ paymentResult: "FAIL" });
+  });
+
+  it("keeps Toss subscription billing auth on the real test-key flow", async () => {
+    process.env.PAYMENT_SANDBOX = "true";
+    delete process.env.TOSS_SDK_SANDBOX_RESULT;
+
+    const handoff = await createCatalogCheckout(input(option({ provider: "toss", currency: "KRW" })));
+
+    expect(handoff.checkoutContext.billing_auth).toBe(true);
+    expect(handoff.checkoutContext.sandbox).toBeUndefined();
   });
 
   it("keeps one-time Toss checkout on the payment authorization path", async () => {

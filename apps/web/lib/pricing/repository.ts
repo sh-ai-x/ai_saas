@@ -118,9 +118,9 @@ export async function listPricingCatalog(activeOnly = false): Promise<PricingPla
 
 export async function getBillingPolicy(): Promise<PricingPolicy> {
   const db = getDb();
-  if (!db) return { id: "platform", billingMode: localState.billingMode, currency: "USD", updatedBy: "local-seed" };
+  if (!db) return { id: "platform", billingMode: localState.billingMode, currency: "KRW", updatedBy: "local-seed" };
   const [row] = await db.select().from(pricingCatalogSettings).where(eq(pricingCatalogSettings.id, "platform")).limit(1);
-  if (!row) return { id: "platform", billingMode: seededBillingMode, currency: "USD", updatedBy: "migration-seed" };
+  if (!row) return { id: "platform", billingMode: seededBillingMode, currency: "KRW", updatedBy: "migration-seed" };
   return { id: row.id, billingMode: row.billingMode as BillingMode, currency: row.currency, updatedBy: row.updatedBy };
 }
 
@@ -428,11 +428,26 @@ export async function updateProviderSetting(
 
 export async function selectedPaymentProvider(): Promise<PricingProvider> {
   const settings = await listProviderSettings();
+  const configured = process.env.PAYMENT_PROVIDER as PricingProvider | undefined;
+  if (configured && ["toss", "lemon-squeezy"].includes(configured)) return configured;
   const enabled = settings.find((setting) => setting.enabled);
   if (enabled) return enabled.provider;
-  const configured = process.env.PAYMENT_PROVIDER as PricingProvider | undefined;
-  if (configured && ["mock", "toss", "lemon-squeezy"].includes(configured)) return configured;
+  if (configured === "mock") return configured;
   return "mock";
+}
+
+export function applySelectedPaymentProvider(plans: PricingPlan[], provider: PricingProvider): PricingPlan[] {
+  return plans
+    .map((plan) => ({
+      ...plan,
+      // Public pricing is provider-neutral. Provider-specific rows remain
+      // available to admin/API contract tests, but must not become a second
+      // product card that can be clicked under a different active provider.
+      options: plan.options
+        .filter((option) => option.provider === "mock")
+        .map((option) => ({ ...option, provider })),
+    }))
+    .filter((plan) => plan.options.length > 0);
 }
 
 function validatePlanInput(input: PricingPlanInput, reason: string) {

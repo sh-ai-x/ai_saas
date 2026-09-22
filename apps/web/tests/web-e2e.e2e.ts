@@ -235,18 +235,6 @@ describe("web HTTP E2E contracts", () => {
     expect(providers.response.status).toBe(200);
     expect(providers.body.providers.map((provider: any) => provider.provider).sort()).toEqual(["lemon-squeezy", "mock", "toss"]);
 
-    const tossPlan = await request("/api/admin/pricing", jsonInit("POST", {
-      reason: "HTTP E2E Toss KRW sandbox catalog",
-      plan: {
-        code: `e2e-toss-${Date.now()}`,
-        name: "HTTP E2E Toss Plan",
-        description: "KRW option used only by the sandbox contract.",
-        billingMode: "subscription",
-        options: [{ mode: "subscription", interval: "year", provider: "toss", currency: "KRW", amountMinor: 1000 }],
-      },
-    }), adminCookie);
-    expect(tossPlan.response.status).toBe(201);
-
     try {
       for (const provider of ["toss", "lemon-squeezy"]) {
         const disableMock = await request("/api/admin/payment-providers", jsonInit("PATCH", {
@@ -258,8 +246,10 @@ describe("web HTTP E2E contracts", () => {
         }), adminCookie);
         expect(enableProvider.response.status).toBe(200);
         const sandboxPricing = await getJson("/api/pricing");
-        const sandboxOption = sandboxPricing.body.plans.flatMap((plan: any) => plan.options).find((option: any) => provider === "toss" ? option.provider === "toss" : option.interval === "year");
+        const sandboxOption = sandboxPricing.body.plans.flatMap((plan: any) => plan.options).find((option: any) => option.id === "option-pro-yearly");
         expect(sandboxOption).toBeTruthy();
+        expect(sandboxOption.provider).toBe(provider);
+        if (provider === "toss") expect(sandboxOption.currency).toBe("KRW");
         const sandboxCheckout = await request("/api/pricing/checkout", jsonInit("POST", { optionId: sandboxOption.id }), adminCookie);
         expect(sandboxCheckout.response.status).toBe(201);
         expect(sandboxCheckout.body.provider).toBe(provider);

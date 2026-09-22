@@ -38,6 +38,10 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
         if (!context || !clientKey || !customerKey) throw new Error("Toss checkout context is incomplete");
         const TossPayments = await loadTossSdk();
         const payment = TossPayments(clientKey).payment({ customerKey });
+        const sandbox = context.sandbox as { paymentResult?: unknown } | undefined;
+        const sdkSandbox: { paymentResult: "SUCCESS" | "FAIL" } | undefined = sandbox?.paymentResult === "SUCCESS" || sandbox?.paymentResult === "FAIL"
+          ? { paymentResult: sandbox.paymentResult as "SUCCESS" | "FAIL" }
+          : undefined;
         const common = {
           method: "CARD" as const,
           successUrl: String(context.success_url ?? ""),
@@ -54,6 +58,7 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
             amount: { value: Number(amount?.value), currency: String(amount?.currency ?? "KRW") },
             orderId: String(context.order_id ?? body.checkoutUrl ?? ""),
             orderName: String(context.order_name ?? "AI SaaS payment"),
+            ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
           });
         }
         setMessage("Toss sandbox checkout opened.");
