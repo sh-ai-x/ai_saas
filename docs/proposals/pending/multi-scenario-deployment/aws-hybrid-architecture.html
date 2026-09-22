@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-Scenario Deployment Architecture with AWS Integration</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg: #1d1d1f;
+  --bg: #fbfbfd;
+  --muted: #5b5b62;
+  --border: #d2d2d7;
+  --card-bg: #ffffff;
+  --th-bg: #f5f5f7;
+  --row-alt: #fafafa;
+  --code-bg: #f5f5f7;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.08);
+  --ok: #1f8a3b;
+  --warn: #a06400;
+  --bad: #b03030;
+  --callout-bg: rgba(10, 132, 255, 0.06);
+  --callout-border: #0a84ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f5f5f7;
+    --bg: #1c1c1e;
+    --muted: #aeaeb2;
+    --border: #38383a;
+    --card-bg: #2c2c2e;
+    --th-bg: #3a3a3c;
+    --row-alt: #232325;
+    --code-bg: #2c2c2e;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.18);
+    --ok: #4cd964;
+    --warn: #ff9f0a;
+    --bad: #ff453a;
+    --callout-bg: rgba(10, 132, 255, 0.14);
+    --callout-border: #0a84ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; margin: 3.5rem 0 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.6rem; }
+p { margin: 0.7rem 0; }
+.meta { color: var(--muted); font-size: 0.92rem; margin: 0 0 2.5rem; }
+.tags { margin: 0 0 1.5rem; }
+.tag {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 0.4rem;
+}
+.tag-ok { background: rgba(31, 138, 59, 0.12); color: var(--ok); }
+.tag-warn { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.tag-bad { background: rgba(176, 48, 48, 0.12); color: var(--bad); }
+.tag-info { background: var(--accent-soft); color: var(--accent); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--th-bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+tr:nth-child(even) td { background: var(--row-alt); }
+td code, th code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.88em; }
+.callout {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  border-radius: 6px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.5rem 0;
+}
+.callout .label { font-weight: 600; margin-bottom: 0.3rem; display: block; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+li > strong { color: var(--accent); }
+code { font-family: 'SF Mono', Menlo, Consolas, monospace; background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 8px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+pre code { background: transparent; padding: 0; }
+blockquote {
+  border-left: 3px solid var(--border);
+  margin: 1rem 0;
+  padding: 0.2rem 1rem;
+  color: var(--muted);
+}
+.section-divider { border: 0; border-top: 1px solid var(--border); margin: 3rem 0; }
+.back-link {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.back-link a { color: var(--accent); }
+.back-link a:hover { text-decoration: underline; }
+.toc {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 0 0 3rem;
+  font-size: 0.95rem;
+}
+.toc strong { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.toc ol { margin: 0; padding-left: 1.2rem; }
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* ----- Before / After + Pros / Cons / Limitations ---------------------------
+ * Structured sections emitted when the YAML declares
+ * `before:`, `after:`, `pros:`, `cons:`, `limitations:`. See
+ * `skills/proposal/SKILL.md` §Workflow and `lib/render_proposal_html.py`
+ * `_render_before_after` / `_render_pros_cons_limitations`. Color cues
+ * reuse the existing --ok / --warn / --bad tokens so dark-mode parity
+ * is automatic. */
+.ba-section { margin: 2.5rem 0 1rem; }
+.ba-section h2 { margin-top: 0; }
+.ba-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+@media (min-width: 880px) {
+  .ba-grid { grid-template-columns: 1fr 1fr; }
+}
+.ba-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.ba-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.before-card { border-left: 4px solid var(--muted); }
+.after-card  { border-left: 4px solid var(--accent); }
+.before-card h3 { color: var(--muted); }
+.after-card h3  { color: var(--accent); }
+.evidence-list, .files-list { padding-left: 1.2rem; margin: 0.4rem 0 0.7rem; }
+.evidence-list li { margin: 0.25rem 0; }
+.files-list li { margin: 0.5rem 0; }
+.file-path {
+  display: inline-block;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}
+.pcl-section { margin: 2rem 0 1rem; }
+.pcl-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pros-list, .cons-list, .limitations-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0 0.6rem;
+}
+.pros-list li, .cons-list li, .limitations-list li {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 1.6rem;
+  margin: 0.2rem 0;
+}
+.pros-list li::before {
+  content: "✓"; /* check */
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.cons-list li::before {
+  content: "✗"; /* ballot x */
+  position: absolute; left: 0;
+  color: var(--bad); font-weight: 700;
+}
+.limitations-list li::before {
+  content: "!";      /* warn glyph */
+  position: absolute; left: 0;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--bg);
+  font-weight: 700; font-size: 0.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pcl-pros h3    { color: var(--ok); }
+.pcl-cons h3    { color: var(--bad); }
+.pcl-limit h3   { color: var(--warn); }
+/* ----- Ralph-style structured sections (ambiguity / scope / gate_contract) ---
+ * Emitted when the YAML declares `ambiguity:`, `scope:`,
+ * `gate_contract:`. Color cues reuse the existing tokens so
+ * dark-mode parity is automatic. */
+.amb-section, .scope-section, .gate-section { margin: 2rem 0 1rem; }
+.amb-section h3, .scope-section h3, .gate-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+.amb-list { list-style: none; padding-left: 0; margin: 0.5rem 0; }
+.amb-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin: 0.6rem 0;
+  box-shadow: var(--shadow);
+}
+.amb-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.amb-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+.amb-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.amb-badge-blocking { background: rgba(176, 48, 48, 0.15); color: var(--bad); }
+.amb-badge-default  { background: rgba(91, 91, 98, 0.15); color: var(--muted); }
+.amb-question { margin: 0.3rem 0; }
+.amb-default {
+  margin-top: 0.4rem;
+  font-size: 0.92em;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+  padding-left: 0.7rem;
+}
+.scope-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 720px) {
+  .scope-grid { grid-template-columns: 1fr 1fr; }
+}
+.scope-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+.scope-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.scope-in-card { border-left: 4px solid var(--ok); }
+.scope-out-card { border-left: 4px solid var(--muted); }
+.scope-in-card h4  { color: var(--ok); }
+.scope-out-card h4 { color: var(--muted); }
+.scope-list { list-style: none; padding-left: 0; margin: 0; }
+.scope-list li {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 1.3rem;
+  margin: 0.2rem 0;
+}
+.scope-in-card .scope-list li::before {
+  content: "✓";
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.scope-out-card .scope-list li::before {
+  content: "✗";
+  position: absolute; left: 0;
+  color: var(--muted); font-weight: 700;
+}
+.gate-table { font-size: 0.92em; }
+.gate-table th { background: var(--th-bg); }
+.gate-table td { vertical-align: top; }
+.gate-row-attended td { opacity: 0.7; font-style: italic; }
+.muted { color: var(--muted); }
+/* ----- Timeline chips -------------------------------------------------------
+ * Emitted by `_meta_line` when the proposal YAML declares
+ * `started:` or `shipped:` (both YYYY-MM-DD). Visual cue mirrors the
+ * existing --ok / --warn tokens so dark-mode parity is automatic. */
+.timeline-chip {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.timeline-started { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.timeline-shipped { background: rgba(31, 138, 59, 0.12);  color: var(--ok);  }
+</style>
+</head>
+<body>
+
+<h1>Multi-Scenario Deployment Architecture with AWS Integration</h1>
+<p class="meta">2026-09-22 · <span class="tag tag-info">ready-for-review</span></p>
+<div class="tags"><span class="tag tag-info">aws</span><span class="tag tag-info">multi-cloud</span><span class="tag tag-info">deployment</span><span class="tag tag-info">ecs</span><span class="tag tag-info">fargate</span><span class="tag tag-info">sagemaker</span><span class="tag tag-info">bedrock</span><span class="tag tag-info">vercel</span><span class="tag tag-info">fly-io</span><span class="tag tag-info">cost</span><span class="tag tag-info">architecture</span></div>
+<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">Scenario matrix</a></li><li><a href="#sec-1">AWS service map</a></li><li><a href="#sec-2">LLM provider strategy</a></li><li><a href="#sec-3">Multi-region and DR</a></li><li><a href="#sec-4">Security and IAM boundaries</a></li><li><a href="#sec-5">Cost model (Terraform plan output drives review)</a></li><li><a href="#sec-6">Migration path (phased)</a></li><li><a href="#sec-7">What stays the same</a></li><li><a href="#sec-8">Open questions for review</a></li><li><a href="#sec-9">Hand-off</a></li><li><a href="#ba-section">Before / After</a></li><li><a href="#pcl-pros">Pros</a></li><li><a href="#pcl-cons">Cons</a></li><li><a href="#pcl-limit">Limitations</a></li></ol></div>
+<h2 id="sec-0">Scenario matrix</h2>
+<p>Four scenarios, each with an explicit platform choice and budget.</p>
+<table><thead><tr><th>Scenario</th><th>Web</th><th>Foundation</th><th>DB</th><th>LLM</th><th>Sandbox</th><th>$/mo (low)</th><th>$/mo (typical)</th></tr></thead><tbody><tr><td>1. Solo / laptop</td><td>localhost:3100</td><td>localhost:8180</td><td>local Postgres</td><td>Ollama (CPU/GPU)</td><td>DeterministicSandbox</td><td>$0</td><td>$0</td></tr><tr><td>2. Side project (Vercel + Fly)</td><td>Vercel</td><td>Fly.io (Docker)</td><td>Neon free</td><td>Groq / Together free tier</td><td>Fly.io sandbox worker (1× shared-cpu-1x)</td><td>$0</td><td>$7</td></tr><tr><td>3. Production lite (Vercel + Fly + AWS managed)</td><td>Vercel Pro</td><td>Fly.io (Docker, scale-to-2)</td><td>Neon launch</td><td>Bedrock (Claude Haiku)</td><td>Fly.io sandbox worker</td><td>$50</td><td>$200</td></tr><tr><td>4. Production full (AWS multi-region)</td><td>CloudFront → Vercel</td><td>ECS Fargate (2× tasks)</td><td>Aurora Serverless v2</td><td>Bedrock + SageMaker endpoint</td><td>ECS Fargate sandbox</td><td>$400</td><td>$1,200</td></tr></tbody></table>
+<p>The agent's contract does not change across scenarios. Only env vars (<code>LLM_BASE_URL</code>, <code>DATABASE_URL</code>, <code>FOUNDATION_API_URL</code>) change.</p>
+<hr class="section-divider">
+
+<h2 id="sec-1">AWS service map</h2>
+<table><thead><tr><th>AWS service</th><th>Role</th><th>When used</th></tr></thead><tbody><tr><td>VPC (multi-AZ)</td><td>Network isolation</td><td>All AWS scenarios</td></tr><tr><td>ECR</td><td>Container images for foundation + sandbox + (optional) inference</td><td>All</td></tr><tr><td>ECS Fargate</td><td>foundation-api, sandbox-worker task services</td><td>Scenarios 3–4</td></tr><tr><td>ALB</td><td>L7 routing for foundation-api</td><td>Scenarios 3–4</td></tr><tr><td>WAF</td><td>Rate limiting + IP allowlist on /v1/*</td><td>Scenarios 3–4</td></tr><tr><td>RDS Aurora Serverless v2</td><td>Managed Postgres, single writer + N readers</td><td>Scenarios 3–4 (or stay on Neon)</td></tr><tr><td>S3</td><td>Review artifact storage, Terraform state</td><td>All</td></tr><tr><td>KMS</td><td>Encryption at rest (RDS, S3, EBS)</td><td>All</td></tr><tr><td>IAM</td><td>Task execution role + Bedrock/SageMaker invoke policies</td><td>All</td></tr><tr><td>Secrets Manager</td><td>APP_SECRET_KEY, TOSS_SECRET_KEY, etc.</td><td>All</td></tr><tr><td>CloudWatch + X-Ray</td><td>Logs, metrics, traces</td><td>All</td></tr><tr><td>Route 53 + ACM</td><td>DNS + TLS</td><td>Scenario 4</td></tr><tr><td>CloudFront</td><td>Edge CDN with two origins</td><td>Scenario 4</td></tr><tr><td>Bedrock</td><td>Managed Claude / Llama / Mistral</td><td>Scenarios 3–4</td></tr><tr><td>SageMaker</td><td>Self-hosted Qwen / DeepSeek when Bedrock lacks them</td><td>Optional, scenario 4</td></tr><tr><td>Terraform state: S3 + DynamoDB lock</td><td>IaC state</td><td>All</td></tr></tbody></table>
+<hr class="section-divider">
+
+<h2 id="sec-2">LLM provider strategy</h2>
+<p>The OpenAI-compatible adapter (<code>OpenAICompatibleStructuredModel</code>) covers every provider below without code changes — only <code>LLM_BASE_URL</code> and <code>LLM_MODEL</code> env vars differ.</p>
+<table><thead><tr><th>Tier</th><th>Provider</th><th>Model</th><th>When</th></tr></thead><tbody><tr><td>Tiny (laptop)</td><td>Ollama</td><td>phi-3.5-mini-3.8b / qwen-3b</td><td>dev, smoke tests</td></tr><tr><td>Default (Vercel/Fly)</td><td>Groq / Together</td><td>llama-3.1-8b / qwen-72b free</td><td>low-cost staging</td></tr><tr><td>Quality (prod lite)</td><td>AWS Bedrock</td><td>claude-haiku-4-5 / llama-3.1-70b</td><td>scenario 3</td></tr><tr><td>Frontier (prod full)</td><td>AWS Bedrock</td><td>claude-sonnet-4-5</td><td>scenario 4, hot path</td></tr><tr><td>Self-hosted (prod full)</td><td>SageMaker endpoint</td><td>qwen2.5-coder-32b-instruct</td><td>scenario 4, when Bedrock lacks the model</td></tr></tbody></table>
+<p>All four tiers are exercised by the benchmark harness (<code>scripts/run-benchmark.py</code>) against the fixed regression set under <code>benchmarks/cases/</code>. The default in <code>infra/models/models.yaml</code> is the cheapest tier that meets all gates (recall ≥ 0.95, evidence precision ≥ 0.98, unsupported claim rate ≤ 0.02, p95 latency ≤ 120s plan / 600s verify, zero-tolerance checks = 0).</p>
+<hr class="section-divider">
+
+<h2 id="sec-3">Multi-region and DR</h2>
+<p>Scenario 4 adds multi-region to the foundation API:</p>
+<ul><li><strong>Primary region</strong> (<code>ap-northeast-2</code>, Seoul): ECS service (2 tasks), Aurora writer, S3 bucket.</li><li><strong>Secondary region</strong> (<code>ap-northeast-1</code>, Tokyo): ECS service (1 task, warm standby), Aurora cross-region replica (async, lag ≤ 5s under normal load), S3 cross-region replication.</li><li><strong>Route 53 failover</strong> record on <code>api.&lt;domain&gt;</code>: ALB health check triggers DNS failover ≤ 60s.</li><li><strong>RPO / RTO</strong>: RPO ≤ 5 min (Aurora replication lag), RTO ≤ 2 min (Route 53 failover + ECS warm task in Tokyo).</li></ul>
+<p>The LangGraph checkpoint store is single-region primary; cross-region copy is async. Failover loses the in-flight checkpoint (the run is marked <code>failed</code> and can be resumed from the last persisted state).</p>
+<p>For scenarios 1–3, single-region is the default. Multi-region is a deliberate spend; do not enable until product-market fit.</p>
+<hr class="section-divider">
+
+<h2 id="sec-4">Security and IAM boundaries</h2>
+<p>The agent's existing rules R7 / R12 carry over without modification.</p>
+<ul><li><strong>IAM task execution role</strong> has <code>bedrock:InvokeModel</code>, <code>sagemaker:InvokeEndpoint</code>, <code>secretsmanager:GetSecretValue</code> on the prefix <code>ai-saas/&lt;env&gt;/*</code>, <code>s3:PutObject</code> on the artifact bucket, <code>logs:CreateLogStream</code> on the foundation log group. Nothing else.</li><li><strong>Bedrock / SageMaker invocation logs</strong> are written to a dedicated CloudWatch log group with 30-day retention. Tenant ID is redacted before write (the kernel <code>redaction.py</code> already does this).</li><li><strong>Secrets</strong> live in Secrets Manager under <code>ai-saas/&lt;env&gt;/&lt;key&gt;</code>; ECS tasks pull them at startup; never embedded in the image.</li><li><strong>WAF rules</strong> on the ALB: rate-limit 100 req/min on <code>/v1/runs</code>, block known bad ASNs, AWS managed ruleset <code>AWSManagedRulesCommonRuleSet</code>.</li><li><strong>VPC</strong>: foundation + sandbox tasks run in private subnets; ALB in public subnets; NAT gateway for outbound only when Bedrock requires it.</li><li><strong>Tenant isolation</strong> is enforced at the application layer (existing <code>auth.py</code> checks <code>x-tenant-id</code>). No shared DB row crosses tenants.</li></ul>
+<hr class="section-divider">
+
+<h2 id="sec-5">Cost model (Terraform plan output drives review)</h2>
+<p>The CI step <code>terraform plan -out=tfplan</code> produces a dollar figure for every resource. The PR comment includes the diff vs the previous plan output. The cost review is part of the maintenance gate.</p>
+<table><thead><tr><th>Resource</th><th>Scenario 3 ($/mo)</th><th>Scenario 4 ($/mo)</th></tr></thead><tbody><tr><td>ECS Fargate foundation (2 tasks, 1 vCPU / 2 GB)</td><td>$36 (Fly only)</td><td>$70</td></tr><tr><td>ECS Fargate sandbox (1 task, 2 vCPU / 4 GB)</td><td>$5 (Fly only)</td><td>$50</td></tr><tr><td>Aurora Serverless v2 (0.5–4 ACU avg 1.5)</td><td>$0 (Neon)</td><td>$180</td></tr><tr><td>ALB</td><td>n/a</td><td>$20</td></tr><tr><td>S3 (artifacts, 100 GB)</td><td>$3</td><td>$30</td></tr><tr><td>Bedrock (1M input + 0.5M output tokens / mo)</td><td>$30</td><td>$80</td></tr><tr><td>SageMaker endpoint (g5.2xlarge, autoscale to 0)</td><td>n/a</td><td>$0 idle, ~$300 if kept warm</td></tr><tr><td>CloudWatch logs + metrics</td><td>$5</td><td>$20</td></tr><tr><td>Secrets Manager (10 secrets)</td><td>$2</td><td>$4</td></tr><tr><td>Route 53 + ACM</td><td>n/a</td><td>$5</td></tr><tr><td>CloudFront (1 TB egress)</td><td>n/a</td><td>$85</td></tr><tr><td><strong>Total</strong></td><td><strong>~$80</strong></td><td><strong>~$540–840</strong></td></tr></tbody></table>
+<p>The benchmark harness records <code>tokens_per_run</code>. Cost ceiling per plan_only run: $0.20 (Haiku) / $0.05 (Groq 70B). Cost ceiling per verify run: $0.40 (Haiku) / $0.10 (Groq 70B). Quarterly review re-runs the benchmark and adjusts.</p>
+<hr class="section-divider">
+
+<h2 id="sec-6">Migration path (phased)</h2>
+<p>The proposal ships as four phases, each independently shippable.</p>
+<p><strong>Phase 1 (already done)</strong> — Local Lite + offline slice. PR #33. <code>agent_platform/</code>, <code>project_packs/</code>, <code>services/</code>, <code>infra/profiles/local-lite/</code>.</p>
+<p><strong>Phase 2 (in progress)</strong> — Vercel + Fly.io + multi-model. Branch <code>docs/proposal-deployment-spec</code>. <code>LLM_PROVIDER</code> env wiring, OpenAI-compatible adapter, <code>docker:stage</code>, benchmark harness.</p>
+<p><strong>Phase 3 (next, ~2 weeks)</strong> — AWS managed services. Add <code>infra/aws/terraform/</code> (VPC, RDS, S3, ECS, ALB, IAM, Secrets Manager). Wire Fly.io foundation to point at RDS / S3 / Bedrock. Enable Bedrock in stage; A/B test against Groq for cost.</p>
+<p><strong>Phase 4 (later, ~1 month)</strong> — Multi-region + SageMaker. Route 53 failover, Aurora cross-region replica, Tokyo warm standby, SageMaker endpoint for the one model Bedrock lacks (Qwen2.5-Coder-32B). Full scenario 4 cost model validated against production traffic.</p>
+<p>Each phase is gated by the same release gates (recall, precision, latency, tokens, zero-tolerance checks). No phase is "done" without a green benchmark run + green prod-traffic canary.</p>
+<hr class="section-divider">
+
+<h2 id="sec-7">What stays the same</h2>
+<p>Rules R1–R14 (<a href="../../../rules/proposal-to-verified-change-agent.md">rules/proposal-to-verified-change-agent.md</a>) and the existing ports in <code>agent_platform/ports.py</code> are not modified. The <code>StructuredModelPort</code> Protocol already covers Ollama / vLLM / Bedrock / SageMaker / Together / Groq / OpenAI via the same JSON Schema request shape. The <code>SandboxPort</code> contract is unchanged; Fargate replaces the Local Lite subprocess only at the boundary. The <code>DeliveryPort</code> gains a GitHub adapter but keeps the same <code>sign(**kwargs) / validate(request)</code> shape. No upstream consumer of the kernel is affected.</p>
+<hr class="section-divider">
+
+<h2 id="sec-8">Open questions for review</h2>
+<ol><li><strong>Aurora vs Neon for prod?</strong> Aurora gives full AWS integration but ~$60/mo idle floor. Neon Launch stays free until 0.5 GB. Decide based on whether RDS failover and cross-region replica are must-haves.</li><li><strong>SageMaker endpoint is optional</strong> until a model is needed that Bedrock lacks. We provision the IAM permissions now; the endpoint is created in Phase 4 only if benchmark data shows it wins.</li><li><strong>Cost anomaly alerts</strong> — CloudWatch anomaly detection on Bedrock <code>InputTokenCount</code> per tenant; alert at 2× weekly average. Open: what is the right Slack channel?</li><li><strong>On-call rotation</strong> — three platforms (Vercel + Fly + AWS) means the on-call needs runbooks for all three. See <code>docs/runbooks/</code> which this proposal creates.</li></ol>
+<hr class="section-divider">
+
+<h2 id="sec-9">Hand-off</h2>
+<p>Approved path: Phase 2 PRs merge first; Phase 3 IaC reviewed in a separate design review (cost + security); Phase 4 waits on prod traffic validation.</p>
+<p><code>/dev-kit:plan</code> consumes this proposal as the design record for the AWS integration phase. <code>/dev-kit:build</code> implements only the files listed in <code>after.files</code> above; Terraform applies to a disposable stage AWS account first.</p>
+<hr class="section-divider">
+
+<section id="ba-section" class="ba-section"><h2>Before / After</h2><div class="ba-grid"><div class="ba-card before-card"><h3>Before (current state)</h3><p>The current deployment story is single-platform: docker:local for dev, docker:stage for staging with Neon, and a planned Vercel production deploy that excludes the foundation API (which has no Vercel-native home for the long-running Python + SQLite + LangChain stack). There is no AWS footprint yet, no managed inference, no cross-region DR, and no concrete cost model per scenario. Model selection for the LLM adapter is ad-hoc; production picks are made by hand against unverified benchmarks. The agent's DeliveryPort only has a deterministic placeholder — no signed PR/CI adapter exists.</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--muted);">Evidence</h4><ul class="evidence-list"><li>docs/proposals/applied/proposal-to-verified-change-agent/deployment-spec.md:1-50 — TL;DR names only docker:local, docker:stage, Vercel</li><li>docs/proposals/applied/proposal-to-verified-change-agent/deployment-spec.md:60-90 — Vercel Functions cannot host the foundation as written</li><li>services/delivery_gateway/gateway.py:42 — DeliveryPort.sign/validate is a contract only; no real Git/CI adapter</li><li>services/agent_orchestrator/model_port.py:1-40 — only FakeStructuredModel + PromptContextAdapter exist; no remote adapter</li><li>infra/aws/ — directory exists but is empty; no AWS provisioning documented</li><li>No tests/exercises for production-tier LLM providers (Together, Bedrock, SageMaker)</li></ul></div><div class="ba-card after-card"><h3>After (proposed state)</h3><p>A four-scenario deployment matrix that matches the right platform to the workload, with AWS as the production-grade backbone for heavy compute (managed inference, artifact storage, sandbox worker) and Vercel / Fly.io staying for what they are best at (CDN for the web, low-ops long-running Docker for the foundation). The agent gets a real LLM adapter that speaks the OpenAI Chat Completions API, a multi-model benchmark harness, and a signed Git/CI delivery adapter. AWS is provisioned via Terraform (or CDK) under infra/aws/, with three environments: dev (single AZ, minimal), stage (multi-AZ, mirrors prod), prod (multi-region active/active with Route53 + CloudFront failover).</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--accent);">Files</h4><ul class="files-list"><li><span class="file-path">infra/aws/terraform/main.tf</span><p>Root module: VPC (multi-AZ), ECR repos for foundation + sandbox + web, ECS Fargate cluster, RDS Aurora Serverless v2 (Postgres), S3 bucket for artifacts, IAM roles for task execution + Bedrock + SageMaker.</p></li><li><span class="file-path">infra/aws/terraform/ecs.tf</span><p>ECS Fargate services: foundation (1+ tasks), sandbox-worker (1+ tasks, larger CPU/RAM), inference (optional, see §3). ALB in front; WAF rules for /v1/*.</p></li><li><span class="file-path">infra/aws/terraform/rds.tf</span><p>Aurora Serverless v2 cluster, single writer + 1 reader in stage, 1 writer + 2 readers in prod. Encrypted at rest with KMS, backups retained 14 days (stage) / 35 days (prod). Drizzle uses the cluster endpoint (DATABASE_URL_UNPOOLED).</p></li><li><span class="file-path">infra/aws/terraform/s3.tf</span><p>ai-saas-artifacts-&lt;env&gt; bucket, versioning on, lifecycle rules push review artifacts to Glacier after 90 days. SSE-KMS. Public access blocked; presigned URLs only.</p></li><li><span class="file-path">infra/aws/terraform/route53_cf.tf</span><p>Route53 hosted zone, ACM certificate, CloudFront distribution with two origins (Vercel for the web, ALB for foundation). Failover routing policy on /api/foundation/*; latency on the rest.</p></li><li><span class="file-path">infra/aws/terraform/bedrock.tf</span><p>Bedrock model access for Claude Sonnet, Haiku, Llama 3.1 70B. Cross-region inference profile for resilience.</p></li><li><span class="file-path">infra/aws/terraform/sagemaker.tf</span><p>Optional SageMaker endpoint for self-hosted Qwen2.5-Coder-32B behind an OpenAI-compatible inference container (serving stack: vLLM + HuggingFace tokenizer).</p></li><li><span class="file-path">services/agent_orchestrator/remote_model.py</span><p>OpenAICompatibleStructuredModel adapter (Ollama, vLLM, Bedrock via proxy, SageMaker via proxy, Together, Groq, Fireworks, OpenRouter). Strict JSON Schema response_format, retry with idempotency key.</p></li><li><span class="file-path">services/delivery_gateway/github_adapter.py</span><p>Real DeliveryPort adapter: creates a signed branch + draft PR via PyGithub or REST, dispatches a policy-gated GitHub Actions workflow via repository_dispatch, scoped token per tenant.</p></li><li><span class="file-path">scripts/run-benchmark.py</span><p>Multi-model benchmark harness: runs the proposal→plan→verify pipeline against N configured models, scores requirement_recall / evidence_precision / unsupported_claim_rate / p95 latency / tokens, writes results/&lt;model&gt;.json.</p></li><li><span class="file-path">scripts/llm-serve.sh</span><p>Launcher for Ollama / vLLM / llama.cpp / Bedrock proxy based on env LLM_RUNNER; pulls from HuggingFace if needed.</p></li><li><span class="file-path">infra/models/models.yaml</span><p>Model registry: tiny / default / quality / remote tiers with HF repo, runner, quantization, json_schema capability, RAM/VRAM.</p></li><li><span class="file-path">benchmarks/cases/</span><p>Fixed regression set (10–20 cases) for the benchmark harness: toss-subscription-sandbox, faq-support-decision, proposal-decompose, evidence-grounding, prompt-injection-defense, large-repo-context.</p></li><li><span class="file-path">docs/runbooks/aws-prod.md</span><p>Operator runbook: deploy order, rollback, on-call queries (RDS failover, ECS task restart, Bedrock throttling response).</p></li></ul></div></div></section><section id="pcl-pros" class="pcl-section pcl-pros"><h3>Pros</h3><ul class="pros-list"><li>Matches each workload to its native platform: Vercel CDN for the web, Fly.io for low-ops Docker, AWS for managed Postgres + heavy compute + global failover.</li><li>Production LLM picks are evidence-backed: benchmark harness scores each candidate against a fixed regression set; default in models.yaml is the cheapest model that clears all gates.</li><li>AWS footprint is IaC-only (Terraform); no manual console drift. Same code path for stage and prod via Terraform variables.</li><li>Cost ceiling per scenario is enumerable from the Terraform plan output; cost surprises show up at review time, not at month-end.</li><li>Sandbox worker moves to ECS Fargate with allowlisted task definitions; same contract as the Local Lite DeterministicSandbox but with real subprocess isolation.</li><li>Multi-region failover for the foundation API (active/active via Route53 + ALB); RPO ≤ 5 min via Aurora cross-region replication for prod.</li><li>DeliveryPort gains a real GitHub adapter with scoped tokens; signed PR + repository_dispatch workflow = auditable hand-off without ambient deploy credentials.</li><li>Bedrock gives managed Claude / Llama without managing GPUs; SageMaker endpoint exists only when self-hosted beats Bedrock on $/token.</li></ul></section><section id="pcl-cons" class="pcl-section pcl-cons"><h3>Cons</h3><ul class="cons-list"><li>Three platforms to operate (Vercel + Fly.io + AWS). On-call must know all three. Mitigated by Terraform owning AWS and runbooks for Fly/Vercel.</li><li>Aurora Serverless v2 ACU minimum is 0.5; idle cost ~$40/month even when zero traffic. Mitigated by stopping stage outside business hours.</li><li>Self-hosted SageMaker endpoint is the most expensive single resource (~$2/hr for a ml.g5.2xlarge). Mitigated by autoscale-to-zero and only running the benchmark model.</li><li>Bedrock quotas vary by region; us-east-1 has the broadest catalog but is the slowest for KR users. Mitigated by cross-region inference profile + CloudFront latency routing.</li><li>Terraform state in S3 + DynamoDB adds one more piece to bootstrap. Mitigated by infra/aws/terraform/bootstrap.sh one-shot script.</li><li>ECS Fargate cold start (10–30s) shows up on the verify path. Mitigated by min_capacity=1 in prod, autoscale on CPU.</li></ul></section><section id="pcl-limit" class="pcl-section pcl-limit"><h3>Limitations</h3><ul class="limitations-list"><li>No Kubernetes. Fargate is the highest abstraction; no DaemonSet, no custom operators. If we later need GPU-aware scheduling across many models, ECS will not be enough — that goes to EKS.</li><li>Bedrock does not (yet) expose Qwen models. SageMaker endpoint is the only path to Qwen2.5-Coder-32B self-hosted; cost-vs-quality tradeoff must be benchmarked monthly.</li><li>Multi-region active/active is for read-mostly endpoints. The LangGraph checkpoint store is single-region primary with async cross-region copy; failover loses the in-flight checkpoint but does not lose history.</li><li>No SOC2 / HIPAA / PCI controls in scope. The proposal ships the IaC for VPC + KMS + IAM boundaries, but the compliance audit itself is a separate track.</li><li>Sandbox worker on Fargate inherits the same allowlist semantics as the Local Lite DeterministicSandbox; production-grade untrusted-code isolation (gVisor / Firecracker microVM) is a separate proposal.</li></ul></section>
+
+<hr class="section-divider">
+
+<footer>Generated 2026-09-22 · render via <code>/dev-kit:proposal</code></footer>
+</body>
+</html>
