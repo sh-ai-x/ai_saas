@@ -40,10 +40,13 @@ cp .env.docker.example .env
 pnpm docker:local
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The API is available at
-[http://localhost:8080/healthz](http://localhost:8080/healthz). Stop the
-stack with `docker compose -f docker/prod/compose.yaml down`; add `-v` only
-when disposable local data should be removed.
+The first available slot uses web `3100`, API `8180`, and PostgreSQL `55433`;
+other worktrees receive the next free `+10` block, shown in the Compose output.
+Internal service ports remain `3000`, `8080`, and `5432`. The local override
+runs Next.js in development mode, which keeps rebuilds practical on an 8 GB
+laptop. Stop the stack with `pnpm docker:local down`; use
+`pnpm docker:local down --volumes` only when disposable local data should be
+removed.
 
 The local Compose PostgreSQL service uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For a real Google login, fill the server-only
@@ -60,7 +63,7 @@ before introducing external credentials. Validate real account creation and
 login through the Google OAuth guide after configuring the provider.
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8180/healthz
 uv run --locked python -m foundation.contract_check
 bash scripts/verify-local.sh
 ```

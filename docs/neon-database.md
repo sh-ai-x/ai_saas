@@ -75,6 +75,20 @@ pooled URL (`DATABASE_URL`) for application traffic when the deployment host
 benefits from connection pooling. Keep migrations serialized and run them
 against the linked `production` branch only from an approved release step.
 
+For a Docker web runtime against a preview or staging branch, copy the two
+connection variables and runtime secrets into the ignored Neon Docker env
+file:
+
+```bash
+cp .env.neon.example .env.neon
+pnpm docker:neon
+```
+
+`docker:neon` does not start the bundled PostgreSQL service. It sends
+`DATABASE_URL` to the web runtime and `DATABASE_URL_UNPOOLED` only to the
+one-shot Drizzle migration container. Use `pnpm docker:local` when the target
+should remain the isolated PostgreSQL volume for the current worktree.
+
 ## Troubleshooting
 
 - `Project not found`: authenticate with the account that owns the project and
