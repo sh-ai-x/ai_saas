@@ -11,18 +11,29 @@ The product has three distinct surfaces: `/` is public landing and catalog,
 policy console. The landing page consumes active catalog records; it does not
 own pricing.
 
-## 1. Apply the Neon migration
+## 1. Apply the database migration
 
-Copy `apps/web/.env.example` to `.env.local`, set `APP_ENV=local`, and add the
-Neon production branch URL as `DATABASE_URL`. Apply the committed migration
-from the generated SQL migration in `apps/web/drizzle/` with the repository's Neon
-migration workflow. The migration creates plan policy, purchase options,
-provider settings, order/subscription state, billing inbox, and audit tables.
+Do not run a raw Drizzle migration against a shared Neon branch. Local
+development uses disposable Docker PostgreSQL:
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web db:migrate
+pnpm docker:local
 ```
+
+For staging, load the ignored `.env.stage` file and use the reviewed release
+gate:
+
+```bash
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+```
+
+Production migration is a CI-only release step. The migration creates plan
+policy, purchase options, provider settings, order/subscription state, billing
+inbox, and audit tables.
 
 ## 2. Open the separate admin console
 

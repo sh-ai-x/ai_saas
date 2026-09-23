@@ -118,7 +118,6 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--link-neon", action="store_true", help="link the configured Neon branch before importing its URL")
     command.add_argument("--neon-project-id", default=DEFAULT_NEON_PROJECT_ID)
     command.add_argument("--neon-branch", default=DEFAULT_NEON_BRANCH)
-    command.add_argument("--migrate", action="store_true", help="apply the committed Drizzle migrations after writing env")
     return command
 
 
@@ -184,8 +183,6 @@ def main(argv: list[str] | None = None) -> int:
         updates["NEXT_PUBLIC_GOOGLE_AUTH_ENABLED"] = "true"
         write_dotenv(web_env, updates)
 
-        migrate_env = os.environ.copy()
-        migrate_env.update(updates)
         display_path = web_env.relative_to(root) if web_env.is_relative_to(root) else web_env
         print(f"Configured {display_path}")
         print("- Neon DATABASE_URL: present (value hidden)")
@@ -193,14 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         print("- Google OAuth: client ID and secret present (values hidden)")
         print(f"- APP_ENV: {args.app_env}")
 
-        if args.migrate:
-            pnpm = shutil.which("pnpm")
-            if not pnpm:
-                raise RuntimeError("pnpm was not found; install pnpm before running --migrate")
-            run_command([pnpm, "--filter", "ai-saas-foundation-web", "db:migrate"], cwd=root, env=migrate_env)
-            print("- Drizzle migration: applied")
-        else:
-            print("- Drizzle migration: skipped (rerun with --migrate to apply)")
+        print("- Drizzle migration: not run (use the reviewed db:verify → db:plan → db:migrate release gate)")
     except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f"setup-web-auth: ERROR: {error}", file=sys.stderr)
         return 2

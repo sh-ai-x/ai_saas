@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadDotenv, readMigrationManifest, PROTECTED_BRANCHES } from "./migration-common.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -12,7 +11,6 @@ const requireFromWeb = createRequire(pathToFileURL(path.join(REPO_ROOT, "apps/we
 const postgres = requireFromWeb("postgres");
 
 const REPAIR_KEY = "stage2-canonical-v1";
-const PROTECTED_BRANCHES = new Set(["production", "prod", "main", "master"]);
 const LEGACY_HISTORY = [
   [1, "19d877e52b3a5780ba6e4146c5fa08510b5b0c53e9c3a09c506f3cbebf7bb1e3", "1789779671842"],
   [2, "a4511550b760a7b552a6407563d01a4480b21db42fb1afc4d1f7dde39108931b", "1789780992501"],
@@ -62,34 +60,6 @@ function parseArgs(argv) {
   }
   if (args.target !== "staging") throw new Error("history repair is limited to --target staging");
   return args;
-}
-
-function loadDotenv(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) throw new Error(`environment file not found: ${filePath}`);
-  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/u)) {
-    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/u);
-    if (!match || match[1] in process.env) continue;
-    const value = match[2];
-    process.env[match[1]] = value.length >= 2 && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))
-      ? value.slice(1, -1)
-      : value;
-  }
-}
-
-function readManifest(migrationDir) {
-  const journal = JSON.parse(fs.readFileSync(path.join(migrationDir, "meta", "_journal.json"), "utf8"));
-  return [...journal.entries]
-    .sort((left, right) => left.idx - right.idx)
-    .map((entry) => {
-      const file = path.join(migrationDir, `${entry.tag}.sql`);
-      const sql = fs.readFileSync(file, "utf8");
-      return {
-        tag: entry.tag,
-        hash: crypto.createHash("sha256").update(sql).digest("hex"),
-        createdAt: String(entry.when),
-        sql,
-      };
-    });
 }
 
 function rowTuple(row) {
@@ -256,9 +226,10 @@ async function cleanupLegacyFaq(sql, state) {
 
 async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
-  loadDotenv(args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, ".env.stage"));
+  const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, ".env.stage");
+  if (!loadDotenv(envFile)) throw new Error(`environment file not found: ${envFile}`);
   const branch = checkEnvironment(args);
-  const migrations = readManifest(args.migrationDir);
+  const migrations = readMigrationManifest(args.migrationDir, REPO_ROOT);
   const sql = postgres(process.env.DATABASE_URL_UNPOOLED, { max: 1, connect_timeout: 8, prepare: false });
   try {
     const state = await collectState(sql, migrations);
