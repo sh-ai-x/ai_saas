@@ -1,0 +1,4 @@
+Bash	cd /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.work
+Bash	cd /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.work
+Bash	cd /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.work
+Bash	pnpm build 2>&1 | tail -50

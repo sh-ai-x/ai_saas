@@ -1,0 +1,10 @@
+{
+  "duration_seconds": 0.0,
+  "exit_code": 1,
+  "phase": "local-repository-proposal-workspace",
+  "schema_version": "1.0.0",
+  "stderr": "error: unknown option '--workdir'\n",
+  "stdout": "",
+  "step": 3,
+  "timestamp": "2026-09-23T09:18:47+0900"
+}

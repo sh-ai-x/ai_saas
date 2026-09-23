@@ -1,4 +1,235 @@
 {
+  "events": {
+    "PostToolUse": [
+      {
+        "fail_closed": false,
+        "name": "injection-content-guard",
+        "path": "hooks/injection-content-guard.sh",
+        "when": "Agent"
+      },
+      {
+        "fail_closed": false,
+        "name": "injection-content-guard",
+        "path": "hooks/injection-content-guard.sh",
+        "when": "WebFetch"
+      },
+      {
+        "fail_closed": true,
+        "name": "l4-todo-scan",
+        "path": "hooks/l4-todo-scan.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": false,
+        "name": "linear-worktree-create",
+        "path": "hooks/linear-worktree-create.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": true,
+        "name": "loop-detect",
+        "path": "hooks/loop-detect.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": true,
+        "name": "secret-scan",
+        "path": "hooks/secret-scan.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": true,
+        "name": "slop-detector",
+        "path": "hooks/slop-detector.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": true,
+        "name": "sub-agent-handoff",
+        "path": "hooks/sub-agent-handoff.sh",
+        "when": "Agent"
+      },
+      {
+        "fail_closed": false,
+        "name": "worktree-log-auto-install",
+        "path": "hooks/worktree-log-auto-install.sh",
+        "when": "Bash"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "fail_closed": true,
+        "name": "acp-tier-assert",
+        "path": "hooks/acp-tier-assert.sh",
+        "when": "*"
+      },
+      {
+        "fail_closed": true,
+        "name": "bash-guard",
+        "path": "hooks/bash-guard.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": true,
+        "name": "destructive-confirm",
+        "path": "hooks/destructive-confirm.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": true,
+        "name": "destructive-confirm",
+        "path": "hooks/destructive-confirm.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": true,
+        "name": "git-guard",
+        "path": "hooks/git-guard.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": false,
+        "name": "linear-autosync",
+        "path": "hooks/linear-autosync.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": false,
+        "name": "pr-create-route",
+        "path": "hooks/pr-create-route.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": false,
+        "name": "ralph-attended-lock",
+        "path": "hooks/ralph-attended-lock.sh",
+        "when": "AskUserQuestion"
+      },
+      {
+        "fail_closed": true,
+        "name": "review-yml-isolation",
+        "path": "hooks/review-yml-isolation.sh",
+        "when": "Bash"
+      },
+      {
+        "fail_closed": true,
+        "name": "tdd-guard",
+        "path": "hooks/tdd-guard.sh",
+        "when": "Write|Edit|MultiEdit"
+      },
+      {
+        "fail_closed": true,
+        "name": "worktree-guard",
+        "path": "hooks/worktree-guard.sh",
+        "when": "Write|Edit|MultiEdit"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "fail_closed": false,
+        "name": "trace-session-end",
+        "path": "hooks/trace-session-end.sh",
+        "when": ""
+      }
+    ],
+    "SessionStart": [
+      {
+        "fail_closed": false,
+        "name": "linear-session-start",
+        "path": "hooks/linear-session-start.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "log-on-session-start",
+        "path": "hooks/log-on-session-start.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "plugin-cache-refresh",
+        "path": "hooks/plugin-cache-refresh.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "provider-divergence-check",
+        "path": "hooks/provider-divergence-check.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "session-start-check",
+        "path": "hooks/session-start-check.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "session-start-guard-mode-reset",
+        "path": "hooks/session-start-guard-mode-reset.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "session-start-harness-mode-reset",
+        "path": "hooks/session-start-harness-mode-reset.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "worktree-janitor-session-start",
+        "path": "hooks/worktree-janitor-session-start.sh",
+        "when": ""
+      }
+    ],
+    "Stop": [
+      {
+        "fail_closed": true,
+        "name": "stop-verify",
+        "path": "hooks/stop-verify.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "trace-session-end",
+        "path": "hooks/trace-session-end.sh",
+        "when": ""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "fail_closed": false,
+        "name": "context-window-guard",
+        "path": "hooks/context-window-guard.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "linear-task-change",
+        "path": "hooks/linear-task-change.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "notification-collapse",
+        "path": "hooks/notification-collapse.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": true,
+        "name": "tdd-scope-judge",
+        "path": "hooks/tdd-scope-judge.sh",
+        "when": ""
+      },
+      {
+        "fail_closed": false,
+        "name": "worktree-auto-cut",
+        "path": "hooks/worktree-auto-cut.sh",
+        "when": ""
+      }
+    ]
+  },
+  "generated_at": "2026-09-23T00:20:37+00:00",
   "matrix": {
     "bootstrap": {
       "bash-guard": false,

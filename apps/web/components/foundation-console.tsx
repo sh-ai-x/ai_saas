@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { loadTossSdk } from "@/lib/payments/toss-sdk";
+import { RepositoryWorkspace } from "./repository-workspace/repository-workspace";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -46,6 +47,7 @@ export function FoundationConsole() {
   const [activity, setActivity] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"agent" | "proposals">("proposals");
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const log = useCallback((entry: string) => {
@@ -174,7 +176,24 @@ export function FoundationConsole() {
       <div className="console-column">
         <header className="topbar">
           <div className="brand"><span className="brand-mark">AI</span><div><p className="eyebrow">FOUNDATION CONSOLE</p><h1>Operator workspace</h1></div></div>
-          <div className="topbar-actions"><span className={`status-pill ${health === "ok" ? "is-ok" : ""}`}><span className="status-dot" /> API {health}</span><span className="workspace-scope">USER WORKSPACE</span></div>
+          <div className="topbar-actions">
+            <div className="tab-switcher">
+              <button
+                className={`tab-button ${activeTab === "proposals" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("proposals")}
+              >
+                Repository Proposals
+              </button>
+              <button
+                className={`tab-button ${activeTab === "agent" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("agent")}
+              >
+                Agent Run
+              </button>
+            </div>
+            <span className={`status-pill ${health === "ok" ? "is-ok" : ""}`}><span className="status-dot" /> API {health}</span>
+            <span className="workspace-scope">USER WORKSPACE</span>
+          </div>
         </header>
 
         <div className="content-wrap">
@@ -184,6 +203,14 @@ export function FoundationConsole() {
           </section>
 
           {error && <div className="alert">{error}</div>}
+
+          {activeTab === "proposals" && (
+            <section className="workspace-section">
+              <RepositoryWorkspace />
+            </section>
+          )}
+
+          {activeTab === "agent" && (<>
           <section className="metrics">
             <article className="metric-card"><span>RUN CREDITS</span><strong>{String(balance?.run_credits_available ?? "—")}</strong><small>shared executable balance</small></article>
             <article className="metric-card"><span>PAYMENT</span><strong>{String(payment?.provider ?? "—")}</strong><small>{payment?.sandbox ? "sandbox enabled" : "production mode"}</small></article>
@@ -197,6 +224,7 @@ export function FoundationConsole() {
             <article className="panel activity-panel"><div className="panel-heading"><div><p className="eyebrow">03 / ACTIVITY</p><h3>Recent activity</h3></div><span className="tag">PERSONAL</span></div>{activity.length ? <ul className="activity-list">{activity.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="muted">Your runs and billing actions will appear here.</p>}</article>
           </section>
           <footer><span>AI SaaS Foundation · contract v1</span><span>Provider-neutral · sandbox-first</span></footer>
+          </>)}
         </div>
       </div>
     </main>
