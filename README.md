@@ -361,6 +361,26 @@ Compose PostgreSQL unless `ALLOW_REMOTE_DATABASE=true` is explicitly set.
 Register the actual published web port shown by Compose for the Google
 callback.
 
+To use another host port, pass `--port`; the script aligns the Better Auth
+origin and publishes the container's port 3000 on that port:
+
+```bash
+FAQ_OPENAI_ENABLED=true pnpm docker:local --port 3019
+```
+
+Register `http://localhost:3019/api/auth/callback/google` in the Google OAuth
+client before testing login on port 3019. The FAQ router keeps the OpenAI key
+server-side; add `OPENAI_API_KEY` to the ignored root `.env` and enable it with
+`FAQ_OPENAI_ENABLED=true`.
+
+For safety, `docker:local` always defaults web migrations to the local Compose
+PostgreSQL service, even when `.env` also contains a Neon `WEB_DATABASE_URL`.
+Use an explicit shell assignment only when a remote database is intentional:
+
+```bash
+WEB_DATABASE_URL='postgresql://...remote...' pnpm docker:local --port 3019
+```
+
 `pnpm docker:local` always reads the root `.env`, rebuilds the images, and
 force-recreates the containers. This is important after changing Google OAuth
 or database settings because an existing container keeps its old environment.
