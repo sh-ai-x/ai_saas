@@ -80,7 +80,15 @@
       "pnpm_lint": "PASS",
       "pnpm_test": "PASS (12 suites, 82 passed, 3 skipped)",
       "pnpm_build": "PASS (Next.js production build; 9 static pages generated)",
-      "git_diff_check": "PASS"
+      "git_diff_check": "PASS",
+      "docker_local_3019": "PASS",
+      "docker_capabilities": {
+        "provider": "langchain",
+        "langchain_enabled": true,
+        "langgraph_enabled": true,
+        "langsmith_enabled": true,
+        "langsmith_project": "proposal-to-verified-change"
+      }
     },
     "notes": [
       "All UI components integrated into foundation console with tab switcher",
