@@ -3,6 +3,8 @@ import { seedFaqs } from '../lib/faq/seed';
 import { answerFaq } from '../lib/faq/service';
 import { redact, normalize } from '../lib/faq/matcher';
 import { createOpenAiProvider, DEFAULT_OPENAI_TIMEOUT_MS } from '../lib/faq/openai';
+import { createJevProvider } from '../lib/faq/jev';
+import { DEFAULT_PROVIDER_TIMEOUT_MS, type FaqProvider } from '../lib/faq/provider';
 
 const repository = { list: async () => seedFaqs };
 const decision = (overrides: Record<string, unknown> = {}) => ({ faqId: 'faq-getting-started', category: 'general', answerable: true, confidence: 1, ...overrides });
@@ -60,6 +62,74 @@ describe('FAQ policy and OpenAI boundary', () => {
     expect((await answerFaq('documentation help', repository, provider)).outcome).toBe('handoff');
     await answerFaq('documentation help', repository, provider);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('FAQ Jev provider', () => {
+  // seedFaqs[0].category is 'general' — not in the archived adapter's hard-coded
+  // ['guides','product','support','none'] list, so this candidate is itself the
+  // regression case for the category-derivation fix.
+  const candidate = seedFaqs[0];
+  const singleRepo = { list: async () => [candidate] };
+  const jevPayload = (overrides: { faqChoice?: string; categoryChoice?: string; answerable?: number } = {}) => {
+    const faqChoice = overrides.faqChoice ?? candidate.id;
+    const categoryChoice = overrides.categoryChoice ?? candidate.category;
+    return {
+      answers: {
+        faq: { type: 'choice', choice: faqChoice, confidence: 0.95, probabilities: { [candidate.id]: faqChoice === candidate.id ? 0.95 : 0.05, none: faqChoice === candidate.id ? 0.05 : 0.95 } },
+        category: { type: 'choice', choice: categoryChoice, confidence: 0.9, probabilities: { [candidate.category]: categoryChoice === candidate.category ? 0.9 : 0.1, none: categoryChoice === candidate.category ? 0.1 : 0.9 } },
+        answerable: { type: 'noul', noul: overrides.answerable ?? 0.95 },
+      },
+    };
+  };
+
+  it('shares the 5000ms provider timeout constant instead of the archived 1200ms clamp', () => {
+    expect(DEFAULT_PROVIDER_TIMEOUT_MS).toBe(5_000);
+  });
+
+  it('derives category criteria from the live candidate set (regression: seed category is not guides/product/support)', async () => {
+    expect(['guides', 'product', 'support', 'none']).not.toContain(candidate.category);
+    const fetcher = jest.fn(async () => Response.json(jevPayload()));
+    const result = await answerFaq('tell me about this platform', singleRepo, createJevProvider({ enabled: true, key: 'test-placeholder', fetcher }));
+    expect(result).toMatchObject({ outcome: 'answer', answer: candidate.answer });
+  });
+
+  it('passes answerable through as a real probability, not a boolean cast', async () => {
+    const fetcher = jest.fn(async () => Response.json(jevPayload({ answerable: 0.5 })));
+    const result = await answerFaq('tell me about this platform', singleRepo, createJevProvider({ enabled: true, key: 'test-placeholder', fetcher }));
+    // 0.5 fails the existing answerable >= 0.9 gate at service.ts:16 — a distinction
+    // the OpenAI adapter's boolean-cast answerable (1|0) cannot express.
+    expect(result.outcome).toBe('clarify');
+  });
+
+  it('makes one typed call to the Jev endpoint with derived criteria and no answer text', async () => {
+    const fetcher = jest.fn(async () => Response.json(jevPayload()));
+    const result = await answerFaq('tell me about this platform', singleRepo, createJevProvider({ enabled: true, key: 'test-placeholder', fetcher }));
+    expect(result.answer).toBe(candidate.answer);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.typesafe.ai/v1/systemone');
+    const body = JSON.parse(init.body as string);
+    expect(body.questions.category.criteria).toHaveProperty(candidate.category);
+    expect(JSON.stringify(body)).not.toContain(candidate.answer);
+  });
+
+  it.each(['disabled', 'missing-key', 'low', 'malformed', 'unknown', 'category', 'error'])('fails closed: %s', async mode => {
+    const overrides = mode === 'low' ? { answerable: 0.2 } : mode === 'unknown' ? { faqChoice: 'invented' } : mode === 'category' ? { categoryChoice: 'invented-category' } : {};
+    const fetcher = jest.fn(async () => { if (mode === 'error') throw new Error('private'); return Response.json(mode === 'malformed' ? {} : jevPayload(overrides)); });
+    const result = await answerFaq('tell me about this platform', singleRepo, createJevProvider({ enabled: mode !== 'disabled', key: mode === 'missing-key' ? undefined : 'test-placeholder', fetcher }));
+    expect(result.outcome).not.toBe('answer');
+    expect(JSON.stringify(result)).not.toContain('private');
+    expect(fetcher.mock.calls.length).toBeLessThanOrEqual(1);
+  });
+
+  it('does not clamp the requested timeout to the archived 1200ms budget', async () => {
+    const fetcher = jest.fn(() => new Promise<Response>(() => {}));
+    const provider = createJevProvider({ enabled: true, key: 'test-placeholder', fetcher, timeoutMs: 1300 });
+    const start = Date.now();
+    const result = await answerFaq('tell me about this platform', singleRepo, provider);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(1250);
+    expect(result.outcome).toBe('handoff');
   });
 });
 
@@ -163,5 +233,48 @@ describe('FAQ repository and bounded wire validation', () => {
     const overrides = mode === 'distribution' ? { confidence: 2 } : mode === 'noul' ? { answerable: 'invalid' } : {};
     const fetcher = jest.fn(async () => mode === 'oversized' ? new Response('x'.repeat(17000)) : mode === 'type' ? Response.json({ output: [{ type: 'message', content: [{ type: 'text', text: '{}' }] }] }) : Response.json(payload(overrides)));
     expect((await answerFaq('documentation help', repository, createOpenAiProvider({ enabled: true, key: 'test-placeholder', fetcher }))).outcome).toBe('handoff');
+  });
+});
+
+// Both adapters implement the same `FaqProvider` port (provider.ts:2-3). This
+// suite pins the shared behavioral contract mechanically — a change to either
+// adapter that breaks parity with the other fails CI here, rather than being
+// caught only by a reviewer reading both files side by side.
+describe('FAQ provider conformance — Jev and OpenAI share one contract', () => {
+  type ProviderFactory = (options: { enabled: boolean; key?: string; endpoint?: string; model?: string; fetcher?: typeof fetch; timeoutMs?: number; now?: () => number }) => FaqProvider;
+  const providers: Record<'jev' | 'openai', ProviderFactory> = { jev: createJevProvider, openai: createOpenAiProvider };
+  const names = Object.keys(providers) as Array<keyof typeof providers>;
+  const candidate = seedFaqs[0];
+
+  it.each(names)('%s: returns null when disabled', async name => {
+    const provider = providers[name]({ enabled: false, key: 'test-placeholder', fetcher: jest.fn() });
+    expect(await provider.select('a general question', [candidate])).toBeNull();
+  });
+
+  it.each(names)('%s: returns null without a key', async name => {
+    const provider = providers[name]({ enabled: true, fetcher: jest.fn() });
+    expect(await provider.select('a general question', [candidate])).toBeNull();
+  });
+
+  it.each(names)('%s: refuses more than 5 candidates without calling the provider', async name => {
+    const fetcher = jest.fn();
+    const provider = providers[name]({ enabled: true, key: 'test-placeholder', fetcher });
+    expect(await provider.select('a general question', seedFaqs)).toBeNull(); // seedFaqs has 6 entries
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each(names)('%s: refuses sensitive text without calling the provider', async name => {
+    const fetcher = jest.fn();
+    const provider = providers[name]({ enabled: true, key: 'test-placeholder', fetcher });
+    expect(await provider.select('my account password is secret', [candidate])).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each(names)('%s: opens a circuit breaker after one failure and skips the next call', async name => {
+    const fetcher = jest.fn(async () => { throw new Error('boom'); });
+    const provider = providers[name]({ enabled: true, key: 'test-placeholder', fetcher });
+    await expect(provider.select('a general question', [candidate])).rejects.toThrow('Provider unavailable');
+    await expect(provider.select('a general question', [candidate])).rejects.toThrow('Provider unavailable');
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
