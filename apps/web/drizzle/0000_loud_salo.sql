@@ -131,8 +131,8 @@ ALTER TABLE "pricing_options" ADD CONSTRAINT "pricing_options_amount_positive_ch
 ALTER TABLE "pricing_plans" ADD CONSTRAINT "pricing_plans_billing_mode_check" CHECK ("billing_mode" IN ('one_time', 'subscription'));
 --> statement-breakpoint
 INSERT INTO "pricing_plans" ("id", "tenant_id", "code", "name", "description", "billing_mode", "is_default", "display_order", "features", "quotas") VALUES
-  ('plan-starter', 'platform', 'starter', 'Starter', 'A small, production-shaped workspace for trying the foundation.', 'subscription', true, 10, '["1 workspace", "100 agent runs", "Mock or sandbox checkout"]'::jsonb, '{"monthlyRuns":100,"members":1}'::jsonb),
-  ('plan-pro', 'platform', 'pro', 'Pro', 'A portfolio-ready plan with higher bounded usage and team handoff.', 'subscription', false, 20, '["5 workspaces", "1,000 agent runs", "Usage and audit history"]'::jsonb, '{"monthlyRuns":1000,"members":5}'::jsonb),
+  ('plan-starter', 'platform', 'starter', 'Starter', 'A small, production-shaped workspace for trying the foundation.', 'subscription', true, 10, '["1 workspace", "100 proposal reviews", "Mock or sandbox checkout"]'::jsonb, '{"monthlyRuns":100,"members":1}'::jsonb),
+  ('plan-pro', 'platform', 'pro', 'Pro', 'A portfolio-ready plan with higher bounded usage and team handoff.', 'subscription', false, 20, '["5 workspaces", "1,000 proposal reviews", "Usage and audit history"]'::jsonb, '{"monthlyRuns":1000,"members":5}'::jsonb),
   ('plan-lifetime', 'platform', 'lifetime', 'Lifetime', 'A separate one-time product. It is not mixed with subscription plans.', 'one_time', false, 30, '["One payment", "No recurring renewal", "Bounded portfolio license"]'::jsonb, '{"monthlyRuns":1000,"members":1}'::jsonb)
 ON CONFLICT ("id") DO NOTHING;
 --> statement-breakpoint

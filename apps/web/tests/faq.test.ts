@@ -19,7 +19,7 @@ describe('FAQ policy and OpenAI boundary', () => {
   it('uses a provider timeout compatible with container network latency', () => {
     expect(DEFAULT_OPENAI_TIMEOUT_MS).toBe(5_000);
   });
-  it.each(['What is AI SaaS Foundation?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
+  it.each(['What is AI Change Impact Workbench?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
     const select = jest.fn();
     const result = await answerFaq(question, repository, { select });
     expect(result).toMatchObject({ outcome: 'answer', answer: seedFaqs[0].answer });
@@ -245,6 +245,7 @@ describe('FAQ provider conformance — Jev and OpenAI share one contract', () =>
   const providers: Record<'jev' | 'openai', ProviderFactory> = { jev: createJevProvider, openai: createOpenAiProvider };
   const names = Object.keys(providers) as Array<keyof typeof providers>;
   const candidate = seedFaqs[0];
+  const tooManyCandidates = [...seedFaqs, { ...candidate, id: 'faq-extra-candidate' }];
 
   it.each(names)('%s: returns null when disabled', async name => {
     const provider = providers[name]({ enabled: false, key: 'test-placeholder', fetcher: jest.fn() });
@@ -259,7 +260,7 @@ describe('FAQ provider conformance — Jev and OpenAI share one contract', () =>
   it.each(names)('%s: refuses more than 5 candidates without calling the provider', async name => {
     const fetcher = jest.fn();
     const provider = providers[name]({ enabled: true, key: 'test-placeholder', fetcher });
-    expect(await provider.select('a general question', seedFaqs)).toBeNull(); // seedFaqs has 6 entries
+    expect(await provider.select('a general question', tooManyCandidates)).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
 

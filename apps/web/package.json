@@ -19,6 +19,7 @@
     "dotenv": "^18.0.1",
     "drizzle-orm": "^0.45.2",
     "next": "15.5.25",
+    "pdfjs-dist": "^5.7.284",
     "postgres": "^3.4.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",

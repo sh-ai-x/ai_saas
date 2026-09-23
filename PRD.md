@@ -1,70 +1,78 @@
-# PRD — Restore Jev as the FAQ Provider
+# PRD — AI Change Impact Workbench: Low-token Proposal Review
 
 ## 1. Frame
 
-- Goal: Restore the archived `jev.ts` FAQ provider behind the existing `FaqProvider` port as a config-flagged alternative to `openai.ts`, fix the two bugs a verbatim revert would re-ship, document why OpenAI was chosen, and document the environment variables so the switch is operable.
-- Target user: The repository maintainer / operator who currently cannot tell from any file why the FAQ bot routes through OpenAI instead of Jev, and who has no config path back to Jev once TypeSafe/Jev API access clears its waitlist.
-- Situation: A customer-facing FAQ support bot is merged on `origin/main`. Jev was its original provider (`05426b1`/`03a1faf`), then deleted outright and replaced with OpenAI (`726dcaa`) with no rationale recorded anywhere in the repository. The provider port (`apps/web/lib/faq/provider.ts`) was kept identical between adapters specifically so this restoration would be cheap.
+- Goal: Build a read-only workbench that compares an HTML/PDF/Markdown/text proposal from a local file, public URL, mounted-worktree `file://` URL, or direct text input with a local Git repository and returns requirement-level code evidence, impact, risks, and a human-reviewed ready/revise/blocked decision.
+- Target user: An AI Engineer evaluating prompt, model, retriever, graph, or provider changes before implementation.
+- Situation: The engineer currently has to read the proposal, search the repository, infer affected modules, and judge feasibility manually; LLM/JEV calls over the entire repository are expensive and hard to reproduce.
 
 ## 2. Validate
 
 ### Independent evidence
 
-1. **Git history** — `apps/web/lib/faq/jev.ts` does not exist on `origin/main` (`git ls-tree origin/main -- apps/web/lib/faq/jev.ts` returns nothing); it was introduced with the feature in `05426b1`/`03a1faf` and deleted in `726dcaa fix(faq): replace JEV with OpenAI structured router`, recoverable verbatim via `git show 05426b1:apps/web/lib/faq/jev.ts`. Source: repository commit history. Date: 2026-09-22.
-2. **Source code** — `apps/web/lib/faq/openai.ts:94` declares `answerable` as a JSON Schema boolean and `:45` maps it to `1|0`, so the `answerable >= 0.9` gate at `apps/web/lib/faq/service.ts:16` is degenerate (equivalent to `=== 1`) under the currently active provider; Jev's Noul (`jev.ts:8,17` at `05426b1`) is the only configuration where that existing threshold does real work. Source: static code reading. Date: 2026-09-22.
-3. **Maintainer statement** — the repo owner stated directly in conversation on 2026-09-22 that TypeSafe/Jev API access is pending waitlist approval, and that the OpenAI swap was an access-availability stopgap, not a technical or design rejection of Jev; this is recorded in no file in the repository prior to this PRD. Source: direct conversation, not independently verifiable from repo artifacts alone — recorded here as the PRD's own evidence trail. Date: 2026-09-22.
+1. **Repository evidence:** `services/control_api/repository_catalog.py:400-468` currently imports repository snapshots, which creates size, secret, and storage concerns for large local repositories.
+2. **Runtime evidence:** `services/agent_orchestrator/model_port.py:57-166`, `services/agent_orchestrator/langgraph_runtime.py:37-123`, and `services/observability/adapter.py:67-161` provide partial LangChain/LangGraph/LangSmith seams but no proposal-to-code evidence review artifact.
+3. **Interview PDF:** BASWE 100 AI Engineering Interview Questions, Q41-Q60 and Q61-Q80, requires traceability, versioned artifacts, cost/latency measurement, failure-first analysis, and safety gates.
+4. **Projects PDF:** BASWE Build These Six Projects, Project 4 and Project 6, requires calibrated evaluation, human review, severity, reproduction, and needs-review findings.
 
 ### Value score
 
-This is an internal engineering/config change, not a monetized user-facing feature, so `value_score` is framed as engineering cost avoided rather than user LTV:
+Assumption: 240 value units per first-year engineer, 25 reachable early users, and 1,200 cost units for a bounded vertical slice.
 
-- The archaeological recovery performed once in this cycle (locating the deleted commit, diffing it against the current adapter, finding and fixing two bugs) took real engineering time. Estimate: 2 hours at $100/hr = $200 per recurrence.
-- Without a config flag and a written record, every future "should we use Jev?" conversation repeats this recovery from scratch. Conservatively 3 such recurrences avoided over the next year (waitlist status changes, a new engineer asks, a future audit) = $600 value.
-- Cost of this change: recovery + 2 bug fixes + provider-conformance tests + docs, already performed = ~1 hour additional engineering = $100 (the recovery cost is counted once, in the value side, not double-counted in cost).
-
-`value_score = $600 / $100 = 6.0` — PASS (threshold ≥ 3.0).
+`value_score = (240 × 25) / 1,200 = 5.0` — PASS (threshold ≥ 3.0).
 
 ### Ambiguity loop
 
-`ambiguity_score: 10 → 6 → 3 → 2` — PASS (threshold ≤ 3).
+`ambiguity_score: 10 → 8 → 6 → 4 → 3` — PASS.
 
-- 10: scope was completely open — "use Jev somewhere in this repo" with no concrete integration point identified.
-- 6: repository investigation (this conversation, 2026-09-22) identified the FAQ router as the one spot where Jev was already built, shipped-adjacent, and only sidelined by an access gate — narrowing from "where could Jev apply" to "restore what was already there."
-- 3: iterative proposal refinement (draft → cheapest-slice trim → cons/limitations resolution → third-bug documentation) converged the scope to exactly 5 files, explicitly deferring ranking and email-escalation as separate follow-on proposals.
-- 2: this PRD's own gate-2 cycle confirms no remaining open design question — the only two items still explicitly open for reviewer judgment (5000ms vs a tighter Jev-specific timeout; inline conditional vs factory module) are already resolved with stated rationale in the proposal, not blocking implementation.
+- The first loop fixed the product to proposal-to-code review instead of repository upload or code execution.
+- The second fixed local parsing and Git-standard exclusion.
+- The third fixed deterministic analysis before model calls.
+- The fourth fixed one LangChain synthesis call and optional one JEV batch call per review.
+- The final loop fixed the MVP boundary: no code modification, shell, build, test suite, or deployment.
 
 ## 3. Non-goals
 
-1. **Removing, deprecating, or disabling the OpenAI adapter.** Rationale: OpenAI remains the default and fully supported; this is a restoration, not a replacement. Breach response: reject any request to remove OpenAI as part of this phase; scope a separate deprecation proposal only after Jev has production traffic evidence.
-2. **Retuning the `confidence`/`answerable` thresholds at `service.ts:16`, or any calibration work.** Rationale: `confidence` and `answerable` mean materially different things across the two adapters, and retuning without real Jev traffic would be guessing. Breach response: defer to a follow-on proposal once the rollout sequence's parallel-run step produces real distribution data.
-3. **The FAQ widget's unbounded button list (ranking) and the human-notification gap on a genuine miss (email escalation).** Rationale: both are real, independent problems already documented in the proposal's "Deferred" section, worth doing whether or not Jev is ever enabled — bundling them would have made a cheap, reversible change expensive to review. Breach response: defer each to its own proposal; do not fold either into this phase's steps.
-4. **A provider-factory abstraction module.** Rationale: at exactly two adapters, a factory file is more indirection than the ternary it would replace — cost optimization here means implementation/comprehension cost, not only runtime cost. Breach response: reconsider only if and when a third FAQ provider is proposed.
+1. **Full repository upload or snapshot storage.** Rationale: it increases cost and secret exposure. Breach response: create a separate ingestion/security plan.
+2. **Code modification, shell execution, build, test suite, or deployment.** Rationale: proposal review must remain separate from implementation verification. Breach response: hand the artifact to CI or a separate implementation phase.
+3. **File-by-file LLM or JEV evaluation.** Rationale: deterministic manifest/AST/search is cheaper and more reproducible. Breach response: add a separately budgeted targeted evaluator only for unresolved evidence.
+4. **Baseline/candidate bulk experiment execution in the MVP.** Rationale: the review must first identify the workflow and metrics worth comparing. Breach response: start the follow-up experiment phase from the approved artifact.
 
 ## 4. Phase plan
 
-Phase index: `phases/jev-faq-provider-restore/index.json`
+Phase index: `phases/ai-change-impact-review/index.json`
 
-### Step 0 — restore-jev-provider
+### Step 0 — local-context-contracts
 
-Recover `apps/web/lib/faq/jev.ts` from commit `05426b1` behind the existing `FaqProvider` port, fix both archived bugs (category derivation at both call sites; timeout clamp reconciled to a shared `DEFAULT_PROVIDER_TIMEOUT_MS`), wire an inline `FAQ_PROVIDER` env conditional into `route.ts` defaulting to OpenAI, add the record-correction amendment to `docs/proposals/faq-support/jev-cs-faq-bot.yaml`, and add both a dedicated Jev test suite and a cross-provider conformance suite. **Status: completed** — implemented and verified before this PRD was written; this step documents work already done, not work still pending.
+Implement bounded local HTML/PDF/Markdown/text, public document URL, mounted-worktree `file://`, or direct text metadata extraction, Git-aware manifest, secret/size/symlink policy, deterministic code structure analyzer, and bounded evidence retrieval.
 
-### Step 1 — document-env-vars-and-verify-wire-contract
+### Step 1 — review-graph-and-evaluation
 
-Document `FAQ_PROVIDER` and the `JEV_*` environment variables in `.env.example`, `apps/web/.env.example`, and the phase README (the proposal's own "Review and next steps" lists this as required, not yet done). Then perform step 1 of the proposal's stated rollout sequence: verify the live wire contract against the real `api.typesafe.ai` endpoint exactly once, manually, outside CI, using the `JEV_API_KEY` now available in the maintainer's local `.env`, and record the (redacted, non-secret) outcome.
+Implement LangGraph checkpoint flow, LangChain single-call structured synthesis, optional single-call JEV adapter, redacted LangSmith review trace, and immutable review artifact.
+
+### Step 2 — control-api-review-routes
+
+Expose catalog/start/detail/decision endpoints with idempotency, budget reporting, no-code-execution validation, and review state persistence.
+
+### Step 3 — workbench-ui
+
+Replace the legacy repository proposal UI with local document/repository selection, exclusion preview, review progress, evidence table, risk summary, and human decision UI.
+
+### Step 4 — legacy-cleanup-and-docs
+
+Remove obsolete repository-import/proposal UI paths and stale documentation from the user-facing workflow, keep only compatibility APIs required by existing tests, add setup guide, and run focused/full verification.
 
 ## 5. Acceptance criteria
 
-1. `apps/web/lib/faq/jev.ts` exists, implements `FaqProvider`, derives its category set from the live candidate list at both the validation and model-criteria call sites, and uses the shared `DEFAULT_PROVIDER_TIMEOUT_MS` instead of a hard clamp.
-2. `apps/web/app/api/faq/route.ts` selects between `createJevProvider` and `createOpenAiProvider` via `process.env.FAQ_PROVIDER`, defaulting to OpenAI when unset.
-3. `docs/proposals/faq-support/jev-cs-faq-bot.yaml` carries an amendment section stating why OpenAI was chosen over Jev.
-4. `FAQ_PROVIDER`, `JEV_API_KEY`, `JEV_API_URL`, `JEV_MODEL`, and `JEV_TIMEOUT_MS` are documented in both `.env.example` files and the phase README, consistent with the existing `FAQ_OPENAI_ENABLED`/`OPENAI_*` documentation style.
-5. The full web test/lint/build suite passes with zero regressions, and a one-time manual live-wire-contract check against the real Jev endpoint is performed and its outcome recorded without leaking the API key or any user question content into a committed file.
-
-Each item maps 1:1 to the acceptance criteria in `phases/jev-faq-provider-restore/step0.md` and `step1.md`.
+1. Local HTML/PDF/Markdown/text files, public document URLs, direct text, or `file://` URLs inside the mounted worktree and Git repositories are analyzed without raw source or repository snapshot storage; remote documents are limited to 10 seconds and 12 MB.
+2. Git tracked + unignored files are included; secret, binary, build, size, and symlink policies are enforced.
+3. Requirements and acceptance criteria retain source section/page pointers and map to top-k file/symbol/line evidence.
+4. Review uses at most one LangChain synthesis call and one optional JEV call, while LangGraph supports checkpoint/resume/cancel and LangSmith links review metadata and cost.
+5. UI shows supported/partial/missing/contradicted/unknown, affected modules, safety/cost/latency/observability gaps, and human ready/revise/blocked history; no code/build/test/deploy action is available.
 
 ## 6. Hand-off
 
-- Interview contract: skipped and recorded because this worktree had no interview hand-off and the design was already fully settled through the proposal at `docs/proposals/reviewing/jev-typesafe-integration/idea-jev-typesafe-integration.yaml` (iteratively reviewed with the maintainer across multiple rounds: draft → cheapest-slice trim → cons/limitations resolution → third-bug documentation).
-- Review artifact: `docs/proposals/reviewing/jev-typesafe-integration/idea-jev-typesafe-integration.html`.
-- Next invocation: `/dev-kit:build` (this PRD documents step0 as already built/verified and step1 as the remaining work to execute).
-- Build must use the step's TDD order for step1: capture RED where a new assertion is meaningful, implement GREEN, refactor, then run the declared verification commands.
+- Product guide: `docs/setup-guides/09-ai-change-impact-workbench.md`
+- Phase: `phases/ai-change-impact-review/index.json`
+- Next stage: `/dev-kit:build`
+- Build order is dependency-first and remains in the current `fix/local-repository-picker` worktree; main is not edited.

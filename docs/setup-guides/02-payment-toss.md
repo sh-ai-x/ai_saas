@@ -103,8 +103,8 @@ configuration conflict. The admin enable action still persists the provider
 setting and audit event; the environment variables only supply the sandbox
 runtime and credentials.
 
-Open [http://localhost:3000/guides?guide=payment-toss](http://localhost:3000/guides?guide=payment-toss).
-The Foundation health endpoint is [http://localhost:8080/healthz](http://localhost:8080/healthz).
+Open `/guides?guide=payment-toss` on the published web port. The Foundation
+health endpoint is `/healthz` on the published API port.
 
 ## 5. Enable Toss on the existing Starter/Pro catalog
 

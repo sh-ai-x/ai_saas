@@ -57,7 +57,7 @@ compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-${worktree_slug}}"
 port_from_container() {
   local container="$1"
   local internal_port="$2"
-  docker port "$container" "$internal_port" 2>/dev/null \
+  (docker port "$container" "$internal_port" 2>/dev/null || true) \
     | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' \
     | head -n 1
 }
@@ -120,6 +120,44 @@ export POSTGRES_PORT="${POSTGRES_PORT:-$selected_postgres_port}"
 export FOUNDATION_PUBLIC_URL="${FOUNDATION_PUBLIC_URL:-http://localhost:${FOUNDATION_PORT}}"
 export WEB_PUBLIC_URL="${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT}}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL:-http://localhost:${WEB_PORT}}"
+
+# Keep the current checkout as an optional read-only server-side repository.
+# The browser picker independently imports a selected directory into the
+# foundation state volume, so arbitrary folder selection does not require a
+# host-path environment variable or host write access.
+configured_repository_host_root="${LOCAL_REPOSITORY_HOST_ROOT:-$(env_file_value LOCAL_REPOSITORY_HOST_ROOT)}"
+export LOCAL_REPOSITORY_HOST_ROOT="${configured_repository_host_root:-$repo_root}"
+configured_repository_container_root="${LOCAL_REPOSITORY_CONTAINER_ROOT:-$(env_file_value LOCAL_REPOSITORY_CONTAINER_ROOT)}"
+if [[ -z "$configured_repository_container_root" ]]; then
+  configured_repository_container_root="/local-repositories/$(basename -- "$LOCAL_REPOSITORY_HOST_ROOT")"
+fi
+export LOCAL_REPOSITORY_CONTAINER_ROOT="$configured_repository_container_root"
+configured_repository_roots="${LOCAL_REPOSITORY_ROOTS:-$(env_file_value LOCAL_REPOSITORY_ROOTS)}"
+export LOCAL_REPOSITORY_ROOTS="${configured_repository_roots:-/local-repositories}"
+configured_repository_git_common_root="${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-$(env_file_value LOCAL_REPOSITORY_GIT_COMMON_ROOT)}"
+if [[ -z "$configured_repository_git_common_root" ]]; then
+  git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$git_common_dir" ]]; then
+    configured_repository_git_common_root="$(cd -- "$(dirname -- "$git_common_dir")" && pwd)"
+  fi
+fi
+export LOCAL_REPOSITORY_GIT_COMMON_ROOT="${configured_repository_git_common_root:-$repo_root}"
+
+# Proposal documents are independent from the selected repository. Mount the
+# common workspace parent read-only so file:// URLs from sibling worktrees can
+# be resolved without asking the user to copy the proposal into the repo.
+configured_document_host_root="${LOCAL_DOCUMENT_HOST_ROOT:-$(env_file_value LOCAL_DOCUMENT_HOST_ROOT)}"
+if [[ -z "$configured_document_host_root" ]]; then
+  document_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$document_common_dir" ]]; then
+    configured_document_host_root="$(cd -- "$(dirname -- "$document_common_dir")" && pwd)"
+  else
+    configured_document_host_root="$repo_root"
+  fi
+fi
+export LOCAL_DOCUMENT_HOST_ROOT="$configured_document_host_root"
+configured_document_container_root="${LOCAL_DOCUMENT_CONTAINER_ROOT:-$(env_file_value LOCAL_DOCUMENT_CONTAINER_ROOT)}"
+export LOCAL_DOCUMENT_CONTAINER_ROOT="${configured_document_container_root:-/local-documents}"
 
 # docker:local is a local profile. Never let a copied Neon URL silently make
 # migrations or browser traffic target a cloud database. A remote target is

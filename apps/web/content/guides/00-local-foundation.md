@@ -63,9 +63,10 @@ For a live Google test, set `WEB_DATABASE_URL`, `BETTER_AUTH_SECRET`,
 
 ## 4. Verify the contract
 
-Use the health endpoint, bounded run, audited admin change, and mock payment
-before introducing external credentials. Validate real account creation and
-login through the Google OAuth guide after configuring the provider.
+Use the health endpoint, proposal-review contract, audited admin change, and
+mock payment before introducing external credentials. Validate real account
+creation and login through the Google OAuth guide after configuring the
+provider.
 
 ```bash
 curl http://127.0.0.1:8180/healthz

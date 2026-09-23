@@ -4,7 +4,7 @@ Run deterministic checks before any sandbox credential:
 
 ```bash
 python3 -m foundation.contract_check
-python3 -m unittest tests/test_integration_contracts.py tests/test_google_oauth_provider.py tests/test_payment_sandbox_api.py tests/test_agent_provider_runtime.py
+python3 -m unittest tests/test_integration_contracts.py tests/test_google_oauth_provider.py tests/test_payment_sandbox_api.py
 npm --prefix apps/web run lint
 npm --prefix apps/web run build
 bash scripts/verify-local.sh

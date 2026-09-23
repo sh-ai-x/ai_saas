@@ -2,11 +2,11 @@ import localFoundationMarkdown from "./guides/00-local-foundation.md";
 import googleOAuthMarkdown from "./guides/01-google-oauth.md";
 import tossPaymentsMarkdown from "./guides/02-payment-toss.md";
 import lemonSqueezyPaymentsMarkdown from "./guides/03-payment-lemonsqueezy.md";
-import agentProvidersMarkdown from "./guides/04-agent-providers.md";
 import verificationMarkdown from "./guides/05-verification.md";
 import operationsMarkdown from "./guides/06-operations.md";
 import neonDatabaseMarkdown from "./guides/07-neon-database.md";
 import pricingAdminMarkdown from "./guides/08-pricing-admin.md";
+import aiChangeImpactMarkdown from "./guides/09-ai-change-impact-workbench.md";
 
 export type SetupGuideStep = {
   title: string;
@@ -35,11 +35,11 @@ const markdownSources: MarkdownSource[] = [
   { path: "apps/web/content/guides/01-google-oauth.md", raw: googleOAuthMarkdown },
   { path: "apps/web/content/guides/02-payment-toss.md", raw: tossPaymentsMarkdown },
   { path: "apps/web/content/guides/03-payment-lemonsqueezy.md", raw: lemonSqueezyPaymentsMarkdown },
-  { path: "apps/web/content/guides/04-agent-providers.md", raw: agentProvidersMarkdown },
   { path: "apps/web/content/guides/05-verification.md", raw: verificationMarkdown },
   { path: "apps/web/content/guides/06-operations.md", raw: operationsMarkdown },
   { path: "apps/web/content/guides/07-neon-database.md", raw: neonDatabaseMarkdown },
   { path: "apps/web/content/guides/08-pricing-admin.md", raw: pricingAdminMarkdown },
+  { path: "apps/web/content/guides/09-ai-change-impact-workbench.md", raw: aiChangeImpactMarkdown },
 ];
 
 function parseFrontmatter(raw: string) {

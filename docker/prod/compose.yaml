@@ -40,6 +40,24 @@ services:
       TOSS_BILLING_SUCCESS_URL: ${TOSS_BILLING_SUCCESS_URL:-http://localhost:3000/payments/toss/billing-success}
       TOSS_FAIL_URL: ${TOSS_FAIL_URL:-http://localhost:3000/payments/toss/fail}
       WORKFLOW_PROVIDER: local
+      AGENT_PROVIDER_MODE: ${AGENT_PROVIDER_MODE:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-proposal-to-verified-change}
+      LANGSMITH_CONSOLE_URL: ${LANGSMITH_CONSOLE_URL:-https://smith.langchain.com}
+      LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-}
+      LOCAL_REPOSITORY_ROOTS: ${LOCAL_REPOSITORY_ROOTS:-/local-repositories}
+      LOCAL_REPOSITORY_HOST_ROOT: ${LOCAL_REPOSITORY_HOST_ROOT:-}
+      LOCAL_REPOSITORY_CONTAINER_ROOT: ${LOCAL_REPOSITORY_CONTAINER_ROOT:-/local-repositories}
+      LOCAL_DOCUMENT_HOST_ROOT: ${LOCAL_DOCUMENT_HOST_ROOT:-}
+      LOCAL_DOCUMENT_CONTAINER_ROOT: ${LOCAL_DOCUMENT_CONTAINER_ROOT:-/local-documents}
       PAID_INFRASTRUCTURE: "false"
       AWS_WORKER_ENABLED: "false"
       RUN_QUOTA_MAX_RUNS: ${RUN_QUOTA_MAX_RUNS:-10}
@@ -55,6 +73,9 @@ services:
         condition: service_healthy
     volumes:
       - foundation_state:/var/lib/ai-saas
+      - ${LOCAL_REPOSITORY_HOST_ROOT:-.}:${LOCAL_REPOSITORY_CONTAINER_ROOT:-/local-repositories}:ro
+      - ${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-.}:${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-/local-git-common}:ro
+      - ${LOCAL_DOCUMENT_HOST_ROOT:-.}:${LOCAL_DOCUMENT_CONTAINER_ROOT:-/local-documents}:ro
     ports:
       - "${FOUNDATION_PORT:-8180}:8080"
 

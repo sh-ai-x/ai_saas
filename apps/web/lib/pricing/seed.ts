@@ -13,7 +13,7 @@ export const seededPricingCatalog: PricingPlan[] = [
     active: true,
     isDefault: true,
     displayOrder: 10,
-    features: ["1 workspace", "100 agent runs", "Mock or sandbox checkout"],
+    features: ["1 workspace", "100 proposal reviews", "Mock or sandbox checkout"],
     quotas: { monthlyRuns: 100, members: 1 },
     options: [
       { id: "option-starter-monthly", planId: "plan-starter", mode: "subscription", interval: "month", provider: "mock", currency: "KRW", amountMinor: 900, compareAtAmountMinor: null, providerProductRef: null, providerPriceRef: null, active: true },
@@ -30,7 +30,7 @@ export const seededPricingCatalog: PricingPlan[] = [
     active: true,
     isDefault: false,
     displayOrder: 20,
-    features: ["5 workspaces", "1,000 agent runs", "Usage and audit history"],
+    features: ["5 workspaces", "1,000 proposal reviews", "Usage and audit history"],
     quotas: { monthlyRuns: 1000, members: 5 },
     options: [
       { id: "option-pro-monthly", planId: "plan-pro", mode: "subscription", interval: "month", provider: "mock", currency: "KRW", amountMinor: 2900, compareAtAmountMinor: 3900, providerProductRef: null, providerPriceRef: null, active: true },

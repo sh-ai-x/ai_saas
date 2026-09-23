@@ -1,0 +1,14 @@
+Bash	git log --oneline -10
+Bash	git cherry-pick fc1cdf7 1d4401d
+Bash	find /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent -na
+Bash	find services/control_api -name "*.py" -type f | head -10
+Bash	find apps/web/app/api -name "*.ts" -o -name "route.ts" | head -20
+Bash	find agent_platform services -name "storage.py" -o -name "persistence.py" -o -na
+Bash	find apps/web -name "*.css" -o -name "globals.css" | head -5
+Bash	wc -l apps/web/app/globals.css
+Bash	tail -10 apps/web/app/globals.css
+Bash	cat >> /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.
+Bash	pnpm -F @repo/web typecheck 2>&1 | head -50
+Bash	ls -la apps/web/package.json && cat apps/web/package.json | grep '"name"'
+Bash	cd /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.work
+Bash	cd /Users/sanghee/dev/ai_saas/.worktrees/proposal-to-verified-change-agent/.work

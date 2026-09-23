@@ -11,11 +11,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY --from=uv /uv /uvx /bin/
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY foundation ./foundation
+COPY agent_platform ./agent_platform
 COPY lib ./lib
+COPY project_packs ./project_packs
 COPY services ./services
 COPY evaluators ./evaluators
 COPY packages/contracts ./packages/contracts

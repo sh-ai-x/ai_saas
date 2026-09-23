@@ -1,38 +1,25 @@
-# Plan → Build Handoff — Restore Jev as the FAQ Provider
+# Plan → Build Handoff — AI Change Impact Workbench
 
 ## Baseline
 
-The FAQ support bot from `feat/faq-ai-provider` (merged, `origin/main`) is the
-baseline. This plan restores the Jev provider it originally shipped with,
-behind the same `FaqProvider` port the OpenAI adapter already uses, and closes
-the two documentation gaps the design record left open.
+- Phase: `ai-change-impact-review`
+- Branch/worktree: `fix/local-repository-picker`
+- Proposal: `docs/proposals/reviewing/local-document-workspace/docs-first-analysis.html`
+- Goal: provide a low-token, read-only proposal-to-code review for an AI Engineer using local HTML/PDF parsing, Git-aware deterministic analysis, one bounded LangChain synthesis call, optional one-call JEV evaluation, LangGraph checkpointing, and LangSmith trace correlation.
 
 ## Build order
 
-1. `restore-jev-provider` (step0) — **already implemented and verified**
-   before this plan stage began: `jev.ts` recovered from `05426b1` with both
-   bugs fixed, shared timeout constant, `FAQ_PROVIDER` route conditional,
-   proposal amendment, dedicated + conformance test suites. 57/57 tests
-   passing, `tsc --noEmit` clean, build succeeds. This step exists in the
-   phase record for traceability, not as pending build work.
-2. `document-env-vars-and-verify-wire-contract` (step1) — the actual
-   remaining work: `.env.example` / `apps/web/.env.example` / phase README
-   documentation for `FAQ_PROVIDER` and `JEV_*`, plus one manual, one-time,
-   non-CI live call against the real Jev endpoint using the `JEV_API_KEY`
-   now available in the maintainer's local `.env`, to close the single
-   residual risk the unit tests cannot reach (a wire-format mismatch between
-   `parseJev`'s schema and the live response).
+1. `step0`: local document/Git context, code structure, and bounded evidence contracts.
+2. `step1`: LangGraph review graph, LangChain synthesis, optional JEV, LangSmith trace, and artifact store.
+3. `step2`: authenticated control API routes with idempotency and no-code-execution validation.
+4. `step3`: low-token Change Impact Workbench UI replacing the legacy repository proposal surface.
+5. `step4`: legacy cleanup, setup documentation, and proportionate verification.
 
 ## Guardrails
 
-- `FAQ_PROVIDER` defaults to OpenAI; nothing about this phase changes
-  default behavior for an operator who does nothing.
-- `JEV_API_KEY` must never be committed, logged, or written into any file
-  under this worktree. The live wire-contract check reads it from the main
-  checkout's `.env` at call time only.
-- The live wire-contract check is manual and one-time, explicitly excluded
-  from the automated test suite and from CI.
-- No new abstraction (no provider-factory module) — the design record is
-  explicit that this is the wrong trade at two providers.
-- Nothing in this phase retunes the `confidence`/`answerable` thresholds, or
-  touches the matcher, repository, schema, HTTP layer, or widget.
+- No raw proposal file or repository snapshot is uploaded or persisted.
+- Git tracked + unignored rules, secret denylist, binary/build/size/symlink limits are visible and tested.
+- Deterministic analysis uses zero model tokens; LangChain synthesis is at most one call and JEV at most one optional call per review.
+- LangGraph checkpoint/resume/cancel and idempotency are tested.
+- LangSmith receives redacted review metadata, not raw repository/document payloads.
+- The product does not modify code or run shell/build/test/deploy actions.

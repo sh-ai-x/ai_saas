@@ -51,7 +51,7 @@ The package name is:
 
 After saving the MCP configuration, restart the Codex/agent session and check
 the MCP status. The server should expose document search, document-by-ID, and
-glossary-document tools. Search for `자동결제(빌링)`, `구독`, or `billingKey`.
+glossary-document tools. Search for `autopay`, `subscription`, or `billingKey`.
 The implementation decisions in this page follow the official documents:
 
 - [Automatic billing overview](https://docs.tosspayments.com/guides/v2/billing)

@@ -14,7 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>{children}<FaqWidget /></body>
+      {/* Browser extensions may add attributes such as cz-shortcut-listen. */}
+      <body suppressHydrationWarning>{children}<FaqWidget /></body>
     </html>
   );
 }

@@ -12,12 +12,19 @@ import argparse
 import hashlib
 import hmac
 import json
+from dataclasses import asdict
+from email.parser import BytesParser
+from email.policy import default as email_default_policy
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import parse_qs, urlparse
 
 from services.billing.errors import InsufficientCredits
+from services.control_api import outcome_json
+from services.control_api.repository_catalog import READ_ANALYSIS, WRITE_PATCH, RepositoryCatalogError
+from agent_platform.contracts import ApprovalToken
+from agent_platform.storage import IdempotencyConflict, TenantScopeError as ProposalTenantScopeError
 from services.identity_tenant import AuthorizationDenied, OAuthCallbackError
 from services.run_service.errors import RunError, RunNotFound, TenantMismatch
 
@@ -25,7 +32,8 @@ from .config import ConfigError, merged_environment, validate_profile
 from .local_runtime import DEMO_ACCOUNT_ID, DEMO_TENANT_ID, LocalRuntime
 
 
-MAX_BODY_BYTES = 64 * 1024
+MAX_BODY_BYTES = 256 * 1024
+MAX_REPOSITORY_IMPORT_BYTES = 25 * 1024 * 1024
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -148,6 +156,32 @@ class FoundationHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/v1/change-assurance/capabilities":
+            self._request_tenant()
+            self._json(200, self.runtime.proposal_capabilities())
+            return
+        if path in {"/v1/change-impact/catalog", "/v1/proposal-review/catalog"}:
+            self._request_tenant()
+            self._json(200, self.runtime.proposal_control.proposal_review.catalog())
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id:
+            tenant_id = self._request_tenant()
+            if review_suffix:
+                self._error(404, "not_found", "review route not found")
+                return
+            self._json(200, self.runtime.proposal_control.proposal_review.detail(review_id, tenant_id))
+            return
+        if path in {"/v1/repositories", "/v1/change-assurance/repositories"}:
+            self._get_repositories(parsed.query)
+            return
+        proposal_repository_id, proposal_id, proposal_suffix = self._proposal_route(path)
+        if proposal_repository_id:
+            self._get_proposals(proposal_repository_id, proposal_id, proposal_suffix, parsed.query)
+            return
+        if path.startswith("/v1/repositories/") or path.startswith("/v1/change-assurance/repositories/"):
+            self._get_repository(path)
+            return
         if path == "/v1/auth/session":
             self._request_tenant(self.runtime.session.active_tenant_id)
             self._session()
@@ -188,6 +222,9 @@ class FoundationHandler(BaseHTTPRequestHandler):
             return
         if path.startswith("/v1/runs/"):
             self._get_run(path, parsed.query)
+            return
+        if path.startswith("/v1/change-assurance/runs/"):
+            self._get_proposal_run(path)
             return
         if path.startswith("/v1/billing/orders/"):
             order_id = path.removeprefix("/v1/billing/orders/")
@@ -313,6 +350,63 @@ class FoundationHandler(BaseHTTPRequestHandler):
                 raise TenantMismatch("tenant access denied")
             self._json(201, self.runtime.create_run(payload))
             return
+        if path in {"/v1/repositories/import", "/v1/change-assurance/repositories/import"}:
+            tenant_id = self._request_tenant()
+            name, files = self._read_repository_import()
+            self._import_repository(tenant_id, name, files)
+            return
+        if path in {"/v1/repositories/authorize", "/v1/change-assurance/repositories/authorize"}:
+            self._authorize_repository(self._body())
+            return
+        if path in {"/v1/change-impact/documents/from-url", "/v1/proposal-review/documents/from-url"}:
+            self._request_tenant()
+            payload = self._body()
+            url = payload.get("url")
+            if not isinstance(url, str) or not url.strip():
+                raise ValueError("url is required")
+            self._json(200, self.runtime.proposal_control.proposal_review.fetch_document(url))
+            return
+        if path in {"/v1/change-impact/reviews", "/v1/proposal-review/reviews"}:
+            tenant_id = self._request_tenant()
+            self._json(201, self.runtime.proposal_control.proposal_review.start(tenant_id, self._body()))
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id and review_suffix in {"decision", "resume"}:
+            tenant_id = self._request_tenant()
+            if review_suffix == "resume":
+                self._json(200, self.runtime.proposal_control.proposal_review.resume(review_id, tenant_id))
+            else:
+                self._json(200, self.runtime.proposal_control.proposal_review.decide(review_id, tenant_id, self._body()))
+            return
+        proposal_repository_id, proposal_id, proposal_suffix = self._proposal_route(path)
+        if proposal_repository_id:
+            self._post_proposals(proposal_repository_id, proposal_id, proposal_suffix, self._body())
+            return
+        if path == "/v1/change-assurance/runs":
+            payload = self._body()
+            request_tenant = self._request_tenant()
+            repository_id = self._require_read_scope(request_tenant, payload)
+            payload_tenant = str(payload.get("tenant_id") or request_tenant)
+            if payload_tenant != request_tenant:
+                raise TenantMismatch("tenant access denied")
+            proposal = payload.get("proposal")
+            idempotency_key = payload.get("idempotency_key")
+            if not isinstance(proposal, str) or not isinstance(idempotency_key, str):
+                raise ValueError("proposal and idempotency_key are required")
+            outcome = self.runtime.proposal_control.workflow.run(
+                tenant_id=request_tenant,
+                proposal=proposal,
+                mode=str(payload.get("mode") or "plan_only"),
+                idempotency_key=idempotency_key,
+                quota_limit=payload.get("quota_limit"),
+                repository_id=repository_id,
+                repository_snapshot=asdict(self.runtime.proposal_control.catalog.get(repository_id)) if repository_id else None,
+            )
+            self._json(201, outcome_json(outcome))
+            return
+        if path.startswith("/v1/change-assurance/runs/"):
+            self._post_proposal_run(path)
+            return
         if path == "/v1/runs":
             payload = self._body()
             if payload.get("contract_version") != "v1":
@@ -383,6 +477,310 @@ class FoundationHandler(BaseHTTPRequestHandler):
         if parts[4] == "approve" and run.state == "running":
             run = self.runtime.worker.execute(run_id)
         self._json(200, self.runtime.run_payload(run))
+
+    def _get_repositories(self, query: str) -> None:
+        tenant_id = self._request_tenant()
+        parsed_query = parse_qs(query)
+        raw_path = parsed_query.get("path", [None])[0]
+        raw_name = parsed_query.get("name", [None])[0]
+        if raw_path and raw_name:
+            raise RepositoryCatalogError("repository_query_ambiguous")
+        if raw_path:
+            records = (self.runtime.proposal_control.catalog.resolve(raw_path),)
+        elif raw_name:
+            records = self.runtime.proposal_control.catalog.list_repositories(name=raw_name)
+        else:
+            records = self.runtime.proposal_control.catalog.list_repositories()
+        self._json(
+            200,
+            {
+                "repositories": [
+                    {
+                        "repository": self.runtime.proposal_control.catalog.public_record(record),
+                        "authorization": self.runtime.proposal_control.catalog.authorization_state(tenant_id, record.repository_id),
+                    }
+                    for record in records
+                ]
+            },
+        )
+
+    def _get_proposals(self, repository_id: str, proposal_id: str | None, suffix: str, query: str) -> None:
+        tenant_id = self._request_tenant()
+        record = self.runtime.proposal_control.catalog.get(repository_id)
+        self._require_repository_read(tenant_id, repository_id, parse_qs(query).get("read_scope_id", [None])[0])
+        if proposal_id is None:
+            workflow = self.runtime.proposal_control.workflow.for_repository(record.canonical_path)
+            for item in self.runtime.proposal_control.store.list_proposals(tenant_id, repository_id):
+                workflow.refresh_proposal(item["proposal_id"], tenant_id, asdict(record))
+            self._json(
+                200,
+                {
+                    "repository": self.runtime.proposal_control.catalog.public_record(record),
+                    "proposals": list(self.runtime.proposal_control.store.list_proposals(tenant_id, repository_id)),
+                },
+            )
+            return
+        if suffix:
+            self._error(404, "not_found", "proposal route not found")
+            return
+        view = self.runtime.proposal_control.workflow.for_repository(record.canonical_path).refresh_proposal(proposal_id, tenant_id, asdict(record))
+        if view["repository_id"] != repository_id:
+            raise RepositoryCatalogError("repository_identity_mismatch")
+        self._json(200, {"repository": self.runtime.proposal_control.catalog.public_record(record), "proposal": view})
+
+    def _post_proposals(self, repository_id: str, proposal_id: str | None, suffix: str, payload: Mapping[str, Any]) -> None:
+        tenant_id = self._request_tenant()
+        record = self.runtime.proposal_control.catalog.get(repository_id)
+        snapshot = asdict(record)
+        workflow = self.runtime.proposal_control.workflow.for_repository(record.canonical_path)
+        if proposal_id is None and not suffix:
+            self._require_repository_read(tenant_id, repository_id, payload.get("read_scope_id"))
+            proposal = payload.get("proposal")
+            idempotency_key = payload.get("idempotency_key")
+            if not isinstance(proposal, str) or not isinstance(idempotency_key, str):
+                raise ValueError("proposal and idempotency_key are required")
+            outcome = workflow.run(
+                tenant_id=tenant_id,
+                proposal=proposal,
+                mode=str(payload.get("mode") or "plan_only"),
+                idempotency_key=idempotency_key,
+                quota_limit=payload.get("quota_limit"),
+                repository_id=repository_id,
+                repository_snapshot=snapshot,
+            )
+            self._json(201, outcome_json(outcome))
+            return
+        if not proposal_id or suffix not in {"resume", "reanalyze"}:
+            raise RepositoryCatalogError("proposal_route_invalid")
+        view = workflow.refresh_proposal(proposal_id, tenant_id, snapshot)
+        if view["repository_id"] != repository_id:
+            raise RepositoryCatalogError("repository_identity_mismatch")
+        run = view.get("run") or {}
+        if suffix == "resume":
+            write_scope_id = payload.get("write_scope_id")
+            if not isinstance(write_scope_id, str):
+                raise RepositoryCatalogError("write_scope_required")
+            self.runtime.proposal_control.catalog.require_write(tenant_id, repository_id, write_scope_id)
+            proposal = payload.get("proposal") or self.runtime.proposal_control.store.proposal_input(proposal_id, tenant_id)
+            approval = _approval_from_json(payload["approval"]) if payload.get("approval") is not None else None
+            resume_run_id = str(run["run_id"])
+            resume_key = str(run["idempotency_key"])
+            if run.get("ledger_state", run.get("state")) == "plan_only":
+                resume_run_id = None
+                resume_key = str(payload.get("idempotency_key") or f"{resume_key}:verify")
+            outcome = workflow.run(
+                tenant_id=tenant_id,
+                proposal=str(proposal),
+                mode="verify",
+                idempotency_key=resume_key,
+                approval=approval,
+                run_id=resume_run_id,
+                repository_id=repository_id,
+                repository_snapshot=snapshot,
+                proposal_id=proposal_id,
+            )
+            self._json(200, outcome_json(outcome))
+            return
+        self._require_repository_read(tenant_id, repository_id, payload.get("read_scope_id"))
+        proposal = payload.get("proposal") or self.runtime.proposal_control.store.proposal_input(proposal_id, tenant_id)
+        idempotency_key = payload.get("idempotency_key")
+        if not isinstance(idempotency_key, str):
+            raise ValueError("idempotency_key is required for re-analysis")
+        outcome = workflow.run(
+            tenant_id=tenant_id,
+            proposal=str(proposal),
+            mode=str(payload.get("mode") or "plan_only"),
+            idempotency_key=idempotency_key,
+            repository_id=repository_id,
+            repository_snapshot=snapshot,
+            proposal_id=proposal_id,
+        )
+        self._json(201, outcome_json(outcome))
+
+    def _require_repository_read(self, tenant_id: str, repository_id: str, scope_id: str | None) -> None:
+        if isinstance(scope_id, str) and scope_id:
+            self.runtime.proposal_control.catalog.require_read(tenant_id, repository_id, scope_id)
+            return
+        if not self.runtime.proposal_control.catalog.authorization_state(tenant_id, repository_id).get(READ_ANALYSIS):
+            raise RepositoryCatalogError("read_scope_required")
+
+    def _get_repository(self, path: str) -> None:
+        self._request_tenant()
+        parts = [part for part in path.split("/") if part]
+        repository_id = parts[-1] if parts else ""
+        if not repository_id or repository_id == "authorize":
+            self._error(404, "not_found", "repository not found")
+            return
+        record = self.runtime.proposal_control.catalog.get(repository_id)
+        self._json(200, {"repository": self.runtime.proposal_control.catalog.public_record(record)})
+
+    @staticmethod
+    def _proposal_route(path: str) -> tuple[str | None, str | None, str]:
+        parts = [part for part in path.split("/") if part]
+        prefixes = (("v1", "repositories"), ("v1", "change-assurance", "repositories"))
+        for prefix in prefixes:
+            if parts[: len(prefix)] != list(prefix):
+                continue
+            offset = len(prefix)
+            if len(parts) == offset + 2 and parts[offset + 1] == "proposals":
+                return parts[offset], None, ""
+            if len(parts) == offset + 3 and parts[offset + 1] == "proposals":
+                return parts[offset], parts[offset + 2], ""
+            if len(parts) == offset + 4 and parts[offset + 1] == "proposals" and parts[offset + 3] in {"resume", "reanalyze"}:
+                return parts[offset], parts[offset + 2], parts[offset + 3]
+        return None, None, ""
+
+    @staticmethod
+    def _review_route(path: str) -> tuple[str | None, str]:
+        parts = [part for part in path.split("/") if part]
+        for prefix in (("v1", "change-impact", "reviews"), ("v1", "proposal-review", "reviews")):
+            if parts[: len(prefix)] != list(prefix) or len(parts) < len(prefix) + 1:
+                continue
+            if len(parts) == len(prefix) + 1:
+                return parts[-1], ""
+            if len(parts) == len(prefix) + 2:
+                return parts[-2], parts[-1]
+        return None, ""
+
+    def _authorize_repository(self, payload: Mapping[str, Any]) -> None:
+        tenant_id = self._request_tenant()
+        permission = payload.get("permission", payload.get("scope"))
+        repository_id = payload.get("repository_id")
+        raw_path = payload.get("path")
+        if permission == READ_ANALYSIS:
+            scope = self.runtime.proposal_control.catalog.authorize_read(tenant_id, repository_id=repository_id, path=raw_path)
+        elif permission == WRITE_PATCH:
+            read_scope_id = payload.get("read_scope_id")
+            if not isinstance(read_scope_id, str):
+                raise RepositoryCatalogError("read_scope_required")
+            scope = self.runtime.proposal_control.catalog.authorize_write(tenant_id, repository_id=repository_id, path=raw_path, read_scope_id=read_scope_id)
+        else:
+            raise RepositoryCatalogError("scope_invalid")
+        record = self.runtime.proposal_control.catalog.get(scope.repository_id)
+        self.runtime.proposal_control.store.register_repository(tenant_id, asdict(record))
+        self._json(200, {"repository": self.runtime.proposal_control.catalog.public_record(record), "scope": asdict(scope), "authorization": self.runtime.proposal_control.catalog.authorization_state(tenant_id, scope.repository_id)})
+
+    def _import_repository(self, tenant_id: str, name: str, files: Sequence[tuple[str, bytes]]) -> None:
+        record = self.runtime.proposal_control.catalog.import_snapshot(name, files)
+        self.runtime.proposal_control.store.register_repository(tenant_id, asdict(record))
+        self._json(
+            201,
+            {
+                "repository": self.runtime.proposal_control.catalog.public_record(record),
+                "authorization": self.runtime.proposal_control.catalog.authorization_state(tenant_id, record.repository_id),
+            },
+        )
+
+    def _read_repository_import(self) -> tuple[str, tuple[tuple[str, bytes], ...]]:
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.lower().startswith("multipart/form-data"):
+            raise ValueError("repository import must use multipart/form-data")
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if length <= 0 or length > MAX_REPOSITORY_IMPORT_BYTES:
+            raise ValueError("repository import is empty or too large")
+        raw = self.rfile.read(length)
+        message = BytesParser(policy=email_default_policy).parsebytes(
+            b"MIME-Version: 1.0\r\nContent-Type: " + content_type.encode("utf-8") + b"\r\n\r\n" + raw
+        )
+        if not message.is_multipart():
+            raise ValueError("invalid repository import payload")
+        fields: dict[str, list[str]] = {}
+        files: list[tuple[str | None, bytes]] = []
+        for part in message.iter_parts():
+            field_name = part.get_param("name", header="content-disposition")
+            if not isinstance(field_name, str):
+                continue
+            payload = part.get_payload(decode=True) or b""
+            filename = part.get_filename()
+            if filename is not None:
+                files.append((filename, payload))
+            else:
+                fields.setdefault(field_name, []).append(payload.decode("utf-8"))
+        try:
+            name = fields["repository_name"][0]
+            manifest = json.loads(fields["manifest"][0])
+        except (KeyError, IndexError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("repository import requires repository_name and manifest") from exc
+        if not isinstance(manifest, list) or len(manifest) != len(files):
+            raise ValueError("repository import manifest does not match uploaded files")
+        normalized: list[tuple[str, bytes]] = []
+        for item, (_, payload) in zip(manifest, files):
+            if not isinstance(item, Mapping) or not isinstance(item.get("path"), str):
+                raise ValueError("repository import manifest contains an invalid path")
+            normalized.append((item["path"], payload))
+        return name, tuple(normalized)
+
+    def _require_read_scope(self, tenant_id: str, payload: Mapping[str, Any]) -> str | None:
+        repository_id = payload.get("repository_id")
+        if not repository_id:
+            return None
+        if not isinstance(repository_id, str):
+            raise RepositoryCatalogError("repository_identity_required")
+        scope_id = payload.get("read_scope_id")
+        if not isinstance(scope_id, str):
+            raise RepositoryCatalogError("read_scope_required")
+        self.runtime.proposal_control.catalog.require_read(tenant_id, repository_id, scope_id)
+        return repository_id
+
+    def _post_proposal_run(self, path: str) -> None:
+        parts = path.split("/")
+        if len(parts) != 6 or parts[5] != "resume":
+            self._error(404, "not_found", "route not found")
+            return
+        tenant_id = self._request_tenant()
+        run_id = parts[4]
+        run = self.runtime.proposal_control.store.get_run(run_id, tenant_id)
+        payload = self._body()
+        bound_repository_id = run.repository_id or (run.result.get("repository_id") if isinstance(run.result, Mapping) else None)
+        repository_id = payload.get("repository_id") or bound_repository_id
+        if bound_repository_id and payload.get("repository_id") and payload.get("repository_id") != bound_repository_id:
+            raise RepositoryCatalogError("repository_identity_mismatch")
+        if repository_id:
+            if not isinstance(repository_id, str):
+                raise RepositoryCatalogError("repository_identity_required")
+            write_scope_id = payload.get("write_scope_id")
+            if not isinstance(write_scope_id, str):
+                raise RepositoryCatalogError("write_scope_required")
+            self.runtime.proposal_control.catalog.require_write(tenant_id, repository_id, write_scope_id)
+        proposal = payload.get("proposal")
+        if not isinstance(proposal, str):
+            raise ValueError("proposal is required to resume")
+        snapshot = asdict(self.runtime.proposal_control.catalog.get(repository_id)) if repository_id else None
+        workflow = self.runtime.proposal_control.workflow.for_repository(snapshot["canonical_path"]) if snapshot else self.runtime.proposal_control.workflow
+        outcome = workflow.run(
+            tenant_id=tenant_id,
+            proposal=proposal,
+            mode=run.mode,
+            idempotency_key=run.idempotency_key,
+            approval=_approval_from_json(payload.get("approval")),
+            run_id=run_id,
+            repository_id=repository_id if isinstance(repository_id, str) else None,
+            repository_snapshot=snapshot,
+            proposal_id=run.proposal_id,
+        )
+        self._json(200, outcome_json(outcome))
+
+    def _get_proposal_run(self, path: str) -> None:
+        parts = path.split("/")
+        if len(parts) < 5 or not parts[4]:
+            self._error(404, "not_found", "run not found")
+            return
+        run_id = parts[4]
+        tenant_id = self._request_tenant()
+        run = self.runtime.proposal_control.store.get_run(run_id, tenant_id)
+        if len(parts) == 5:
+            self._json(200, {"run": asdict(run), "checkpoint": self.runtime.proposal_control.store.checkpoint(run_id, tenant_id), "report": self.runtime.proposal_control.store.report(run_id, tenant_id)})
+            return
+        if len(parts) == 6 and parts[5] == "events":
+            self._json(200, {"events": self.runtime.proposal_control.store.events(run_id, tenant_id)})
+            return
+        if len(parts) == 6 and parts[5] == "report":
+            self._json(200, {"run": asdict(run), "report": self.runtime.proposal_control.store.report(run_id, tenant_id)})
+            return
+        self._error(404, "not_found", "route not found")
 
     def _complete_mock_payment(self, payload: Mapping[str, Any]) -> None:
         if self.runtime.config.payment_provider != "mock":
@@ -460,6 +858,12 @@ class FoundationHandler(BaseHTTPRequestHandler):
             self._error(404, "run_not_found", "run not found")
         elif isinstance(exc, TenantMismatch):
             self._error(403, "tenant_access_denied", "tenant access denied")
+        elif isinstance(exc, (ProposalTenantScopeError, RepositoryCatalogError)):
+            code = exc.code if isinstance(exc, RepositoryCatalogError) else "tenant_access_denied"
+            status = 403 if isinstance(exc, ProposalTenantScopeError) or code.startswith("scope_") or code in {"tenant_invalid", "repository_identity_mismatch", "write_scope_missing_read_parent", "read_scope_required", "write_scope_required"} else 400
+            self._error(status, code, code)
+        elif isinstance(exc, IdempotencyConflict):
+            self._error(409, "idempotency_conflict", "idempotency key conflicts with an existing request")
         elif isinstance(exc, RunError):
             self._error(409, "run_conflict", str(exc))
         elif isinstance(exc, (KeyError, TypeError, ValueError)):
@@ -476,6 +880,25 @@ def uuid_hex() -> str:
     import uuid
 
     return uuid.uuid4().hex
+
+
+def _approval_from_json(value: Any) -> ApprovalToken:
+    if not isinstance(value, Mapping):
+        raise ValueError("approval token is required")
+    return ApprovalToken(
+        str(value["token_id"]),
+        str(value["run_id"]),
+        str(value["tenant_id"]),
+        tuple(str(item) for item in value["scopes"]),
+        str(value["issued_at"]),
+        str(value["expires_at"]),
+        bool(value.get("consumed", False)),
+        value.get("repository_id"),
+        value.get("branch"),
+        value.get("commit"),
+        value.get("plan_digest"),
+        value.get("proposal_id"),
+    )
 
 
 def _main() -> int:

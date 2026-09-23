@@ -38,6 +38,7 @@ from services.metering_billing import (
     SQLiteQuotaCounter,
 )
 from services.run_service import RunCreate, RunService, SQLiteRunStore
+from services.control_api import ControlApiConfig, build_runtime
 
 from .config import FoundationConfig
 from services.agent_worker import build_agent_model
@@ -137,6 +138,20 @@ class LocalRuntime:
             active_provider=config.payment_provider,
         )
 
+        proposal_state_path = values.get("PROPOSAL_STATE_DB", "").strip()
+        if not proposal_state_path:
+            proposal_state_path = ":memory:" if state_path == ":memory:" else str(Path(state_path).with_name("proposal.sqlite3"))
+        if proposal_state_path != ":memory:":
+            Path(proposal_state_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        self.proposal_control = build_runtime(
+            ControlApiConfig(
+                database=proposal_state_path,
+                repository_root=values.get("AGENT_REPOSITORY_ROOT", ".").strip() or ".",
+                allow_insecure_local=True,
+            ),
+            environment=values,
+        )
+
         self.identity = TenantBoundary()
         self.identity.add_user(DEMO_USER_ID, "demo@example.test", display_name="Local Demo")
         self.identity.add_user("demo-member", "member@example.test", display_name="Local Member")
@@ -180,8 +195,27 @@ class LocalRuntime:
         )
 
     def close(self) -> None:
-        for store in (self.run_store, self.credit_ledger, self.quota, self.billing_store):
+        self.proposal_control.catalog.close()
+        self.proposal_control.proposal_review.store.close()
+        for store in (self.run_store, self.credit_ledger, self.quota, self.billing_store, self.proposal_control.store):
             store.close()
+
+    def proposal_capabilities(self) -> dict[str, object]:
+        workflow = self.proposal_control.workflow
+        return {
+            "contract_version": "v1",
+            "profile": "local-lite",
+            "modes": ["plan_only", "verify"],
+            "provider": workflow.model.provider_id,
+            "langchain_enabled": workflow.model.provider_id == "langchain",
+            "langgraph_enabled": workflow.graph_runtime is not None,
+            "langsmith_enabled": bool(getattr(workflow.tracer, "_client", None)),
+            "langsmith_project": self.values.get("LANGSMITH_PROJECT", "proposal-to-verified-change"),
+            "langsmith_console_url": self.values.get("LANGSMITH_CONSOLE_URL", "https://smith.langchain.com"),
+            "repository_roots": [root.canonical_path for root in self.proposal_control.catalog.roots],
+            "repository_scopes": ["read_analysis", "write_patch"],
+            "approval_required_for": ["patch", "deliver"],
+        }
 
     def authenticate_demo(self, tenant_id: str | None = None) -> None:
         if tenant_id is None or tenant_id == DEMO_TENANT_ID:

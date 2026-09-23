@@ -5,3 +5,29 @@ services:
     command: ["pnpm", "--filter", "ai-saas-foundation-web", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
     environment:
       NODE_ENV: development
+      # Keep the local profile deterministic even when the shared .env contains
+      # sandbox/live payment credentials for other compose profiles.
+      PAYMENT_PROVIDER: mock
+      TOSS_CLIENT_KEY: ""
+      TOSS_SECRET_KEY: ""
+      TOSS_WEBHOOK_SECRET: ""
+      LEMONSQUEEZY_API_KEY: ""
+      LEMONSQUEEZY_STORE_ID: ""
+      LEMONSQUEEZY_VARIANT_ID: ""
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 30s
+      timeout: 30s
+      start_period: 90s
+      retries: 3
+
+  foundation:
+    environment:
+      PAYMENT_PROVIDER: mock
+      MOCK_PAYMENTS_ENABLED: "true"
+      TOSS_CLIENT_KEY: ""
+      TOSS_SECRET_KEY: ""
+      TOSS_WEBHOOK_SECRET: ""
+      LEMONSQUEEZY_API_KEY: ""
+      LEMONSQUEEZY_STORE_ID: ""
+      LEMONSQUEEZY_VARIANT_ID: ""

@@ -4,7 +4,7 @@ Name: docker-daemon-local-verification
 Read first:
 - `PRD.md`
 - `.dev-kit/hand-off/sot-harness-ai-saas-msa-20260918.md`
-- `docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml`
+- `docs/setup-guides/00-local-foundation.md`
 - `phases/ai-saas-foundation/step4.md`
 - `https://github.com/sh-ai-x/ai_saas/issues/3`
 - `https://github.com/sh-ai-x/ai_saas/pull/2`

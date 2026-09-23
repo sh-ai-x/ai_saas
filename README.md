@@ -47,8 +47,8 @@ uv run --locked python -m foundation.server \
 ```
 
 In another terminal, check `http://127.0.0.1:8080/healthz`,
-`/v1/contracts`, or `/v1/runs/demo/events`. The server validates all required
-settings before binding a port and never prints secret values.
+`/v1/contracts`, or `/v1/change-impact/catalog`. The server validates all
+required settings before binding a port and never prints secret values.
 
 ### Web console
 
@@ -62,27 +62,25 @@ pnpm --filter ai-saas-foundation-web dev
 
 Open `http://localhost:3000` for the product landing and operator console. The
 separate setup guide is at `http://localhost:3000/guides`. The default local
-profile provides the product console, bounded runs with SSE replay, audited
-admin plan/credit changes, and the provider-neutral mock payment adapter. Live
+profile provides the product console, read-only proposal-to-code review, and
+the provider-neutral integration boundaries. Live
 Google login is intentionally not mocked; `/login` shows the setup notice until
 the staging environment below is configured.
+
+For the AI Engineer workflow, use the [AI Change Impact Workbench guide](docs/setup-guides/09-ai-change-impact-workbench.md).
+It compares a proposal with a local Git repository without uploading or
+executing the repository, and documents the bounded LangChain/JEV budget plus
+LangGraph checkpointing and LangSmith tracing.
 
 For a production-style local check, use `pnpm --filter ai-saas-foundation-web build`
 and then `pnpm --filter ai-saas-foundation-web start` from the repository root.
 
-The local server includes a complete deterministic vertical slice:
+The local server includes deterministic health, authentication, proposal-review,
+payment, and administration contracts:
 
 ```bash
 # mock Google OAuth start/callback
 curl http://127.0.0.1:8080/v1/auth/google/start
-
-# synchronous local run; the response is also persisted for SSE replay
-curl -X POST http://127.0.0.1:8080/v1/runs \
-  -H 'content-type: application/json' \
-  -d '{"contract_version":"v1","tenant_id":"demo-tenant","project_id":"demo-project","idempotency_key":"run-local-001","trace_id":"trace-local-001","input":{"message":"hello"}}'
-
-# inspect the run's replayable events after replacing RUN_ID
-curl http://127.0.0.1:8080/v1/runs/RUN_ID/events
 
 # create and complete a mock payment through the same signed webhook path
 curl -X POST http://127.0.0.1:8080/v1/billing/orders \
@@ -98,18 +96,16 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
   -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
 ```
 
-`uv run --locked python scripts/local-smoke.py` runs this flow automatically. It succeeds on
-a host without Docker; if Docker Desktop is stopped it records
-`docker=blocked (daemon unavailable)` and does not suggest a paid upgrade.
-
 ## Real integration setup guides
 
 The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
 and rendered on the dedicated `/guides` route as a Markdown editor with a
 hierarchical sidebar. Payment setup is split into `Toss` and `Lemon Squeezy`
 pages. The order is intentional: contracts and validators first, then Google
-OAuth, one payment sandbox, one Agent provider, and finally the full
-verification gate. No secret is required for the default local profile.
+OAuth, one payment sandbox, and the proposal-to-code review gate. No secret is
+required for the default local profile. See [docs/README.md](docs/README.md) for
+the complete documentation map and the boundary between user guides, SOT
+contracts, ADRs, and dev-kit execution records.
 
 ### Live Google OAuth + Neon setup
 
@@ -408,6 +404,16 @@ The production Compose file is a packaging baseline, not a managed high
 availability platform. Put TLS/WAF at the host or edge, use Neon instead of
 the bundled PostgreSQL service for production data, and move secrets to the
 host's secret manager.
+
+### AI Change Impact Workbench in Docker
+
+Put the server-side `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`,
+`LANGSMITH_PROJECT`, and optional endpoint values in the ignored root `.env`.
+`pnpm docker:local` injects them into `foundation`; the browser only receives
+the enabled/project/console status. The Workbench header links to LangSmith
+after the stack is healthy. Use the published web port printed by Compose
+(for example `http://localhost:3019/app`) rather than assuming the default
+port.
 
 ## Profile checks
 

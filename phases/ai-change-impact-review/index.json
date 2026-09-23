@@ -1,0 +1,12 @@
+{
+  "phase": "ai-change-impact-review",
+  "schema_version": "1.0.0",
+  "worktree": "plan/ai-change-impact-review",
+  "steps": [
+    {"step": 0, "name": "local-context-contracts", "depends_on": [], "status": "completed", "completed_at": "2026-09-23T15:32:13+09:00", "duration_seconds": 4.86},
+    {"step": 1, "name": "review-graph-and-evaluation", "depends_on": [0], "status": "completed", "completed_at": "2026-09-23T15:32:13+09:00", "duration_seconds": 4.86},
+    {"step": 2, "name": "control-api-review-routes", "depends_on": [0, 1], "status": "completed", "completed_at": "2026-09-23T15:32:13+09:00", "duration_seconds": 4.86},
+    {"step": 3, "name": "workbench-ui", "depends_on": [2], "status": "completed", "completed_at": "2026-09-23T15:32:13+09:00", "duration_seconds": 26.23},
+    {"step": 4, "name": "legacy-cleanup-and-docs", "depends_on": [3], "status": "completed", "completed_at": "2026-09-23T15:32:13+09:00", "duration_seconds": 68.90}
+  ]
+}

@@ -90,7 +90,7 @@ browser credentials and must never be automated with a stored user account.
 
 The `/guides` route contains the category sidebar for local startup, Google
 OAuth, separate Toss and Lemon Squeezy sandbox payment guides,
-OpenAI/Anthropic/Gemini Agent providers, verification, and operations. Each
+proposal review, verification, and operations. Each
 guide is imported at build time from the Markdown files in
 `apps/web/content/guides/*.md`, displayed as a read-only Markdown editor with
 line numbers, and rendered below as a GitHub-Flavored Markdown preview with
