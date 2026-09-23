@@ -321,6 +321,19 @@ footer { justify-content: space-between; margin-top: 38px; padding-top: 18px; bo
 .repository-selector { display: grid; gap: 18px; }
 .selector-header { display: flex; align-items: center; justify-content: space-between; }
 .selector-header h3 { margin: 0; font-size: 20px; }
+.selector-actions { display: flex; align-items: center; gap: 12px; }
+.selector-help { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
+.directory-input-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+.picker-error { border: 1px solid #6b3d3d; border-radius: 8px; background: rgba(255, 155, 155, .08); color: var(--danger); padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+.repository-empty-state { display: grid; place-items: center; gap: 10px; border: 1px dashed var(--line); border-radius: 12px; padding: 58px 24px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,.02), transparent); }
+.repository-empty-state h4, .repository-empty-state p { margin: 0; }
+.repository-empty-state p { max-width: 520px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.empty-state-icon { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: var(--accent); font-size: 22px; }
+.directory-permission-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(6, 9, 12, .76); backdrop-filter: blur(4px); }
+.directory-permission-dialog { display: grid; gap: 14px; width: min(480px, 100%); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 24px; box-shadow: 0 24px 80px #0009; }
+.directory-permission-dialog h4, .directory-permission-dialog p { margin: 0; }
+.directory-permission-dialog > p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.directory-permission-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 8px; }
 
 .repository-list { display: grid; gap: 12px; }
 .repository-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 18px; transition: border-color .2s; }

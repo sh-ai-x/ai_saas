@@ -121,6 +121,27 @@ export FOUNDATION_PUBLIC_URL="${FOUNDATION_PUBLIC_URL:-http://localhost:${FOUNDA
 export WEB_PUBLIC_URL="${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT}}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL:-http://localhost:${WEB_PORT}}"
 
+# Expose the selected local checkout read-only to foundation. The browser
+# picker confirms a directory, while the server analyzes only this mounted
+# allowlist; no host write access is granted to the container.
+configured_repository_host_root="${LOCAL_REPOSITORY_HOST_ROOT:-$(env_file_value LOCAL_REPOSITORY_HOST_ROOT)}"
+export LOCAL_REPOSITORY_HOST_ROOT="${configured_repository_host_root:-$repo_root}"
+configured_repository_container_root="${LOCAL_REPOSITORY_CONTAINER_ROOT:-$(env_file_value LOCAL_REPOSITORY_CONTAINER_ROOT)}"
+if [[ -z "$configured_repository_container_root" ]]; then
+  configured_repository_container_root="/local-repositories/$(basename -- "$LOCAL_REPOSITORY_HOST_ROOT")"
+fi
+export LOCAL_REPOSITORY_CONTAINER_ROOT="$configured_repository_container_root"
+configured_repository_roots="${LOCAL_REPOSITORY_ROOTS:-$(env_file_value LOCAL_REPOSITORY_ROOTS)}"
+export LOCAL_REPOSITORY_ROOTS="${configured_repository_roots:-/local-repositories}"
+configured_repository_git_common_root="${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-$(env_file_value LOCAL_REPOSITORY_GIT_COMMON_ROOT)}"
+if [[ -z "$configured_repository_git_common_root" ]]; then
+  git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$git_common_dir" ]]; then
+    configured_repository_git_common_root="$(cd -- "$(dirname -- "$git_common_dir")" && pwd)"
+  fi
+fi
+export LOCAL_REPOSITORY_GIT_COMMON_ROOT="${configured_repository_git_common_root:-$repo_root}"
+
 # docker:local is a local profile. Never let a copied Neon URL silently make
 # migrations or browser traffic target a cloud database. A remote target is
 # possible only with an explicit opt-in for diagnostics.

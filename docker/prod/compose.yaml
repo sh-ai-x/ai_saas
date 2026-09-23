@@ -50,6 +50,7 @@ services:
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-}
+      LOCAL_REPOSITORY_ROOTS: ${LOCAL_REPOSITORY_ROOTS:-/local-repositories}
       PAID_INFRASTRUCTURE: "false"
       AWS_WORKER_ENABLED: "false"
       RUN_QUOTA_MAX_RUNS: ${RUN_QUOTA_MAX_RUNS:-10}
@@ -65,6 +66,8 @@ services:
         condition: service_healthy
     volumes:
       - foundation_state:/var/lib/ai-saas
+      - ${LOCAL_REPOSITORY_HOST_ROOT:-.}:${LOCAL_REPOSITORY_CONTAINER_ROOT:-/local-repositories}:ro
+      - ${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-.}:${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-/local-git-common}:ro
     ports:
       - "${FOUNDATION_PORT:-8180}:8080"
 
