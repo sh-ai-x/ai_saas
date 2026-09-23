@@ -87,7 +87,52 @@ class MigrationVerificationContractTests(unittest.TestCase):
             result = run_node(RELEASE, "--target", "staging", "--plan", "--static-only", "--from-file", str(env_file), env=env)
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("PLAN PASS", result.stdout)
+        self.assertIn("migration release: PLAN — staging", result.stdout)
         self.assertNotIn("file-secret", result.stdout)
+
+    def test_env_file_cannot_self_author_staging_apply(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env.stage"
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "APP_ENV=staging",
+                        "NEON_BRANCH=stage2",
+                        "CONFIRM_STAGING_DB=staging",
+                        "DATABASE_URL=postgresql://runtime:file-secret@ep-stage-pooler.aws.neon.tech/neondb?sslmode=require",
+                        "DATABASE_URL_UNPOOLED=postgresql://migrator:file-secret@ep-stage.aws.neon.tech/neondb?sslmode=require",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            env = os.environ.copy()
+            for key in ("APP_ENV", "NEON_BRANCH", "DATABASE_URL", "DATABASE_URL_UNPOOLED", "CONFIRM_STAGING_DB"):
+                env.pop(key, None)
+            result = run_node(RELEASE, "--target", "staging", "--apply", "--static-only", "--from-file", str(env_file), env=env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("CONFIRM_STAGING_DB=staging", result.stderr)
+
+    def test_block_comment_cannot_hide_destructive_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            migration_dir = Path(directory)
+            (migration_dir / "meta").mkdir()
+            (migration_dir / "meta" / "_journal.json").write_text(
+                json.dumps({"version": "7", "dialect": "postgresql", "entries": [{"idx": 0, "when": 1, "tag": "0000_drop"}]}),
+                encoding="utf-8",
+            )
+            (migration_dir / "0000_drop.sql").write_text("DROP/*hidden*/TABLE users;\n", encoding="utf-8")
+            result = run_node(PREFLIGHT, "--target", "staging", "--static-only", "--migration-dir", str(migration_dir), "--json")
+        self.assertNotEqual(result.returncode, 0)
+        document = json.loads(result.stdout)
+        self.assertTrue(any(check["name"] == "destructive-migrations" and not check["ok"] for check in document["checks"]))
+
+    def test_in_app_guides_use_the_release_gate(self):
+        for name in ("01-google-oauth.md", "07-neon-database.md", "08-pricing-admin.md"):
+            content = (ROOT / "apps/web/content/guides" / name).read_text(encoding="utf-8")
+            self.assertNotIn("pnpm --filter ai-saas-foundation-web db:migrate", content)
+            self.assertNotIn("--migrate", content)
+            self.assertIn("db:verify:stage", content)
 
     def test_destructive_migration_is_blocked_before_database_access(self):
         with tempfile.TemporaryDirectory() as directory:

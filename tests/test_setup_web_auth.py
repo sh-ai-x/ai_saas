@@ -57,7 +57,7 @@ class SetupWebAuthTests(unittest.TestCase):
             self.assertNotIn("google-secret", result.stdout)
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
 
-    def test_generates_secret_and_runs_neon_link_and_drizzle_migration(self) -> None:
+    def test_generates_secret_and_runs_neon_link_without_migrating(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / "apps/web/.env.local"
@@ -77,15 +77,7 @@ class SetupWebAuthTests(unittest.TestCase):
                 "exit 0\n",
                 encoding="utf-8",
             )
-            fake_pnpm = fake_bin / "pnpm"
-            fake_pnpm.write_text(
-                "#!/bin/sh\n"
-                f"printf 'pnpm %s\\n' \"$*\" >> '{log}'\n"
-                "exit 0\n",
-                encoding="utf-8",
-            )
             fake_neon.chmod(0o755)
-            fake_pnpm.chmod(0o755)
             test_env = os.environ.copy()
             test_env["PATH"] = f"{fake_bin}{os.pathsep}{test_env['PATH']}"
 
@@ -94,7 +86,6 @@ class SetupWebAuthTests(unittest.TestCase):
                 "--link-neon",
                 "--neon-project-id",
                 "test-project",
-                "--migrate",
                 env=test_env,
             )
 
@@ -105,7 +96,7 @@ class SetupWebAuthTests(unittest.TestCase):
             self.assertNotIn("DATABASE_URL=", result.stdout)
             command_log = log.read_text(encoding="utf-8")
             self.assertIn("link --project-id test-project --branch production -y", command_log)
-            self.assertIn("pnpm --filter ai-saas-foundation-web db:migrate", command_log)
+            self.assertNotIn("db:migrate", command_log)
 
     def test_fails_before_writing_when_database_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

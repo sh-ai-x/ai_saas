@@ -28,7 +28,7 @@ commit or replace the Neon credentials.
 See [docs/setup-guides/07-neon-database.md](docs/setup-guides/07-neon-database.md) for the repeatable Neon
 setup, environment-variable flow, policy deployment, and connection check.
 The complete branch, database, Docker, Vercel, EC2, migration, and rollback
-runbook is [docs/deployment-runbook.md](docs/deployment-runbook.md).
+runbook is [docs/sot/operations/deployment-runbook.md](docs/sot/operations/deployment-runbook.md).
 
 ## Start locally
 
@@ -300,7 +300,8 @@ open a reviewed database-repair change. Do not edit or delete
 Vercel build/deploy must not run database migrations. Deployments are
 immutable application artifacts; migrations run once as a serialized release
 step before the production alias is promoted. See the full
-[deployment runbook](docs/deployment-runbook.md) for rollback and EC2 rules.
+[deployment runbook](docs/sot/operations/deployment-runbook.md) for rollback
+and EC2 rules.
 
 ### Docker runtime with Neon
 

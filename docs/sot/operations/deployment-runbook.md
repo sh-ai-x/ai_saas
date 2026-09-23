@@ -1,3 +1,26 @@
+---
+doc_id: operations-deployment-runbook
+domain: operations
+purpose: Define the low-cost Git, Neon, Docker, Vercel, EC2, migration, and rollback release contract.
+read_when:
+  - changing branches, environments, deployments, migrations, Docker ports, or rollback
+  - preparing a staging release or production-shaped portfolio deployment
+audience:
+  - user
+  - agent
+  - operator
+  - reviewer
+prerequisites:
+  - ../00-index.md
+  - ../architecture/system-map.md
+  - ../security/safety-boundaries.md
+  - ../verification/release-and-incident.md
+source_of_truth: contract
+owner: platform-engineering
+last_reviewed: 2026-09-23
+change_impact: high
+---
+
 # Deployment and branch runbook
 
 This is the operational source of truth for the low-cost portfolio/staging

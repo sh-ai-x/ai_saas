@@ -36,6 +36,12 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+function redactOutput(value) {
+  return String(value)
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/giu, "[redacted database url]")
+    .replace(/password=[^&\s]+/giu, "password=[redacted]");
+}
+
 function runPreflight(args, requireHistory = false) {
   const commandArgs = [PREFLIGHT, "--target", args.target, "--json"];
   if (args.fromFile) commandArgs.push("--from-file", args.fromFile);
@@ -50,18 +56,24 @@ function runPreflight(args, requireHistory = false) {
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
-  return result.status ?? 1;
+  let document = null;
+  try {
+    document = JSON.parse(result.stdout || "");
+  } catch {
+    // The child already reported the actionable error; preserve its exit code.
+  }
+  return { status: result.status ?? 1, document };
 }
 
-function assertApplyConfirmation(target) {
-  if (target === "staging" && process.env.CONFIRM_STAGING_DB !== "staging") {
+function assertApplyConfirmation(target, explicitEnvironment) {
+  if (target === "staging" && explicitEnvironment.confirmStaging !== "staging") {
     throw new Error("staging apply requires CONFIRM_STAGING_DB=staging");
   }
   if (target === "production") {
-    if (process.env.CONFIRM_PRODUCTION_DB !== "production") {
+    if (explicitEnvironment.confirmProduction !== "production") {
       throw new Error("production apply requires CONFIRM_PRODUCTION_DB=production");
     }
-    if (process.env.GITHUB_ACTIONS !== "true") {
+    if (explicitEnvironment.githubActions !== "true") {
       throw new Error("production apply is allowed only from GitHub Actions");
     }
   }
@@ -72,43 +84,64 @@ function applyMigration() {
   const result = spawnSync(pnpm, ["--filter", "ai-saas-foundation-web", "db:migrate"], {
     cwd: REPO_ROOT,
     env: process.env,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
+    encoding: "utf8",
   });
+  if (result.stdout) process.stdout.write(redactOutput(result.stdout));
+  if (result.stderr) process.stderr.write(redactOutput(result.stderr));
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`Drizzle migration exited with code ${result.status}`);
 }
 
 async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
+  const explicitEnvironment = {
+    confirmStaging: process.env.CONFIRM_STAGING_DB,
+    confirmProduction: process.env.CONFIRM_PRODUCTION_DB,
+    githubActions: process.env.GITHUB_ACTIONS,
+  };
   loadEnvironment(args.target, args.fromFile);
   if (args.mode === "plan") {
-    const status = runPreflight(args);
-    if (status === 0) console.log(`migration release: PLAN PASS — no database changes made for ${args.target}`);
-    return status;
+    const preflight = runPreflight(args);
+    if (preflight.status === 0) {
+      const pending = preflight.document?.history?.pending ?? [];
+      console.log(`migration release: PLAN — ${args.target}`);
+      if (pending.length === 0) {
+        console.log("pending migrations: none");
+      } else {
+        const byTag = new Map((preflight.document?.migrations ?? []).map((migration) => [migration.tag, migration]));
+        for (const tag of pending) {
+          const migration = byTag.get(tag);
+          console.log(`- ${tag}${migration ? ` (${migration.file}, sha256=${migration.hash})` : ""}`);
+        }
+      }
+      console.log(`migration release: PLAN PASS — no database changes made for ${args.target}`);
+    }
+    return preflight.status;
   }
 
-  assertApplyConfirmation(args.target);
+  assertApplyConfirmation(args.target, explicitEnvironment);
   if (args.staticOnly) throw new Error("--static-only cannot be combined with --apply");
 
-  const preflightStatus = runPreflight(args);
-  if (preflightStatus !== 0) {
+  const preflight = runPreflight(args);
+  if (preflight.status !== 0) {
     throw new Error("preflight failed; Drizzle migration was not started");
   }
 
   console.log(`migration release: applying committed migrations to ${args.target}`);
   applyMigration();
 
-  const verificationStatus = runPreflight(args, true);
-  if (verificationStatus !== 0) throw new Error("post-migration history verification failed");
+  const verification = runPreflight(args, true);
+  if (verification.status !== 0) throw new Error("post-migration history verification failed");
   console.log(`migration release: APPLY PASS — ${args.target} history is current`);
   return 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+const entrypoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";
+if (entrypoint && import.meta.url === entrypoint) {
   try {
     process.exitCode = await main();
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
   }
 }
-

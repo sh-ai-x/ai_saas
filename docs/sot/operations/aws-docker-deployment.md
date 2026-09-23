@@ -26,7 +26,7 @@ change_impact: high
 This document is the optional scale-out contract for a future worker/API
 topology. It is not the current low-cost portfolio deployment default. For
 the present Vercel + Neon + Docker/EC2 decision, branch flow, migration gate,
-and rollback policy, use [the deployment runbook](../../deployment-runbook.md).
+and rollback policy, use [the deployment runbook](deployment-runbook.md).
 
 ## Deployment baseline
 

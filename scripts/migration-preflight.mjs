@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadDotenv, readMigrationManifest } from "./migration-common.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const requireFromWeb = createRequire(pathToFileURL(path.join(REPO_ROOT, "apps/web/package.json")));
 let postgresClient;
+const ENV_FILE_KEYS = new Set([
+  "APP_ENV",
+  "NEON_BRANCH",
+  "DATABASE_URL",
+  "DATABASE_URL_UNPOOLED",
+  "REQUIRE_PGVECTOR",
+]);
 
 function getPostgresClient() {
   postgresClient ??= requireFromWeb("postgres");
@@ -46,36 +52,17 @@ function parseArgs(argv) {
   return args;
 }
 
-function parseDotenvValue(raw) {
-  const value = raw.trim();
-  if (value.length >= 2 && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
-function loadDotenv(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return false;
-  const content = fs.readFileSync(filePath, "utf8");
-  for (const line of content.split(/\r?\n/u)) {
-    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/u);
-    if (!match || match[1] in process.env) continue;
-    process.env[match[1]] = parseDotenvValue(match[2]);
-  }
-  return true;
-}
-
 function loadDefaultEnv(target, fromFile) {
   if (fromFile) {
     const resolved = path.resolve(REPO_ROOT, fromFile);
-    if (!loadDotenv(resolved)) throw new Error(`environment file not found: ${fromFile}`);
+    if (!loadDotenv(resolved, ENV_FILE_KEYS)) throw new Error(`environment file not found: ${fromFile}`);
     return path.relative(REPO_ROOT, resolved);
   }
 
   const candidates = target === "production"
     ? [".env.production", ".env.prod", ".env"]
     : [".env.stage", ".env.staging", ".env.neon", ".env"];
-  const selected = candidates.find((candidate) => loadDotenv(path.join(REPO_ROOT, candidate)));
+  const selected = candidates.find((candidate) => loadDotenv(path.join(REPO_ROOT, candidate), ENV_FILE_KEYS));
   return selected ?? null;
 }
 
@@ -90,52 +77,21 @@ function resultCheck(name, ok, detail, severity = "error") {
   return { name, ok, detail, severity };
 }
 
-function readMigrationManifest(migrationDir) {
-  const journalPath = path.join(migrationDir, "meta", "_journal.json");
-  if (!fs.existsSync(journalPath)) throw new Error(`Drizzle journal not found: ${path.relative(REPO_ROOT, journalPath)}`);
-
-  const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
-  if (!Array.isArray(journal.entries) || journal.entries.length === 0) {
-    throw new Error("Drizzle journal has no migration entries");
-  }
-
-  const entries = [...journal.entries].sort((left, right) => left.idx - right.idx);
-  const seenTags = new Set();
-  const migrations = [];
-  for (const entry of entries) {
-    if (typeof entry.tag !== "string" || !/^[A-Za-z0-9_-]+$/u.test(entry.tag)) {
-      throw new Error(`invalid migration tag at index ${entry.idx}`);
-    }
-    if (seenTags.has(entry.tag)) throw new Error(`duplicate migration tag: ${entry.tag}`);
-    seenTags.add(entry.tag);
-
-    const filePath = path.join(migrationDir, `${entry.tag}.sql`);
-    if (!fs.existsSync(filePath)) throw new Error(`migration SQL not found: ${entry.tag}.sql`);
-    const sql = fs.readFileSync(filePath, "utf8");
-    if (!sql.trim()) throw new Error(`migration SQL is empty: ${entry.tag}.sql`);
-    migrations.push({
-      idx: entry.idx,
-      tag: entry.tag,
-      createdAt: String(entry.when),
-      hash: crypto.createHash("sha256").update(sql).digest("hex"),
-      file: path.relative(REPO_ROOT, filePath),
-      destructive: findDestructiveStatements(sql),
-    });
-  }
-  return migrations;
-}
-
 function findDestructiveStatements(sql) {
   const statements = sql.split(/-->\s*statement-breakpoint/u);
   const findings = [];
   for (const statement of statements) {
-    const normalized = statement.replace(/--[^\n]*/gu, " ").trim();
-    if (/\bDROP\s+(?:TABLE|COLUMN|SCHEMA|TYPE|DATABASE)\b/iu.test(normalized)) {
+    const normalized = statement
+      .replace(/--[^\n]*/gu, " ")
+      .replace(/\/\*[\s\S]*?\*\//gu, " ")
+      .replace(/\s+/gu, " ")
+      .trim();
+    if (/\bALTER\s+TABLE\b[\s\S]*\bDROP\s+COLUMN\b/iu.test(normalized)) {
+      findings.push("DROP COLUMN statement");
+    } else if (/\bDROP\s+(?:IF\s+EXISTS\s+)?(?:TABLE|VIEW|INDEX|FUNCTION|TRIGGER|PROCEDURE|EXTENSION|SEQUENCE|MATERIALIZED\s+VIEW|POLICY|TYPE|SCHEMA|DATABASE)\b/iu.test(normalized)) {
       findings.push("DROP statement");
     } else if (/\bTRUNCATE\b/iu.test(normalized)) {
       findings.push("TRUNCATE statement");
-    } else if (/\bALTER\s+TABLE\b[\s\S]*\bDROP\s+COLUMN\b/iu.test(normalized)) {
-      findings.push("DROP COLUMN statement");
     } else if (/\bDELETE\s+FROM\b/iu.test(normalized) && !/\bWHERE\b/iu.test(normalized)) {
       findings.push("DELETE without WHERE");
     }
@@ -183,7 +139,7 @@ function readTargetChecks(target, migrations) {
       const tls = parsed.searchParams.get("sslmode");
       const secure = tls === "require" || tls === "verify-full";
       const hostOk = !isLocal && (isNeon || process.env.ALLOW_NON_NEON_DATABASE === "true");
-      const ok = hostOk && secure && parsed.protocol === "postgresql:";
+      const ok = hostOk && secure && (parsed.protocol === "postgresql:" || parsed.protocol === "postgres:");
       checks.push(resultCheck(name, ok, ok ? `${parsed.hostname} with TLS` : "must be a TLS Neon URL"));
       if (name === "DATABASE_URL") pooledUrl = parsed;
       else directUrl = parsed;
@@ -363,7 +319,10 @@ export async function runPreflight(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   const loadedEnvFile = loadEnvironment(args.target, args.fromFile);
   if (process.env.REQUIRE_PGVECTOR === "true") args.requireVector = true;
-  const migrations = readMigrationManifest(args.migrationDir);
+  const migrations = readMigrationManifest(args.migrationDir, REPO_ROOT).map((migration) => ({
+    ...migration,
+    destructive: findDestructiveStatements(migration.sql),
+  }));
   const targetChecks = readTargetChecks(args.target, migrations);
   const checks = [...targetChecks.checks];
   let databaseState = staticDatabaseState(migrations, args.requireHistory, args.requireVector, "static-only");

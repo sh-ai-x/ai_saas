@@ -29,7 +29,7 @@ Client input cannot override amount, currency, interval, or billing mode.
 
 Do not run a raw Drizzle migration against a shared Neon branch. For staging,
 load the ignored `.env.stage` file and use the release gate from the
-[deployment runbook](../deployment-runbook.md):
+[deployment runbook](../sot/operations/deployment-runbook.md):
 
 ```bash
 NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"

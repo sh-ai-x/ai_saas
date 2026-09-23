@@ -9,7 +9,7 @@ summary: Select a Neon environment, inject connection variables safely, and veri
 
 Neon is the cloud database baseline for the foundation. Local Docker remains
 the disposable development path; named Neon `stage2` and `production` branches
-are durable cloud environments. See the [deployment runbook](../deployment-runbook.md)
+are durable cloud environments. See the [deployment runbook](../sot/operations/deployment-runbook.md)
 for the complete branch, migration, Vercel, and rollback contract.
 
 ## 1. Authenticate from a supported browser
@@ -120,6 +120,9 @@ must pass before the apply command is allowed to continue:
 ```bash
 NEON_BRANCH=stage2 \
 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+
+NEON_BRANCH=stage2 \
+pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
 
 CONFIRM_STAGING_DB=staging \
 NEON_BRANCH=stage2 \

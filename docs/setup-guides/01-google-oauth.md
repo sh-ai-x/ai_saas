@@ -151,14 +151,14 @@ values in `apps/web/.env.local`, authenticate the Neon CLI once, then run this
 from the repository root:
 
 ```bash
-pnpm web:setup-auth -- --link-neon --migrate
+pnpm web:setup-auth -- --link-neon --neon-branch stage2 --app-env staging
 ```
 
-The command links the `production` Neon branch, imports its pooled
-`DATABASE_URL`, reuses an existing `BETTER_AUTH_SECRET` or generates one,
-sets the localhost callback configuration, validates the Google values, and
-applies the committed Drizzle migration. It never prints secret values and
-preserves unrelated values already in the file.
+The command links the selected Neon branch, imports its pooled `DATABASE_URL`,
+reuses an existing `BETTER_AUTH_SECRET` or generates one, sets the localhost
+callback configuration, and validates the Google values. It never prints
+secret values, preserves unrelated values already in the file, and does not
+change the database.
 
 The resulting values in `apps/web/.env.local` include:
 
@@ -185,12 +185,6 @@ force-recreates the containers. Without recreating the web container, a
 previously empty Google configuration remains in its process environment and
 the login page intentionally shows the setup guide instead of the Google
 button.
-
-To prepare the environment without changing the database, omit `--migrate`:
-
-```bash
-pnpm web:setup-auth -- --link-neon
-```
 
 To use a different Neon project or branch, pass `--neon-project-id` and
 `--neon-branch`. The default project is the repository's linked `ai_saas`
