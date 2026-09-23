@@ -127,7 +127,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function RepositorySelector({ onSelect, selected }: Props) {
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pickerError, setPickerError] = useState("");
   const [pickerBusy, setPickerBusy] = useState(false);
@@ -153,10 +153,6 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       setLoading(false);
     }
   }, [fetchRepositories]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(() => {
     directoryInputRef.current?.setAttribute("webkitdirectory", "");
