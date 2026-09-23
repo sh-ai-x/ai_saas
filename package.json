@@ -15,6 +15,12 @@
     "web:setup-auth": "uv run --locked python scripts/setup-web-auth.py",
     "web:db:generate": "pnpm --filter ai-saas-foundation-web db:generate",
     "web:db:migrate": "pnpm --filter ai-saas-foundation-web db:migrate",
+    "db:verify:stage": "node scripts/migration-preflight.mjs --target staging",
+    "db:verify:prod": "node scripts/migration-preflight.mjs --target production",
+    "db:plan:stage": "node scripts/migration-release.mjs --target staging --plan",
+    "db:plan:prod": "node scripts/migration-release.mjs --target production --plan",
+    "db:migrate:stage": "node scripts/migration-release.mjs --target staging --apply",
+    "db:migrate:prod": "node scripts/migration-release.mjs --target production --apply",
     "db:repair-history:stage": "node scripts/migration-history-repair.mjs --target staging",
     "db:cleanup:legacy:stage": "node scripts/migration-history-repair.mjs --target staging --cleanup-legacy"
   },

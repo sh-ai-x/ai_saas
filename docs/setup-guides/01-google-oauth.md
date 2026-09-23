@@ -210,14 +210,25 @@ The schema follows the `../mysaas/my-saas` Better Auth + Drizzle shape:
 - `session`: revocable, expiring Better Auth session.
 - `verification`: short-lived Better Auth verification records.
 
-Install dependencies and migrate the configured Neon branch:
+Install dependencies and use the environment-specific migration path. Local
+OAuth development uses disposable Docker PostgreSQL:
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web db:migrate
+pnpm docker:local
 ```
 
-The Drizzle config reads `apps/web/.env.local` for local migration commands.
+For a Neon staging OAuth check, use the reviewed migration gate instead of a
+raw package migration command:
+
+```bash
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+```
+
+The Drizzle config still reads `apps/web/.env.local` for local-only commands.
 For a read-only check, export the same values in the current shell and inspect
 metadata without selecting token columns:
 
@@ -312,7 +323,7 @@ and build-time `NEXT_PUBLIC_*` failure modes, see
 | `auth_not_configured` | The server intentionally failed closed because one required live-auth value is missing. Restart after editing `.env.local`. |
 | `/admin` redirects to login | The Google user exists but `app_user.role` is not `admin`/`super_admin`, or the session predates the role change. |
 | `invalid_client` | Client ID/secret belong to a different Google Cloud project or environment. Rotate the secret in the deployment secret store. |
-| OAuth works, but DB migration fails | Run `pnpm --filter ai-saas-foundation-web db:migrate` from the repository root and confirm `DATABASE_URL` points to the intended Neon branch. |
+| OAuth works, but DB migration fails | For local Docker, restart with `pnpm docker:local`; for Neon staging, rerun `db:verify:stage` and stop on any incompatible migration history instead of editing the history table. |
 
 ## 10. Production handoff
 

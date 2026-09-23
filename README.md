@@ -25,8 +25,10 @@ The cloud database baseline is Neon PostgreSQL. The linked project is
 the process-only profile remain disposable development paths; they do not
 commit or replace the Neon credentials.
 
-See [docs/neon-database.md](docs/neon-database.md) for the repeatable Neon
+See [docs/setup-guides/07-neon-database.md](docs/setup-guides/07-neon-database.md) for the repeatable Neon
 setup, environment-variable flow, policy deployment, and connection check.
+The complete branch, database, Docker, Vercel, EC2, migration, and rollback
+runbook is [docs/deployment-runbook.md](docs/deployment-runbook.md).
 
 ## Start locally
 
@@ -150,7 +152,7 @@ variable.
 #### 3. Link Neon, configure Better Auth, and migrate Drizzle tables
 
 ```bash
-pnpm web:setup-auth -- --link-neon --migrate
+pnpm web:setup-auth -- --link-neon --neon-branch stage2 --app-env staging
 ```
 
 The command performs the remaining setup in order:
@@ -160,14 +162,14 @@ The command performs the remaining setup in order:
 3. copies `DATABASE_URL_UNPOOLED` when Neon provides it;
 4. reuses `BETTER_AUTH_SECRET` or generates a new server-only secret;
 5. sets `APP_ENV=staging`, `BETTER_AUTH_URL`, and the Google-enabled flag;
-6. runs `pnpm --filter ai-saas-foundation-web db:migrate` through Drizzle.
+6. prepares the web environment without changing the database. Apply Neon
+   migrations only through the staging verification gate below.
 
-The migration creates or updates the Better Auth identity tables (`app_user`,
-`account`, `session`, `verification`) and the pricing/payment/admin tables.
 The script is idempotent for an already-linked branch, preserves unrelated
 environment variables, writes `.env.local` with restrictive permissions, and
-never prints secret values. To configure without changing the database, omit
-`--migrate`; to use an already-linked branch, omit `--link-neon`.
+never prints secret values. To use an already-linked branch, omit
+`--link-neon`. The database change itself is a separate, reviewed migration
+release so the same preflight and history checks run in every environment.
 
 #### 4. Start and verify the live login
 
@@ -224,16 +226,19 @@ pnpm web:db:generate
 git diff -- apps/web/drizzle
 ```
 
-Apply the committed migration to the intended environment with the unpooled
-connection string. Drizzle prefers `DATABASE_URL_UNPOOLED` and falls back to
-`DATABASE_URL` for local PostgreSQL; it never selects a Neon branch implicitly:
+Apply committed migrations through the environment-specific release gate. The
+web process uses pooled `DATABASE_URL`; Drizzle migrations use direct
+`DATABASE_URL_UNPOOLED`. Drizzle never selects a Neon branch implicitly:
 
 ```bash
 # local Docker: web-migrate runs this automatically during docker:local
 pnpm docker:local
 
-# an explicitly selected Neon preview or staging branch
-DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
+# an explicitly selected Neon staging branch: preflight, plan, then apply
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
 ```
 
 For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
@@ -262,39 +267,40 @@ only committed Drizzle migrations, and verifies the final history afterward:
 
 ```bash
 NEON_BRANCH=stage2 \
-pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
-run db:verify:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
 
 CONFIRM_STAGING_DB=staging \
 NEON_BRANCH=stage2 \
-pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
-run db:migrate:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
 ```
+
+For a no-write plan, use `pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"`.
+The production equivalents are CI-only and require the production confirmation
+variables; never run a production migration from a developer shell.
 
 `db:migrate:stage` may report PostgreSQL `schema already exists` or
 `__drizzle_migrations already exists` notices. They are expected when the
 database is already initialized; the required success line is
 `migration release: APPLY PASS — staging history is current`.
 
-The one-time stage2 history repair and legacy FAQ cleanup are guarded staging
-operations. They archive the previous history/data before changing it and
-must not be run against production:
+If preflight reports `migration-history: incompatible`, stop the release and
+open a reviewed database-repair change. Do not edit or delete
+`drizzle.__drizzle_migrations` manually. The web process uses the pooled
+`DATABASE_URL`, while migrations use the direct `DATABASE_URL_UNPOOLED`.
 
-```bash
-NEON_BRANCH=stage2 \
-pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/stage2-migration-history-repair \
-run db:repair-history:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+## Branch and deployment strategy
 
-CONFIRM_STAGING_DB=staging \
-CONFIRM_LEGACY_CLEANUP=stage2 \
-NEON_BRANCH=stage2 \
-pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/stage2-migration-history-repair \
-run db:cleanup:legacy:stage -- --apply --from-file /Users/sanghee/dev/ai_saas/.env.stage
-```
+| Git ref | Vercel behavior | Database target | Migration authority |
+|---|---|---|---|
+| `feat/*`, `fix/*`, `docs/*` | Preview deployment | local Docker or disposable Neon preview | developer plan only |
+| `main` | Production deployment after PR checks | protected Neon `production` | CI release job only |
+| staging release | Preview/alias for user feedback | shared Neon `stage2` branch | preflight → plan → apply → verify |
+| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same production gate |
 
-Review the target branch and migration output before using this escape hatch;
-the web process uses the pooled `WEB_DATABASE_URL`, while the Docker
-`web-migrate` service uses the direct `WEB_DATABASE_URL_UNPOOLED`.
+Vercel build/deploy must not run database migrations. Deployments are
+immutable application artifacts; migrations run once as a serialized release
+step before the production alias is promoted. See the full
+[deployment runbook](docs/deployment-runbook.md) for rollback and EC2 rules.
 
 ### Docker runtime with Neon
 
