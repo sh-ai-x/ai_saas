@@ -254,6 +254,44 @@ WEB_DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" \
 pnpm docker:local
 ```
 
+### Staging migration verification
+
+Use the direct Neon URL for migrations and keep the pooled URL for application
+traffic. The staging release wrapper performs a read-only preflight, applies
+only committed Drizzle migrations, and verifies the final history afterward:
+
+```bash
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
+run db:verify:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+
+CONFIRM_STAGING_DB=staging \
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
+run db:migrate:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+```
+
+`db:migrate:stage` may report PostgreSQL `schema already exists` or
+`__drizzle_migrations already exists` notices. They are expected when the
+database is already initialized; the required success line is
+`migration release: APPLY PASS — staging history is current`.
+
+The one-time stage2 history repair and legacy FAQ cleanup are guarded staging
+operations. They archive the previous history/data before changing it and
+must not be run against production:
+
+```bash
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/stage2-migration-history-repair \
+run db:repair-history:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+
+CONFIRM_STAGING_DB=staging \
+CONFIRM_LEGACY_CLEANUP=stage2 \
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/stage2-migration-history-repair \
+run db:cleanup:legacy:stage -- --apply --from-file /Users/sanghee/dev/ai_saas/.env.stage
+```
+
 Review the target branch and migration output before using this escape hatch;
 the web process uses the pooled `WEB_DATABASE_URL`, while the Docker
 `web-migrate` service uses the direct `WEB_DATABASE_URL_UNPOOLED`.
