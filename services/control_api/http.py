@@ -200,8 +200,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def _repositories(self, tenant_id: str) -> None:
         query = parse_qs(urlsplit(self.path).query)
         raw_path = query.get("path", [None])[0]
+        raw_name = query.get("name", [None])[0]
+        if raw_path and raw_name:
+            raise RepositoryCatalogError("repository_query_ambiguous")
         if raw_path:
             records = (self.runtime.catalog.resolve(raw_path),)
+        elif raw_name:
+            records = self.runtime.catalog.list_repositories(name=raw_name)
         else:
             records = self.runtime.catalog.list_repositories()
         self._send(

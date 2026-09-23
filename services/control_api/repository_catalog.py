@@ -262,11 +262,25 @@ class LocalRepositoryCatalog:
     def close(self) -> None:
         self.scopes.close()
 
-    def list_repositories(self) -> tuple[RepositoryRecord, ...]:
+    def list_repositories(self, *, name: str | None = None) -> tuple[RepositoryRecord, ...]:
+        if name is not None and (not isinstance(name, str) or not name.strip()):
+            raise RepositoryCatalogError("repository_name_invalid")
         records: dict[str, RepositoryRecord] = {}
         for root in self._root_paths:
             for candidate in self._walk(root):
-                record = self._record(candidate, root)
+                if name is not None and candidate.name != name:
+                    continue
+                try:
+                    record = self._record(candidate, root)
+                except RepositoryCatalogError:
+                    # A broad mounted root can contain stale worktrees or a
+                    # repository whose metadata is temporarily unavailable.
+                    # Do not make healthy repositories undiscoverable because
+                    # of an unrelated candidate. Exact name lookups still
+                    # surface the error for the requested repository.
+                    if name is not None:
+                        raise
+                    continue
                 if record.repository_id in records and records[record.repository_id] != record:
                     raise RepositoryCatalogError("repository_root_ambiguous")
                 records[record.repository_id] = record

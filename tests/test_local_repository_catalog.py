@@ -43,6 +43,17 @@ class LocalRepositoryCatalogTests(unittest.TestCase):
         self.assertTrue(catalog.get(record.repository_id).dirty)
         catalog.close()
 
+    def test_name_filter_discovers_only_the_selected_repository(self) -> None:
+        second = self.root / "other-repository"
+        second.mkdir()
+        subprocess.run(["git", "-C", str(second), "init", "-q"], check=True)
+
+        catalog = LocalRepositoryCatalog([str(self.root)])
+        records = catalog.list_repositories(name=self.repo.name)
+
+        self.assertEqual([record.name for record in records], ["demo-repository"])
+        catalog.close()
+
     def test_outside_non_git_remote_and_symlink_paths_have_stable_errors(self) -> None:
         catalog = LocalRepositoryCatalog([str(self.root)])
         cases = ((self.base / "outside", "repository_path_outside_root"), (self.root / "plain", "repository_not_git"), ("https://example.invalid/repo", "repository_remote_unsupported"))

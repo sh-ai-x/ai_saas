@@ -37,22 +37,41 @@ type Props = {
   selected: Repository | null;
 };
 
+const REPOSITORY_REQUEST_TIMEOUT_MS = 15_000;
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/foundation${path}`, {
-    ...init,
-    credentials: "same-origin",
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-  const raw = await response.text();
-  const body = raw ? JSON.parse(raw) : {};
-  if (!response.ok) {
-    throw new Error(String(body.error ?? body.message ?? `Request failed: ${response.status}`));
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REPOSITORY_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`/api/foundation${path}`, {
+      ...init,
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let body: { error?: string; message?: string } = {};
+    try {
+      body = raw ? JSON.parse(raw) : {};
+    } catch {
+      body = { message: raw || "The repository service returned an invalid response." };
+    }
+    if (!response.ok) {
+      throw new Error(String(body.error ?? body.message ?? `Request failed: ${response.status}`));
+    }
+    return body as T;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("repository_discovery_timeout");
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return body as T;
 }
 
 export function RepositorySelector({ onSelect, selected }: Props) {
@@ -64,20 +83,26 @@ export function RepositorySelector({ onSelect, selected }: Props) {
   const [pendingDirectory, setPendingDirectory] = useState<PendingDirectory | null>(null);
   const directoryInputRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (): Promise<Repository[]> => {
+  const fetchRepositories = useCallback(async (name?: string): Promise<Repository[]> => {
+    const query = name ? `?name=${encodeURIComponent(name)}` : "";
+    const result = await api<{ repositories: Repository[] }>(`/v1/repositories${query}`);
+    return result.repositories;
+  }, []);
+
+  const load = useCallback(async (name?: string): Promise<Repository[]> => {
     setLoading(true);
     try {
-      const result = await api<{ repositories: Repository[] }>("/v1/repositories");
-      setRepositories(result.repositories);
+      const result = await fetchRepositories(name);
+      setRepositories(result);
       setError("");
-      return result.repositories;
+      return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load repositories");
       return [];
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchRepositories]);
 
   useEffect(() => {
     void load();
@@ -158,7 +183,17 @@ export function RepositorySelector({ onSelect, selected }: Props) {
         }
       }
 
-      const available = await load();
+      let available: Repository[];
+      try {
+        available = await fetchRepositories(pendingDirectory.name);
+        setRepositories(available);
+        setError("");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to find the selected repository";
+        setError(message);
+        setPickerError(message);
+        return;
+      }
       const matches = available.filter((item) => item.repository.name === pendingDirectory.name);
       if (matches.length === 0) {
         setPickerError(
@@ -183,16 +218,6 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       setPickerBusy(false);
     }
   };
-
-  if (loading && !repositories.length) return <div className="repository-selector loading">Loading repositories…</div>;
-  if (error && !repositories.length) {
-    return (
-      <div className="repository-selector error">
-        <p>{error}</p>
-        <button className="button button-secondary" onClick={() => void load()}>Retry</button>
-      </div>
-    );
-  }
 
   return (
     <div className="repository-selector">
@@ -221,6 +246,8 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       <p className="selector-help">
         Finder에서 Git 레포지토리 폴더를 선택하면 읽기 권한을 확인한 뒤 분석 대상으로 등록합니다.
       </p>
+      {loading && <p className="selector-status">Mounted repositories are still being discovered…</p>}
+      {error && <div className="picker-error" role="alert">{error}</div>}
       {pickerError && <div className="picker-error" role="alert">{pickerError}</div>}
 
       {!repositories.length ? (
