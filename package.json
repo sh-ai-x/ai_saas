@@ -14,7 +14,9 @@
     "docker:neon:down": "bash scripts/docker-neon.sh down",
     "web:setup-auth": "uv run --locked python scripts/setup-web-auth.py",
     "web:db:generate": "pnpm --filter ai-saas-foundation-web db:generate",
-    "web:db:migrate": "pnpm --filter ai-saas-foundation-web db:migrate"
+    "web:db:migrate": "pnpm --filter ai-saas-foundation-web db:migrate",
+    "db:repair-history:stage": "node scripts/migration-history-repair.mjs --target staging",
+    "db:cleanup:legacy:stage": "node scripts/migration-history-repair.mjs --target staging --cleanup-legacy"
   },
   "devDependencies": {
     "@neon/config": "^1.7.2",

@@ -107,3 +107,41 @@ storage so a fresh clone can run without cloud credentials. Cloud deployment
 injects the ignored Neon variables through the host secret manager. Neon
 provisioning does not enable payment or model-provider secrets and does not
 replace the integration validators.
+
+## 7. Verify and migrate the staging branch
+
+For the shared staging branch, keep `DATABASE_URL` pooled for application
+traffic and use `DATABASE_URL_UNPOOLED` for Drizzle migrations. The preflight
+must pass before the apply command is allowed to continue:
+
+```bash
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
+run db:verify:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+
+CONFIRM_STAGING_DB=staging \
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/vercel-neon-migration-verification \
+run db:migrate:stage -- --from-file /Users/sanghee/dev/ai_saas/.env.stage
+```
+
+Success requires `migration-history: current`, no pending migrations, and the
+final `migration release: APPLY PASS` message. PostgreSQL notices about an
+existing `drizzle` schema or migration table are harmless idempotency notices.
+
+If a staging branch has the known mixed legacy lineage, use the dedicated
+repair worktree. It is staging-only, archives the old history, and refuses
+unknown history signatures. After the history repair, remove the three known
+alternate FAQ rows with the explicit cleanup confirmation:
+
+```bash
+CONFIRM_STAGING_DB=staging \
+CONFIRM_LEGACY_CLEANUP=stage2 \
+NEON_BRANCH=stage2 \
+pnpm --dir /Users/sanghee/dev/ai_saas/.worktrees/stage2-migration-history-repair \
+run db:cleanup:legacy:stage -- --apply --from-file /Users/sanghee/dev/ai_saas/.env.stage
+```
+
+Never edit or delete `drizzle.__drizzle_migrations` manually. The repair tool
+keeps its audit copy in `drizzle.__drizzle_migrations_repair_backup` and never
+touches production or the `knowledge_*` vector tables.
