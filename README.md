@@ -25,8 +25,10 @@ The cloud database baseline is Neon PostgreSQL. The linked project is
 the process-only profile remain disposable development paths; they do not
 commit or replace the Neon credentials.
 
-See [docs/neon-database.md](docs/neon-database.md) for the repeatable Neon
+See [docs/setup-guides/07-neon-database.md](docs/setup-guides/07-neon-database.md) for the repeatable Neon
 setup, environment-variable flow, policy deployment, and connection check.
+The complete branch, database, Docker, Vercel, EC2, migration, and rollback
+runbook is [docs/sot/operations/deployment-runbook.md](docs/sot/operations/deployment-runbook.md).
 
 ## Start locally
 
@@ -146,7 +148,7 @@ variable.
 #### 3. Link Neon, configure Better Auth, and migrate Drizzle tables
 
 ```bash
-pnpm web:setup-auth -- --link-neon --migrate
+pnpm web:setup-auth -- --link-neon --neon-branch stage2 --app-env staging
 ```
 
 The command performs the remaining setup in order:
@@ -156,14 +158,14 @@ The command performs the remaining setup in order:
 3. copies `DATABASE_URL_UNPOOLED` when Neon provides it;
 4. reuses `BETTER_AUTH_SECRET` or generates a new server-only secret;
 5. sets `APP_ENV=staging`, `BETTER_AUTH_URL`, and the Google-enabled flag;
-6. runs `pnpm --filter ai-saas-foundation-web db:migrate` through Drizzle.
+6. prepares the web environment without changing the database. Apply Neon
+   migrations only through the staging verification gate below.
 
-The migration creates or updates the Better Auth identity tables (`app_user`,
-`account`, `session`, `verification`) and the pricing/payment/admin tables.
 The script is idempotent for an already-linked branch, preserves unrelated
 environment variables, writes `.env.local` with restrictive permissions, and
-never prints secret values. To configure without changing the database, omit
-`--migrate`; to use an already-linked branch, omit `--link-neon`.
+never prints secret values. To use an already-linked branch, omit
+`--link-neon`. The database change itself is a separate, reviewed migration
+release so the same preflight and history checks run in every environment.
 
 #### 4. Start and verify the live login
 
@@ -220,16 +222,19 @@ pnpm web:db:generate
 git diff -- apps/web/drizzle
 ```
 
-Apply the committed migration to the intended environment with the unpooled
-connection string. Drizzle prefers `DATABASE_URL_UNPOOLED` and falls back to
-`DATABASE_URL` for local PostgreSQL; it never selects a Neon branch implicitly:
+Apply committed migrations through the environment-specific release gate. The
+web process uses pooled `DATABASE_URL`; Drizzle migrations use direct
+`DATABASE_URL_UNPOOLED`. Drizzle never selects a Neon branch implicitly:
 
 ```bash
 # local Docker: web-migrate runs this automatically during docker:local
 pnpm docker:local
 
-# an explicitly selected Neon preview or staging branch
-DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" pnpm web:db:migrate
+# an explicitly selected Neon staging branch: preflight, plan, then apply
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
 ```
 
 For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
@@ -250,9 +255,49 @@ WEB_DATABASE_URL_UNPOOLED="$DATABASE_URL_UNPOOLED" \
 pnpm docker:local
 ```
 
-Review the target branch and migration output before using this escape hatch;
-the web process uses the pooled `WEB_DATABASE_URL`, while the Docker
-`web-migrate` service uses the direct `WEB_DATABASE_URL_UNPOOLED`.
+### Staging migration verification
+
+Use the direct Neon URL for migrations and keep the pooled URL for application
+traffic. The staging release wrapper performs a read-only preflight, applies
+only committed Drizzle migrations, and verifies the final history afterward:
+
+```bash
+NEON_BRANCH=stage2 \
+pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+
+CONFIRM_STAGING_DB=staging \
+NEON_BRANCH=stage2 \
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+```
+
+For a no-write plan, use `pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"`.
+The production equivalents are CI-only and require the production confirmation
+variables; never run a production migration from a developer shell.
+
+`db:migrate:stage` may report PostgreSQL `schema already exists` or
+`__drizzle_migrations already exists` notices. They are expected when the
+database is already initialized; the required success line is
+`migration release: APPLY PASS — staging history is current`.
+
+If preflight reports `migration-history: incompatible`, stop the release and
+open a reviewed database-repair change. Do not edit or delete
+`drizzle.__drizzle_migrations` manually. The web process uses the pooled
+`DATABASE_URL`, while migrations use the direct `DATABASE_URL_UNPOOLED`.
+
+## Branch and deployment strategy
+
+| Git ref | Vercel behavior | Database target | Migration authority |
+|---|---|---|---|
+| `feat/*`, `fix/*`, `docs/*` | Preview deployment | local Docker or disposable Neon preview | developer plan only |
+| `main` | Production deployment after PR checks | protected Neon `production` | CI release job only |
+| staging release | Preview/alias for user feedback | shared Neon `stage2` branch | preflight → plan → apply → verify |
+| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same production gate |
+
+Vercel build/deploy must not run database migrations. Deployments are
+immutable application artifacts; migrations run once as a serialized release
+step before the production alias is promoted. See the full
+[deployment runbook](docs/sot/operations/deployment-runbook.md) for rollback
+and EC2 rules.
 
 ### Docker runtime with Neon
 
@@ -318,6 +363,26 @@ ignored root `.env`; `docker:local` forces `WEB_DATABASE_URL` to the local
 Compose PostgreSQL unless `ALLOW_REMOTE_DATABASE=true` is explicitly set.
 Register the actual published web port shown by Compose for the Google
 callback.
+
+To use another host port, pass `--port`; the script aligns the Better Auth
+origin and publishes the container's port 3000 on that port:
+
+```bash
+FAQ_OPENAI_ENABLED=true pnpm docker:local --port 3019
+```
+
+Register `http://localhost:3019/api/auth/callback/google` in the Google OAuth
+client before testing login on port 3019. The FAQ router keeps the OpenAI key
+server-side; add `OPENAI_API_KEY` to the ignored root `.env` and enable it with
+`FAQ_OPENAI_ENABLED=true`.
+
+For safety, `docker:local` always defaults web migrations to the local Compose
+PostgreSQL service, even when `.env` also contains a Neon `WEB_DATABASE_URL`.
+Use an explicit shell assignment only when a remote database is intentional:
+
+```bash
+WEB_DATABASE_URL='postgresql://...remote...' pnpm docker:local --port 3019
+```
 
 `pnpm docker:local` always reads the root `.env`, rebuilds the images, and
 force-recreates the containers. This is important after changing Google OAuth
@@ -440,3 +505,44 @@ before/after audit evidence. Cross-tenant requests fail before a domain port is
 called. The local composition root maps admin credit changes to the same
 SQLite account used by run reservations and mock payment grants, so the demo
 does not display a balance that differs from the executable balance.
+
+## Durable agent runs
+
+`services/run_service` owns idempotent run creation, explicit queued/running/
+approval/completed/failed/cancelled transitions, SQLite-backed checkpoints, and
+replayable SSE frames. `services/metering_billing.SQLiteCreditLedger` reserves
+credits before a workflow event is published and commits or releases them with
+stable idempotency keys.
+
+`services/agent_worker.BoundedWorker` bounds steps, model calls, and wall-clock
+time, checkpoints the model-call key before invocation, and resumes safely
+after interruption. `InngestDispatcher` carries only run identifiers and
+limits; `FargateSpotBoundary` is an optional ARM64 worker-only launch
+description with no inbound route. Prompts and payment payloads are excluded
+from workflow/SSE payloads and redacted from streamed output.
+
+## FAQ support
+
+`apps/web/lib/faq/` is a customer-facing FAQ bot layered as a Drizzle-owned
+catalog (`apps/web/db/schema/faq.ts`), a deterministic matcher
+(`matcher.ts`), a one-method `FaqProvider` port (`provider.ts`) both adapters
+implement identically, the answer policy (`service.ts`), and a versioned
+route (`apps/web/app/api/faq/route.ts`) behind the root-layout widget.
+`FAQ_PROVIDER=jev` selects the Jev (TypeSafe) adapter; anything else,
+including unset, selects the OpenAI adapter, which is the default and stays
+inert without `FAQ_OPENAI_ENABLED=true` and a key. Neither provider authors
+user-visible prose; both only pick a catalog row id.
+
+A provider call is the last branch of `answerFaq()` — sensitive questions,
+exact/alias hits, and empty candidate sets resolve with no model call — and
+carries only redacted, normalized text plus at most five
+`{id, category, question}` triples, never answer text, PII, or session data.
+The reply must name a candidate by both id and category and clear
+`confidence >= 0.85 && answerable >= 0.9`, derived from validated
+Choice/Choice/Noul distributions for Jev and from a strict JSON-schema
+decision for OpenAI; anything else, including timeouts and the 30-second
+circuit breaker, degrades to the deterministic clarify/handoff fallback. See
+[phases/jev-cs-faq-bot/README.md](phases/jev-cs-faq-bot/README.md) for
+operational setup and
+[phases/jev-faq-provider-restore/README.md](phases/jev-faq-provider-restore/README.md)
+for the Jev request-flow mechanism and why it was restored.

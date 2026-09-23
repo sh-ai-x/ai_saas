@@ -58,3 +58,30 @@ pnpm --filter ai-saas-foundation-web lint
 pnpm --filter ai-saas-foundation-web test:all
 git diff --check
 ```
+
+## Jev provider (alternative router)
+
+Jev was this feature's original provider (see
+`phases/jev-faq-provider-restore/`) and is available again as a
+config-flagged alternative behind the same `FaqProvider` port. Set
+`FAQ_PROVIDER=jev` plus `JEV_API_KEY` to switch; leave `FAQ_PROVIDER` unset
+or anything other than `jev` to keep the OpenAI router above, which remains
+the default. Restart the server after changing either setting. For the
+request-flow walkthrough — where Jev is called, what it is asked, and how its
+response is validated — see `phases/jev-faq-provider-restore/README.md`.
+
+Every safety, redaction, rate-limit, and fail-closed property documented
+above for OpenAI applies identically to Jev — same guard set, same
+`confidence >= .85 && answerable >= .9` gate, same 5000ms timeout budget
+(`JEV_TIMEOUT_MS`, shared `DEFAULT_PROVIDER_TIMEOUT_MS` constant), same
+30-second circuit-breaker cooldown on failure. The one behavioral
+difference: Jev's `answerable` is a real Noul probability, where OpenAI's is
+a boolean cast to `1|0` — see `phases/jev-faq-provider-restore/README.md`
+for why that matters.
+
+Jev is inert by construction without `JEV_API_KEY` — `FAQ_PROVIDER=jev` with
+no key degrades to the existing clarify fallback, never an error. No live
+Jev traffic has been sent from an automated test or CI; the one live check
+performed against the real endpoint was manual, one-time, and outside CI
+(see `phases/jev-faq-provider-restore/step1-output.json`). Verify the wire
+contract again before relying on Jev in a new environment.

@@ -81,9 +81,9 @@ if ! [[ "$requested_slot" =~ ^[0-9]+$ ]] || (( requested_slot < 0 || requested_s
   exit 1
 fi
 
-existing_web_port="$(port_from_container "${compose_project}-web-1" 3000)"
-existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" 8080)"
-existing_postgres_port="$(port_from_container "${compose_project}-postgres-1" 5432)"
+existing_web_port="$(port_from_container "${compose_project}-web-1" 3000 || true)"
+existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" 8080 || true)"
+existing_postgres_port="$(port_from_container "${compose_project}-postgres-1" 5432 || true)"
 if [[ -n "$existing_web_port" && -n "$existing_foundation_port" && -n "$existing_postgres_port" ]]; then
   selected_web_port="$existing_web_port"
   selected_foundation_port="$existing_foundation_port"
@@ -206,7 +206,7 @@ if [[ "$command_mode" == "down" ]]; then
     echo "Usage: pnpm docker:local [down [--volumes]]" >&2
     exit 2
   fi
-  "${compose[@]}" down "${down_args[@]}"
+  "${compose[@]}" down "${down_args[@]+"${down_args[@]}"}"
   exit 0
 fi
 

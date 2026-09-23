@@ -25,15 +25,22 @@ Create or edit plans at `/admin/pricing`. Amounts are integer minor currency
 units and the checkout API resolves them from the database by `optionId`.
 Client input cannot override amount, currency, interval, or billing mode.
 
-## 3. Apply the Neon migration
+## 3. Apply the database migration
 
-Set `DATABASE_URL` from the linked Neon production branch and apply the
-committed Drizzle migration:
+Do not run a raw Drizzle migration against a shared Neon branch. For staging,
+load the ignored `.env.stage` file and use the release gate from the
+[deployment runbook](../sot/operations/deployment-runbook.md):
 
 ```bash
-pnpm install
-pnpm --filter ai-saas-foundation-web db:migrate
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
 ```
+
+Production migration is a CI-only release step and requires the production
+confirmation guard. For disposable local development, `pnpm docker:local`
+creates and migrates the local PostgreSQL database automatically.
 
 The schema includes `pricing_catalog_settings`, `pricing_plans`,
 `pricing_options`, `payment_provider_settings`, `payment_orders`,

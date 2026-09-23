@@ -2,14 +2,15 @@
 id: database-neon
 category: DATABASE
 title: Neon PostgreSQL
-summary: Link the cloud production branch, inject connection variables safely, and verify the database without exposing credentials.
+summary: Select a Neon environment, inject connection variables safely, and verify the database without exposing credentials.
 ---
 
 # Neon PostgreSQL
 
 Neon is the cloud database baseline for the foundation. Local Docker remains
-the disposable development path; the linked `production` branch is the
-durable cloud path.
+the disposable development path; named Neon `stage2` and `production` branches
+are durable cloud environments. See the [deployment runbook](../sot/operations/deployment-runbook.md)
+for the complete branch, migration, Vercel, and rollback contract.
 
 ## 1. Authenticate from a supported browser
 
@@ -46,14 +47,16 @@ This creates the ignored `.neon` context and pulls `DATABASE_URL`,
 `DATABASE_URL_UNPOOLED`, and `NEON_BRANCH` into the ignored `.env.local` file.
 
 For the web app, run the setup command after linking. It copies the Neon URL
-into `apps/web/.env.local`, generates the Better Auth secret if needed,
-validates Google OAuth values, and can apply all Drizzle tables in one step:
+into `apps/web/.env.local`, generates the Better Auth secret if needed, and
+validates Google OAuth values. It does not apply a cloud migration:
 
 ```bash
-pnpm web:setup-auth -- --migrate
+pnpm web:setup-auth -- --neon-branch stage2 --app-env staging
 ```
 
 Add `--link-neon` when the branch has not been linked yet.
+Run the staging `verify → plan → apply → verify` gate below for database
+changes; do not call the web package's raw migration command against Neon.
 
 The Drizzle configuration uses `DATABASE_URL_UNPOOLED` for migrations and
 `DATABASE_URL` for application traffic. This is intentional: keep the direct
@@ -107,3 +110,30 @@ storage so a fresh clone can run without cloud credentials. Cloud deployment
 injects the ignored Neon variables through the host secret manager. Neon
 provisioning does not enable payment or model-provider secrets and does not
 replace the integration validators.
+
+## 7. Verify and migrate the staging branch
+
+For the shared staging branch, keep `DATABASE_URL` pooled for application
+traffic and use `DATABASE_URL_UNPOOLED` for Drizzle migrations. The preflight
+must pass before the apply command is allowed to continue:
+
+```bash
+NEON_BRANCH=stage2 \
+pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+
+NEON_BRANCH=stage2 \
+pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+
+CONFIRM_STAGING_DB=staging \
+NEON_BRANCH=stage2 \
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+```
+
+Success requires `migration-history: current`, no pending migrations, and the
+final `migration release: APPLY PASS` message. PostgreSQL notices about an
+existing `drizzle` schema or migration table are harmless idempotency notices.
+
+If preflight reports `migration-history: incompatible`, stop the release and
+open a reviewed repair change. Never edit or delete
+`drizzle.__drizzle_migrations` manually, and never use a developer worktree to
+repair production history.

@@ -66,3 +66,26 @@
 
 - non_goals: full repository upload; code/build/test/deploy execution; file-by-file LLM/JEV judging; baseline/candidate bulk experiments.
 - breach_response: create a separate scoped phase and preserve the low-token read-only review contract.
+
+# frame — jev-faq-provider-restore
+
+- goal: Restore the archived Jev FAQ provider behind the existing FaqProvider port as a config-flagged alternative to OpenAI, fix the two bugs a verbatim revert would re-ship, document why OpenAI was chosen, and document the environment variables.
+- target_user: The repository maintainer/operator who cannot currently tell from any file why the FAQ bot routes through OpenAI, and has no config path back to Jev.
+- situation: A customer-facing FAQ bot is merged; Jev was its original provider, deleted and replaced by OpenAI with no rationale recorded anywhere in the repo.
+
+# interview — jev-faq-provider-restore
+
+- status: SKIPPED
+- reason: The design was already fully settled through iterative review of `docs/proposals/reviewing/jev-typesafe-integration/idea-jev-typesafe-integration.yaml` directly with the maintainer across multiple rounds (draft, cheapest-slice trim, cons/limitations resolution, third-bug documentation) before this plan stage began. No open design question remained.
+
+# gate-2 cycle 1 — jev-faq-provider-restore
+
+- evidence: 3 independent signals (git history, source code, maintainer statement) recorded in PRD §2.
+- value: engineering cost avoided, $600 (3 avoided recurrences of the archaeological recovery at $200 each) / cost $100 = value_score 6.0.
+- ambiguity: 10 → 6 → 3 → 2; narrowed by identifying the FAQ router as the concrete integration point, then by the proposal's own iterative scope trim (cheapest-slice, cons/limitations resolution, third-bug fold-in).
+- next: implement step1 (env var docs + one-time live wire-contract check) — step0 was already implemented and verified before this plan stage began.
+
+# gate-3 — jev-faq-provider-restore
+
+- non_goals: removing/deprecating the OpenAI adapter; retuning confidence/answerable thresholds; the widget ranking cap and email-escalation gap (deferred, separate proposals); a provider-factory abstraction module.
+- breach_response: reject scope changes that would remove OpenAI or retune thresholds without real Jev traffic data; defer ranking/escalation and factory-module requests to their own proposals.

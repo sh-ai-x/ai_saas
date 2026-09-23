@@ -19,3 +19,6 @@ remain at `/`.
 
 The local profile is intentionally complete without external credentials. Move
 to a real integration only after the API contract and fixture tests pass.
+
+For the cross-environment branch, Neon, Docker, Vercel, EC2, migration, and
+rollback policy, use the [deployment runbook](../sot/operations/deployment-runbook.md).

@@ -1,6 +1,6 @@
-# plan → build hand-off
+# Plan → Build Handoff — AI Change Impact Workbench
 
-## Plan
+## Baseline
 
 - Phase: `ai-change-impact-review`
 - Branch/worktree: `fix/local-repository-picker`
@@ -15,7 +15,7 @@
 4. `step3`: low-token Change Impact Workbench UI replacing the legacy repository proposal surface.
 5. `step4`: legacy cleanup, setup documentation, and proportionate verification.
 
-## Required verification
+## Guardrails
 
 - No raw proposal file or repository snapshot is uploaded or persisted.
 - Git tracked + unignored rules, secret denylist, binary/build/size/symlink limits are visible and tested.

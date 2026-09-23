@@ -30,8 +30,10 @@ history.
 
 ## Maintenance boundary
 
-The former proposal archive contains no current product documentation.
-Superseded proposal HTML/YAML artifacts were removed; active product decisions live in
-`PRD.md`, the setup guides, SOT contracts, and ADRs. Files under `phases/` are
-dev-kit execution records and are retained for implementation traceability,
-not presented as user-facing setup documentation.
+The former proposal archive contains no user-facing proposal pages. Superseded
+proposal HTML/YAML artifacts were removed; the active FAQ provider design record
+is retained only because the corresponding phase execution records reference it.
+Current Workbench product decisions live in `PRD.md`, the setup guides, SOT
+contracts, and ADRs. Files under `phases/` are dev-kit execution records and are
+retained for implementation traceability, not presented as user-facing setup
+documentation.
