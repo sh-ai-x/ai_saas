@@ -39,6 +39,20 @@ type Props = {
 
 const REPOSITORY_REQUEST_TIMEOUT_MS = 15_000;
 
+function repositoryErrorMessage(error: unknown): string {
+  const code = error instanceof Error ? error.message : String(error);
+  if (code === "repository_metadata_unavailable") {
+    return "선택한 레포지토리의 Git 메타데이터를 읽지 못했습니다. Docker를 해당 레포지토리 폴더 자체에 LOCAL_REPOSITORY_HOST_ROOT로 지정하고 다시 시작하세요.";
+  }
+  if (code === "repository_discovery_limit") {
+    return "마운트된 폴더가 너무 넓어 레포지토리 검색이 중단됐습니다. 선택한 레포지토리 자체 또는 좁은 상위 폴더만 LOCAL_REPOSITORY_HOST_ROOT로 지정하고 다시 시작하세요.";
+  }
+  if (code === "repository_discovery_timeout" || code === "foundation_unavailable") {
+    return "레포지토리 검색이 오래 걸리고 있습니다. Docker가 실행 중인지 확인하고, LOCAL_REPOSITORY_HOST_ROOT를 좁은 폴더로 지정한 뒤 다시 시도하세요.";
+  }
+  return code;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), REPOSITORY_REQUEST_TIMEOUT_MS);
@@ -97,7 +111,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       setError("");
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load repositories");
+      setError(repositoryErrorMessage(err));
       return [];
     } finally {
       setLoading(false);
@@ -137,7 +151,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       onSelect(updated);
       return true;
     } catch (err) {
-      setPickerError(err instanceof Error ? err.message : "Authorization failed");
+      setPickerError(repositoryErrorMessage(err));
       return false;
     }
   };
@@ -189,7 +203,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
         setRepositories(available);
         setError("");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to find the selected repository";
+        const message = repositoryErrorMessage(err);
         setError(message);
         setPickerError(message);
         return;
@@ -198,7 +212,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       if (matches.length === 0) {
         setPickerError(
           `“${pendingDirectory.name}”을(를) 선택했지만 서버에 마운트된 Git 레포지토리로 찾지 못했습니다. ` +
-            "Docker를 다시 시작하거나 LOCAL_REPOSITORY_HOST_ROOT를 선택한 폴더의 상위 경로로 설정하세요."
+            "Docker를 다시 시작하거나 LOCAL_REPOSITORY_HOST_ROOT를 선택한 레포지토리 자체 또는 좁은 상위 폴더로 설정하세요."
         );
         return;
       }
