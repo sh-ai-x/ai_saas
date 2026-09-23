@@ -54,6 +54,23 @@ class LocalRepositoryCatalogTests(unittest.TestCase):
         self.assertEqual([record.name for record in records], ["demo-repository"])
         catalog.close()
 
+    def test_browser_import_creates_an_isolated_git_snapshot(self) -> None:
+        import_root = self.root / "imports"
+        import_root.mkdir()
+        catalog = LocalRepositoryCatalog([str(self.root)], import_root=import_root)
+
+        record = catalog.import_snapshot(
+            "browser-repository",
+            (("README.md", b"imported\n"), ("src/app.py", b"value = 1\n")),
+        )
+
+        self.assertEqual(record.name, "browser-repository")
+        self.assertEqual(record.branch, "imported")
+        self.assertFalse(record.dirty)
+        self.assertEqual(catalog.list_repositories(name="browser-repository")[0].repository_id, record.repository_id)
+        self.assertEqual((import_root / "browser-repository" / "README.md").read_text(encoding="utf-8"), "imported\n")
+        catalog.close()
+
     def test_outside_non_git_remote_and_symlink_paths_have_stable_errors(self) -> None:
         catalog = LocalRepositoryCatalog([str(self.root)])
         cases = ((self.base / "outside", "repository_path_outside_root"), (self.root / "plain", "repository_not_git"), ("https://example.invalid/repo", "repository_remote_unsupported"))

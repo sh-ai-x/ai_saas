@@ -21,7 +21,14 @@ type Repository = {
 type DirectoryHandleLike = {
   name: string;
   requestPermission?: (options: { mode: "read" }) => Promise<"granted" | "denied" | "prompt">;
+  values?: () => AsyncIterable<DirectoryEntryLike>;
 };
+
+type DirectoryEntryLike =
+  | { kind: "file"; name: string; getFile: () => Promise<File> }
+  | { kind: "directory"; name: string; values: () => AsyncIterable<DirectoryEntryLike> };
+
+type ImportedFile = { path: string; file: File };
 
 type PickerWindow = Window & {
   showDirectoryPicker?: () => Promise<DirectoryHandleLike>;
@@ -30,6 +37,7 @@ type PickerWindow = Window & {
 type PendingDirectory = {
   name: string;
   handle?: DirectoryHandleLike;
+  files?: ImportedFile[];
 };
 
 type Props = {
@@ -42,28 +50,57 @@ const REPOSITORY_REQUEST_TIMEOUT_MS = 15_000;
 function repositoryErrorMessage(error: unknown): string {
   const code = error instanceof Error ? error.message : String(error);
   if (code === "repository_metadata_unavailable") {
-    return "선택한 레포지토리의 Git 메타데이터를 읽지 못했습니다. Docker를 해당 레포지토리 폴더 자체에 LOCAL_REPOSITORY_HOST_ROOT로 지정하고 다시 시작하세요.";
+    return "선택한 레포지토리의 Git 메타데이터를 읽지 못했습니다. 폴더 읽기 권한을 다시 허용하고 재가져오기를 시도하세요.";
   }
   if (code === "repository_discovery_limit") {
-    return "마운트된 폴더가 너무 넓어 레포지토리 검색이 중단됐습니다. 선택한 레포지토리 자체 또는 좁은 상위 폴더만 LOCAL_REPOSITORY_HOST_ROOT로 지정하고 다시 시작하세요.";
+    return "기존 서버 마운트의 레포지토리 검색 범위가 너무 넓습니다. 폴더 선택 후 가져오기를 사용하면 이 목록 검색을 기다리지 않아도 됩니다.";
   }
   if (code === "repository_discovery_timeout" || code === "foundation_unavailable") {
-    return "레포지토리 검색이 오래 걸리고 있습니다. Docker가 실행 중인지 확인하고, LOCAL_REPOSITORY_HOST_ROOT를 좁은 폴더로 지정한 뒤 다시 시도하세요.";
+    return "기존 레포지토리 목록 검색이 오래 걸리고 있습니다. Docker가 실행 중인지 확인하고 폴더 선택으로 계속 진행하세요.";
+  }
+  if (code === "repository_import_size_limit") {
+    return "선택한 폴더가 너무 큽니다. node_modules, 빌드 산출물, 대용량 파일을 제외한 뒤 다시 선택하세요. (최대 25MB)";
+  }
+  if (code.startsWith("repository_import_")) {
+    return "선택한 폴더를 서버 작업 공간으로 가져오지 못했습니다. Git 레포지토리인지 확인하고 다시 시도하세요.";
   }
   return code;
+}
+
+const IGNORED_DIRECTORY_NAMES = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "__pycache__"]);
+
+function shouldImportFile(path: string): boolean {
+  const parts = path.split("/");
+  return !parts.some((part) => IGNORED_DIRECTORY_NAMES.has(part) || part.startsWith(".env"));
+}
+
+async function collectDirectoryFiles(handle: DirectoryHandleLike, prefix = ""): Promise<ImportedFile[]> {
+  if (!handle.values) return [];
+  const files: ImportedFile[] = [];
+  for await (const entry of handle.values()) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (!shouldImportFile(path)) continue;
+    if (entry.kind === "file") {
+      files.push({ path, file: await entry.getFile() });
+    } else {
+      files.push(...(await collectDirectoryFiles(entry, path)));
+    }
+  }
+  return files;
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), REPOSITORY_REQUEST_TIMEOUT_MS);
   try {
+    const headers = new Headers(init?.headers);
+    if (!(init?.body instanceof FormData) && !headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
     const response = await fetch(`/api/foundation${path}`, {
       ...init,
       credentials: "same-origin",
-      headers: {
-        "content-type": "application/json",
-        ...(init?.headers ?? {}),
-      },
+      headers,
       cache: "no-store",
       signal: controller.signal,
     });
@@ -97,16 +134,15 @@ export function RepositorySelector({ onSelect, selected }: Props) {
   const [pendingDirectory, setPendingDirectory] = useState<PendingDirectory | null>(null);
   const directoryInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchRepositories = useCallback(async (name?: string): Promise<Repository[]> => {
-    const query = name ? `?name=${encodeURIComponent(name)}` : "";
-    const result = await api<{ repositories: Repository[] }>(`/v1/repositories${query}`);
+  const fetchRepositories = useCallback(async (): Promise<Repository[]> => {
+    const result = await api<{ repositories: Repository[] }>("/v1/repositories");
     return result.repositories;
   }, []);
 
-  const load = useCallback(async (name?: string): Promise<Repository[]> => {
+  const load = useCallback(async (): Promise<Repository[]> => {
     setLoading(true);
     try {
-      const result = await fetchRepositories(name);
+      const result = await fetchRepositories();
       setRepositories(result);
       setError("");
       return result;
@@ -177,11 +213,31 @@ export function RepositorySelector({ onSelect, selected }: Props) {
   };
 
   const handleFallbackDirectory = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const firstPath = selectedFiles[0]?.webkitRelativePath || "";
+    const name = firstPath.split("/")[0];
+    const files = selectedFiles.flatMap<ImportedFile>((file) => {
+      const relativePath = file.webkitRelativePath || file.name;
+      const parts = relativePath.split("/");
+      const path = parts.length > 1 ? parts.slice(1).join("/") : parts[0];
+      return shouldImportFile(path) ? [{ path, file }] : [];
+    });
     event.target.value = "";
-    if (!file) return;
-    const relativePath = file.webkitRelativePath || file.name;
-    setPendingDirectory({ name: relativePath.split("/")[0] });
+    if (name && files.length) setPendingDirectory({ name, files });
+  };
+
+  const importDirectory = async (directory: PendingDirectory): Promise<Repository> => {
+    const files = directory.files ?? (directory.handle ? await collectDirectoryFiles(directory.handle) : []);
+    if (!files.length) throw new Error("repository_import_empty");
+    const formData = new FormData();
+    formData.append("repository_name", directory.name);
+    formData.append("manifest", JSON.stringify(files.map(({ path }) => ({ path }))));
+    files.forEach(({ path, file }) => formData.append("files", file, path));
+    const result = await api<{ repository: Repository["repository"]; authorization: Repository["authorization"] }>(
+      "/v1/repositories/import",
+      { method: "POST", body: formData },
+    );
+    return { repository: result.repository, authorization: result.authorization };
   };
 
   const confirmDirectory = async () => {
@@ -197,37 +253,18 @@ export function RepositorySelector({ onSelect, selected }: Props) {
         }
       }
 
-      let available: Repository[];
       try {
-        available = await fetchRepositories(pendingDirectory.name);
-        setRepositories(available);
+        const repository = await importDirectory(pendingDirectory);
+        setRepositories([repository]);
         setError("");
+        const authorized = repository.authorization.read_analysis || await authorize(repository);
+        if (authorized) setPendingDirectory(null);
       } catch (err) {
         const message = repositoryErrorMessage(err);
         setError(message);
         setPickerError(message);
         return;
       }
-      const matches = available.filter((item) => item.repository.name === pendingDirectory.name);
-      if (matches.length === 0) {
-        setPickerError(
-          `“${pendingDirectory.name}”을(를) 선택했지만 서버에 마운트된 Git 레포지토리로 찾지 못했습니다. ` +
-            "Docker를 다시 시작하거나 LOCAL_REPOSITORY_HOST_ROOT를 선택한 레포지토리 자체 또는 좁은 상위 폴더로 설정하세요."
-        );
-        return;
-      }
-      if (matches.length > 1) {
-        setPickerError("같은 이름의 레포지토리가 여러 개입니다. 목록에서 정확한 경로를 선택하세요.");
-        return;
-      }
-
-      const repository = matches[0];
-      if (repository.authorization.read_analysis) {
-        onSelect(repository);
-      } else {
-        await authorize(repository);
-      }
-      setPendingDirectory(null);
     } finally {
       setPickerBusy(false);
     }
@@ -258,7 +295,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
         </div>
       </div>
       <p className="selector-help">
-        Finder에서 Git 레포지토리 폴더를 선택하면 읽기 권한을 확인한 뒤 분석 대상으로 등록합니다.
+        Finder에서 Git 레포지토리 폴더를 선택하면 읽기 권한을 확인한 뒤 서버 작업 공간에 안전한 사본으로 가져옵니다. 원본 폴더는 수정하지 않습니다.
       </p>
       {loading && <p className="selector-status">Mounted repositories are still being discovered…</p>}
       {error && <div className="picker-error" role="alert">{error}</div>}
@@ -267,8 +304,8 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       {!repositories.length ? (
         <div className="repository-empty-state">
           <div className="empty-state-icon" aria-hidden="true">⌂</div>
-          <h4>No local repositories configured</h4>
-          <p>선택할 로컬 레포지토리가 없습니다. 폴더 선택 버튼으로 Git 레포지토리를 지정하세요.</p>
+          <h4>No repository imported yet</h4>
+          <p>폴더를 선택하고 읽기 권한을 허용하면 서버 작업 공간에 안전한 사본으로 가져옵니다.</p>
           <button className="button button-secondary" onClick={() => void openDirectoryPicker()} disabled={pickerBusy}>
             Select local repository
           </button>
@@ -342,7 +379,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
             <div className="directory-permission-actions">
               <button className="text-button" onClick={() => setPendingDirectory(null)} disabled={pickerBusy}>Cancel</button>
               <button className="button button-primary" onClick={() => void confirmDirectory()} disabled={pickerBusy}>
-                {pickerBusy ? "Checking access…" : "Allow read access"}
+                {pickerBusy ? "Importing repository…" : "Allow read access"}
               </button>
             </div>
           </section>

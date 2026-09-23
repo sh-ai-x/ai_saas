@@ -6,8 +6,10 @@ import hashlib
 import os
 import re
 import selectors
+import shutil
 import sqlite3
 import subprocess
+import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -24,7 +26,10 @@ MAX_REPOSITORIES = 128
 MAX_DISCOVERY_DIRECTORIES = 4096
 MAX_GIT_OUTPUT = 4096
 GIT_TIMEOUT_SECONDS = 2.0
+MAX_IMPORTED_FILES = 20_000
+MAX_IMPORTED_BYTES = 25 * 1024 * 1024
 _TENANT_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class RepositoryCatalogError(ValueError, PermissionError):
@@ -246,6 +251,7 @@ class LocalRepositoryCatalog:
         scope_database: str = ":memory:",
         max_depth: int = MAX_DISCOVERY_DEPTH,
         max_repositories: int = MAX_REPOSITORIES,
+        import_root: str | Path | None = None,
     ) -> None:
         if not isinstance(max_depth, int) or not 0 <= max_depth <= MAX_DISCOVERY_DEPTH:
             raise RepositoryCatalogError("discovery_limit_invalid")
@@ -257,6 +263,9 @@ class LocalRepositoryCatalog:
         self._root_paths = tuple(Path(root.canonical_path) for root in self.roots)
         self.max_depth = max_depth
         self.max_repositories = max_repositories
+        self._import_root = Path(import_root).resolve(strict=True) if import_root is not None else None
+        if self._import_root is not None and not any(_path_inside(self._import_root, root) for root in self._root_paths):
+            raise RepositoryCatalogError("repository_import_root_unconfigured")
         self.scopes = RepositoryAuthorizationStore(scope_database)
 
     def close(self) -> None:
@@ -332,6 +341,57 @@ class LocalRepositoryCatalog:
     def authorize_read(self, tenant_id: str, *, repository_id: str | None = None, path: str | None = None) -> RepositoryScope:
         record = self._select(repository_id, path)
         return self.scopes.issue_read(_validate_tenant(tenant_id), record.repository_id)
+
+    def import_snapshot(self, name: str, files: Sequence[tuple[str, bytes]]) -> RepositoryRecord:
+        """Create or replace a server-side Git snapshot imported by the browser."""
+
+        if self._import_root is None:
+            raise RepositoryCatalogError("repository_import_unconfigured")
+        if not isinstance(name, str) or not _REPOSITORY_NAME_PATTERN.fullmatch(name):
+            raise RepositoryCatalogError("repository_name_invalid")
+        if not files or len(files) > MAX_IMPORTED_FILES:
+            raise RepositoryCatalogError("repository_import_file_limit")
+
+        normalized: list[tuple[Path, bytes]] = []
+        total_bytes = 0
+        seen: set[Path] = set()
+        for raw_path, content in files:
+            if not isinstance(raw_path, str) or not isinstance(content, bytes):
+                raise RepositoryCatalogError("repository_import_file_invalid")
+            relative = Path(raw_path)
+            if (
+                relative.is_absolute()
+                or not relative.parts
+                or ".." in relative.parts
+                or ".git" in relative.parts
+                or any(part.startswith(".env") for part in relative.parts)
+            ):
+                raise RepositoryCatalogError("repository_import_path_invalid")
+            if relative in seen:
+                raise RepositoryCatalogError("repository_import_duplicate_path")
+            seen.add(relative)
+            total_bytes += len(content)
+            if total_bytes > MAX_IMPORTED_BYTES:
+                raise RepositoryCatalogError("repository_import_size_limit")
+            normalized.append((relative, content))
+
+        destination = self._import_root / name
+        if destination.exists() or destination.is_symlink():
+            if destination.is_symlink() or not _path_inside(destination.resolve(strict=False), self._import_root):
+                raise RepositoryCatalogError("repository_import_path_invalid")
+            shutil.rmtree(destination)
+        temporary = Path(tempfile.mkdtemp(prefix=f".{name}-", dir=self._import_root))
+        try:
+            for relative, content in normalized:
+                target = temporary / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            self._initialize_imported_git(temporary)
+            temporary.rename(destination)
+        except (OSError, subprocess.SubprocessError) as exc:
+            shutil.rmtree(temporary, ignore_errors=True)
+            raise RepositoryCatalogError("repository_import_failed") from exc
+        return self._record(destination, self._import_root)
 
     def authorize_write(
         self,
@@ -538,3 +598,38 @@ class LocalRepositoryCatalog:
         if return_code != 0:
             raise RepositoryCatalogError("repository_not_git")
         return bytes(output).decode("utf-8", errors="replace").strip()
+
+    @staticmethod
+    def _initialize_imported_git(repository_path: Path) -> None:
+        environment = {
+            "PATH": os.environ.get("PATH", ""),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+        }
+        commands = (
+            ["git", "-c", "init.defaultBranch=imported", "init", "-q"],
+            ["git", "add", "--all"],
+            [
+                "git",
+                "-c",
+                "user.email=local-import@localhost",
+                "-c",
+                "user.name=Local repository import",
+                "commit",
+                "-qm",
+                "Import browser repository snapshot",
+            ],
+        )
+        for command in commands:
+            subprocess.run(
+                command,
+                cwd=repository_path,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+                timeout=GIT_TIMEOUT_SECONDS * 5,
+            )

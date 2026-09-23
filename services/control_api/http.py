@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass
+from email.parser import BytesParser
+from email.policy import default as email_default_policy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import parse_qs, urlsplit
 
 from agent_platform import KernelStore
@@ -85,13 +87,26 @@ def build_runtime(config: ControlApiConfig | None = None, *, environment: Mappin
         graph_runtime=build_langgraph_runtime(),
         artifact_store=ReviewArtifactStore(artifact_dir) if artifact_dir else None,
     )
+    configured_import_root = values.get("LOCAL_REPOSITORY_IMPORT_ROOT", "").strip()
+    if configured_import_root:
+        import_root = Path(configured_import_root).expanduser()
+    elif config.database != ":memory:":
+        import_root = Path(config.database).expanduser().resolve().parent / "imported-repositories"
+    else:
+        import_root = Path("/tmp/ai-saas-imported-repositories")
+    import_root.mkdir(parents=True, exist_ok=True)
     root_values: tuple[str, ...] | str = config.repository_roots
     if not root_values:
         root_values = values.get("LOCAL_REPOSITORY_ROOTS", "")
     if not root_values and config.repository_root and config.repository_root != ".":
         root_values = (config.repository_root,)
+    configured_roots = tuple(parse_repository_roots(root_values)) if isinstance(root_values, str) else tuple(root_values)
+    canonical_import_root = import_root.resolve(strict=True)
+    configured_canonical_roots = tuple(Path(root).resolve(strict=True) for root in configured_roots)
+    if not any(canonical_import_root == root or canonical_import_root.is_relative_to(root) for root in configured_canonical_roots):
+        configured_roots = (*configured_roots, str(import_root))
     scope_database = config.repository_scope_database or config.database
-    catalog = LocalRepositoryCatalog(root_values, scope_database=scope_database)
+    catalog = LocalRepositoryCatalog(configured_roots, scope_database=scope_database, import_root=import_root)
     secret = config.token_secret.encode() if config.token_secret else None
     return ControlRuntime(workflow, store, TenantAuthenticator(secret, config.allow_insecure_local), config, catalog)
 
@@ -241,6 +256,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def _post(self) -> None:
         path = urlsplit(self.path).path.rstrip("/")
         tenant_id = self._authenticated_tenant()
+        if path in {"/v1/repositories/import", "/v1/change-assurance/repositories/import"}:
+            name, files = self._read_repository_import()
+            self._import_repository(tenant_id, name, files)
+            return
         body = self._read_json()
         if path in {"/v1/repositories/authorize", "/v1/change-assurance/repositories/authorize"}:
             if self.runtime.catalog is None:
@@ -316,6 +335,19 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         record = self.runtime.catalog.get(scope.repository_id)
         self.runtime.store.register_repository(tenant_id, asdict(record))
         self._send(HTTPStatus.OK, {"repository": self.runtime.catalog.public_record(record), "scope": asdict(scope), "authorization": self.runtime.catalog.authorization_state(tenant_id, scope.repository_id)})
+
+    def _import_repository(self, tenant_id: str, name: str, files: Sequence[tuple[str, bytes]]) -> None:
+        if self.runtime.catalog is None:
+            raise RepositoryCatalogError("repository_catalog_unconfigured")
+        record = self.runtime.catalog.import_snapshot(name, files)
+        self.runtime.store.register_repository(tenant_id, asdict(record))
+        self._send(
+            HTTPStatus.CREATED,
+            {
+                "repository": self.runtime.catalog.public_record(record),
+                "authorization": self.runtime.catalog.authorization_state(tenant_id, record.repository_id),
+            },
+        )
 
     def _authorize_analysis_request(self, tenant_id: str, body: Mapping[str, Any]) -> str | None:
         repository_id = body.get("repository_id")
@@ -476,6 +508,53 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             self._send_error(HTTPStatus.BAD_REQUEST, "request body must be an object")
             raise _RequestFinished
         return value
+
+    def _read_repository_import(self) -> tuple[str, tuple[tuple[str, bytes], ...]]:
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.lower().startswith("multipart/form-data"):
+            self._send_error(HTTPStatus.BAD_REQUEST, "repository import must use multipart/form-data")
+            raise _RequestFinished
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_error(HTTPStatus.BAD_REQUEST, "invalid content length")
+            raise _RequestFinished
+        max_bytes = 25 * 1024 * 1024
+        if length <= 0 or length > max_bytes:
+            self._send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "repository import is empty or too large")
+            raise _RequestFinished
+        raw = self.rfile.read(length)
+        message = BytesParser(policy=email_default_policy).parsebytes(
+            b"MIME-Version: 1.0\r\nContent-Type: " + content_type.encode("utf-8") + b"\r\n\r\n" + raw
+        )
+        if not message.is_multipart():
+            self._send_error(HTTPStatus.BAD_REQUEST, "invalid repository import payload")
+            raise _RequestFinished
+        fields: dict[str, list[str]] = {}
+        files: list[tuple[str | None, bytes]] = []
+        for part in message.iter_parts():
+            field_name = part.get_param("name", header="content-disposition")
+            if not isinstance(field_name, str):
+                continue
+            payload = part.get_payload(decode=True) or b""
+            filename = part.get_filename()
+            if filename is not None:
+                files.append((filename, payload))
+            else:
+                fields.setdefault(field_name, []).append(payload.decode("utf-8"))
+        try:
+            name = fields["repository_name"][0]
+            manifest = json.loads(fields["manifest"][0])
+        except (KeyError, IndexError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("repository import requires repository_name and manifest") from exc
+        if not isinstance(manifest, list) or len(manifest) != len(files):
+            raise ValueError("repository import manifest does not match uploaded files")
+        normalized: list[tuple[str, bytes]] = []
+        for item, (_, payload) in zip(manifest, files):
+            if not isinstance(item, Mapping) or not isinstance(item.get("path"), str):
+                raise ValueError("repository import manifest contains an invalid path")
+            normalized.append((item["path"], payload))
+        return name, tuple(normalized)
 
     def _send(self, status: HTTPStatus, payload: Mapping[str, Any]) -> None:
         encoded = json.dumps(payload, sort_keys=True, default=str).encode()
