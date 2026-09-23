@@ -15,7 +15,12 @@ from agent_platform import KernelStore
 from agent_platform.contracts import ApprovalToken
 from agent_platform.storage import IdempotencyConflict, StaleProposalError, TenantScopeError
 from project_packs.proposal_to_verified_change import ProposalToVerifiedChangePack, RepositoryIndex
-from services.agent_orchestrator import FakeStructuredModel, ProposalVerifiedWorkflow, build_langgraph_runtime
+from services.agent_orchestrator import (
+    FakeStructuredModel,
+    ProposalVerifiedWorkflow,
+    build_langgraph_runtime,
+    build_openai_proposal_adapter,
+)
 from services.delivery_gateway import ReviewArtifactStore
 from services.observability import LangSmithClientAdapter, RedactedTraceAdapter
 
@@ -63,7 +68,14 @@ def build_runtime(config: ControlApiConfig | None = None, *, environment: Mappin
         project=values.get("LANGSMITH_PROJECT", "proposal-to-verified-change"),
         environment=values,
     )
-    model = FakeStructuredModel()
+    provider_mode = values.get("AGENT_PROVIDER_MODE", "fake").strip().lower()
+    if provider_mode in {"langchain", "openai"}:
+        model = build_openai_proposal_adapter(
+            model_name=values.get("OPENAI_MODEL") or None,
+            api_key=values.get("OPENAI_API_KEY") or None,
+        )
+    else:
+        model = FakeStructuredModel()
     artifact_dir = values.get("AGENT_ARTIFACT_DIR", "").strip()
     workflow = ProposalVerifiedWorkflow(
         store,

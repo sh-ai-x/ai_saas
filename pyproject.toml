@@ -3,7 +3,11 @@ name = "ai-saas-foundation"
 version = "0.1.0"
 description = "Contract-first AI SaaS foundation runtime"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "langchain-openai>=0.2,<1.0",
+    "langgraph>=0.2,<1.0",
+    "langsmith>=0.2,<1.0",
+]
 
 [dependency-groups]
 dev = [

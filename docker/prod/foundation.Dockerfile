@@ -15,7 +15,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY foundation ./foundation
+COPY agent_platform ./agent_platform
 COPY lib ./lib
+COPY project_packs ./project_packs
 COPY services ./services
 COPY evaluators ./evaluators
 COPY packages/contracts ./packages/contracts

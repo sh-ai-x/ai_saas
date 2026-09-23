@@ -137,14 +137,35 @@ def _validate_proposal_analysis(value: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def build_langchain_proposal_adapter(chat_model: Any) -> LangChainStructuredModelAdapter:
-    chain = chat_model.with_structured_output(dict) if callable(getattr(chat_model, "with_structured_output", None)) else chat_model
+    if callable(getattr(chat_model, "with_structured_output", None)):
+        try:
+            from pydantic import BaseModel
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError("pydantic is required for LangChain structured output") from exc
+
+        class ProposalAnalysisSchema(BaseModel):
+            summary: str
+            requirement_ids: list[str]
+            claims: list[str]
+
+        chain = chat_model.with_structured_output(ProposalAnalysisSchema)
+    else:
+        chain = chat_model
     return LangChainStructuredModelAdapter(chain, result_validator=_validate_proposal_analysis)
 
 
-def build_openai_proposal_adapter(*, model_name: str | None = None, temperature: float = 0.0) -> LangChainStructuredModelAdapter:
+def build_openai_proposal_adapter(
+    *,
+    model_name: str | None = None,
+    temperature: float = 0.0,
+    api_key: str | None = None,
+) -> LangChainStructuredModelAdapter:
     try:
         from langchain_openai import ChatOpenAI
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError("langchain-openai is required for the OpenAI adapter") from exc
-    model = ChatOpenAI(model=model_name or "gpt-4o-mini", temperature=temperature)
+    model_kwargs = {"model": model_name or "gpt-4o-mini", "temperature": temperature}
+    if api_key:
+        model_kwargs["api_key"] = api_key
+    model = ChatOpenAI(**model_kwargs)
     return build_langchain_proposal_adapter(model)
