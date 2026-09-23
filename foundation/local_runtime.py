@@ -196,6 +196,7 @@ class LocalRuntime:
 
     def close(self) -> None:
         self.proposal_control.catalog.close()
+        self.proposal_control.proposal_review.store.close()
         for store in (self.run_store, self.credit_ledger, self.quota, self.billing_store, self.proposal_control.store):
             store.close()
 

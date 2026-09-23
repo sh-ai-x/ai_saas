@@ -58,9 +58,10 @@ changes to OAuth or database settings reach the containers. If
 
 ## 3. Verify the contract
 
-Use the health endpoint, bounded run, audited admin change, and mock payment
-before introducing external credentials. Validate real account creation and
-login through the Google OAuth guide after configuring the provider.
+Use the health endpoint, proposal-review contract, audited admin change, and
+mock payment before introducing external credentials. Validate real account
+creation and login through the Google OAuth guide after configuring the
+provider.
 
 ```bash
 curl http://localhost:8180/healthz

@@ -23,8 +23,10 @@ from services.agent_orchestrator import (
     build_langgraph_runtime,
     build_openai_proposal_adapter,
 )
-from services.delivery_gateway import ReviewArtifactStore
+from services.delivery_gateway import ReviewArtifactStore as DeliveryReviewArtifactStore
 from services.observability import LangSmithClientAdapter, RedactedTraceAdapter
+from services.proposal_review import ReviewArtifactStore as ProposalReviewArtifactStore
+from services.proposal_review.service import ProposalReviewService
 
 from .auth import AuthenticationError, TenantAuthenticator
 from .repository_catalog import (
@@ -56,6 +58,7 @@ class ControlRuntime:
     authenticator: TenantAuthenticator
     config: ControlApiConfig
     catalog: LocalRepositoryCatalog | None = None
+    proposal_review: ProposalReviewService | None = None
 
 
 def build_runtime(config: ControlApiConfig | None = None, *, environment: Mapping[str, str] | None = None) -> ControlRuntime:
@@ -79,13 +82,14 @@ def build_runtime(config: ControlApiConfig | None = None, *, environment: Mappin
     else:
         model = FakeStructuredModel()
     artifact_dir = values.get("AGENT_ARTIFACT_DIR", "").strip()
+    trace_adapter = RedactedTraceAdapter(client=langsmith_client, console_url=values.get("LANGSMITH_CONSOLE_URL", "https://smith.langchain.com"))
     workflow = ProposalVerifiedWorkflow(
         store,
         pack,
         model=model,
-        tracer=RedactedTraceAdapter(client=langsmith_client, console_url=values.get("LANGSMITH_CONSOLE_URL", "https://smith.langchain.com")),
+        tracer=trace_adapter,
         graph_runtime=build_langgraph_runtime(),
-        artifact_store=ReviewArtifactStore(artifact_dir) if artifact_dir else None,
+        artifact_store=DeliveryReviewArtifactStore(artifact_dir) if artifact_dir else None,
     )
     configured_import_root = values.get("LOCAL_REPOSITORY_IMPORT_ROOT", "").strip()
     if configured_import_root:
@@ -108,7 +112,26 @@ def build_runtime(config: ControlApiConfig | None = None, *, environment: Mappin
     scope_database = config.repository_scope_database or config.database
     catalog = LocalRepositoryCatalog(configured_roots, scope_database=scope_database, import_root=import_root)
     secret = config.token_secret.encode() if config.token_secret else None
-    return ControlRuntime(workflow, store, TenantAuthenticator(secret, config.allow_insecure_local), config, catalog)
+    review_database = config.database if config.database != ":memory:" else ":memory:"
+    review_store = ProposalReviewArtifactStore(review_database)
+    local_file_host_root = values.get("LOCAL_DOCUMENT_HOST_ROOT", "").strip()
+    if not local_file_host_root:
+        local_file_host_root = values.get("LOCAL_REPOSITORY_HOST_ROOT", "").strip()
+    if not local_file_host_root:
+        configured_repository_root = values.get("AGENT_REPOSITORY_ROOT", "").strip()
+        local_file_host_root = configured_repository_root if configured_repository_root and configured_repository_root != "." else str(Path.cwd())
+    editor_file_root = values.get("LOCAL_REPOSITORY_HOST_ROOT", "").strip() or None
+    if not editor_file_root:
+        configured_repository_root = values.get("AGENT_REPOSITORY_ROOT", "").strip()
+        editor_file_root = configured_repository_root if configured_repository_root and configured_repository_root != "." else None
+    proposal_review = ProposalReviewService(
+        review_store,
+        tracer=trace_adapter,
+        local_file_host_root=local_file_host_root,
+        local_file_mounted_root=(values.get("LOCAL_DOCUMENT_CONTAINER_ROOT", "").strip() or values.get("LOCAL_REPOSITORY_CONTAINER_ROOT", "").strip() or None),
+        editor_file_root=editor_file_root,
+    )
+    return ControlRuntime(workflow, store, TenantAuthenticator(secret, config.allow_insecure_local), config, catalog, proposal_review)
 
 
 def config_from_env() -> ControlApiConfig:
@@ -176,6 +199,22 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     "repository_scopes": [READ_ANALYSIS, WRITE_PATCH],
                 },
             )
+            return
+        if path in {"/v1/change-impact/catalog", "/v1/proposal-review/catalog"}:
+            if self.runtime.proposal_review is None:
+                self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "proposal review is unavailable")
+                return
+            self._send(HTTPStatus.OK, self.runtime.proposal_review.catalog())
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id:
+            if self.runtime.proposal_review is None:
+                self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "proposal review is unavailable")
+                return
+            if review_suffix:
+                self._send_error(HTTPStatus.NOT_FOUND, "review route not found")
+            else:
+                self._send(HTTPStatus.OK, self.runtime.proposal_review.detail(review_id, tenant_id))
             return
         if path in {"/v1/repositories", "/v1/change-assurance/repositories"}:
             if self.runtime.catalog is None:
@@ -261,6 +300,33 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             self._import_repository(tenant_id, name, files)
             return
         body = self._read_json()
+        if path in {"/v1/change-impact/documents/from-url", "/v1/proposal-review/documents/from-url"}:
+            if self.runtime.proposal_review is None:
+                self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "proposal review is unavailable")
+                return
+            url = body.get("url")
+            if not isinstance(url, str) or not url.strip():
+                self._send_error(HTTPStatus.BAD_REQUEST, "url is required")
+                return
+            self._send(HTTPStatus.OK, self.runtime.proposal_review.fetch_document(url))
+            return
+        if path in {"/v1/change-impact/reviews", "/v1/proposal-review/reviews"}:
+            if self.runtime.proposal_review is None:
+                self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "proposal review is unavailable")
+                return
+            result = self.runtime.proposal_review.start(tenant_id, body)
+            self._send(HTTPStatus.CREATED, result)
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id and review_suffix in {"decision", "resume"}:
+            if self.runtime.proposal_review is None:
+                self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "proposal review is unavailable")
+                return
+            if review_suffix == "resume":
+                self._send(HTTPStatus.OK, self.runtime.proposal_review.resume(review_id, tenant_id))
+            else:
+                self._send(HTTPStatus.OK, self.runtime.proposal_review.decide(review_id, tenant_id, body))
+            return
         if path in {"/v1/repositories/authorize", "/v1/change-assurance/repositories/authorize"}:
             if self.runtime.catalog is None:
                 raise RepositoryCatalogError("repository_catalog_unconfigured")
@@ -613,6 +679,18 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 return parts[offset], parts[offset + 2], parts[offset + 3]
         return None, None, ""
 
+    @staticmethod
+    def _review_route(path: str) -> tuple[str | None, str]:
+        parts = [part for part in path.split("/") if part]
+        for prefix in (("v1", "change-impact", "reviews"), ("v1", "proposal-review", "reviews")):
+            if parts[: len(prefix)] != list(prefix) or len(parts) < len(prefix) + 1:
+                continue
+            if len(parts) == len(prefix) + 1:
+                return parts[-1], ""
+            if len(parts) == len(prefix) + 2:
+                return parts[-2], parts[-1]
+        return None, ""
+
 
 class _RequestFinished(Exception):
     pass
@@ -659,6 +737,8 @@ def serve(config: ControlApiConfig | None = None) -> None:
         server.server_close()
         if runtime.catalog is not None:
             runtime.catalog.close()
+        if runtime.proposal_review is not None:
+            runtime.proposal_review.store.close()
         runtime.store.close()
 
 

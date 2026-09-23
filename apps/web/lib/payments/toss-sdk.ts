@@ -36,9 +36,9 @@ export async function loadTossSdk() {
     script.src = "https://js.tosspayments.com/v2/standard";
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Toss Payments SDK를 불러오지 못했습니다."));
+    script.onerror = () => reject(new Error("Could not load the Toss Payments SDK."));
     document.head.appendChild(script);
   });
-  if (!window.TossPayments) throw new Error("Toss Payments SDK가 초기화되지 않았습니다.");
+  if (!window.TossPayments) throw new Error("The Toss Payments SDK was not initialized.");
   return window.TossPayments;
 }

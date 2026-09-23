@@ -63,15 +63,40 @@ class RedactedTraceAdapter:
     def evaluator(self, name: str, result: Mapping[str, Any]) -> None:
         self.record(f"evaluator.{name}", result)
 
+    def langchain_callbacks(self) -> list[Any]:
+        """Return callbacks that make LangGraph and nested LangChain runs visible."""
+        if self._client is None:
+            return []
+        factory = getattr(self._client, "langchain_tracer", None)
+        if not callable(factory):
+            return []
+        try:
+            return [factory()]
+        except Exception as exc:
+            self.export_errors.append(f"{type(exc).__name__}: {exc}")
+            return []
+
+    def status(self) -> dict[str, Any]:
+        if self._client is None:
+            return {"enabled": False, "provider": "none", "project": None, "console_url": self.console_url}
+        return {
+            "enabled": True,
+            "provider": "langsmith",
+            "project": getattr(self._client, "project", None),
+            "console_url": self.console_url,
+        }
+
 
 class LangSmithClientAdapter:
     """Optional trace exporter; it never owns authorization or run state."""
 
-    def __init__(self, client: Any, *, project: str = "proposal-to-verified-change") -> None:
+    def __init__(self, client: Any, *, project: str = "proposal-to-verified-change", api_url: str = "https://api.smith.langchain.com", console_url: str = "https://smith.langchain.com") -> None:
         if not callable(getattr(client, "create_run", None)):
             raise TypeError("LangSmith client must expose create_run")
         self.client = client
         self.project = project
+        self.api_url = api_url
+        self.console_url = console_url
         self.export_errors: list[str] = []
         self.project_ready: bool | None = None
         self._project_ensure_attempted = False
@@ -79,13 +104,32 @@ class LangSmithClientAdapter:
     @classmethod
     def from_env(cls, *, project: str = "proposal-to-verified-change", environment: Mapping[str, str] | None = None) -> "LangSmithClientAdapter | None":
         values = {**os.environ, **(environment or {})}
-        if values.get("LANGSMITH_TRACING", "").lower() not in {"1", "true", "yes"} or not values.get("LANGSMITH_API_KEY"):
+        tracing_flag = values.get("LANGSMITH_TRACING") or values.get("LANGCHAIN_TRACING_V2") or ""
+        tracing_enabled = tracing_flag.lower() in {"1", "true", "yes"}
+        api_key = (values.get("LANGSMITH_API_KEY") or values.get("LANGCHAIN_API_KEY") or "").strip()
+        if not tracing_enabled or not api_key:
             return None
         try:
             from langsmith import Client
         except ImportError as exc:
             raise RuntimeError("langsmith is required when LANGSMITH_TRACING is enabled") from exc
-        return cls(Client(api_key=values["LANGSMITH_API_KEY"].strip()), project=project)
+        api_url = (values.get("LANGSMITH_ENDPOINT") or values.get("LANGCHAIN_ENDPOINT") or "https://api.smith.langchain.com").strip().rstrip("/")
+        console_url = (values.get("LANGSMITH_CONSOLE_URL") or "https://smith.langchain.com").strip().rstrip("/")
+        workspace_id = (values.get("LANGSMITH_WORKSPACE_ID") or "").strip() or None
+        client = Client(
+            api_url=api_url,
+            api_key=api_key,
+            web_url=console_url,
+            anonymizer=redact,
+            workspace_id=workspace_id,
+        )
+        return cls(client, project=project, api_url=api_url, console_url=console_url)
+
+    def langchain_tracer(self) -> Any:
+        """Create a LangChain callback rooted in the configured LangSmith project."""
+        from langchain_core.tracers.langchain import LangChainTracer
+
+        return LangChainTracer(project_name=self.project, client=self.client, tags=["ai-change-impact-workbench", "langgraph"])
 
     def _ensure_project(self) -> None:
         if self._project_ensure_attempted:

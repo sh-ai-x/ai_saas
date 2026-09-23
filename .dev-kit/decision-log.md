@@ -43,3 +43,26 @@
 
 - non_goals: open-ended generation; account/billing/ticket mutations; RAG/memory/tools/attachments; live-provider dependency in local/test.
 - breach_response: defer each request to a separate security/evaluation plan and keep this phase read-only, bounded, and catalog-backed.
+
+# frame — ai-change-impact-review
+
+- goal: Build a low-token, read-only workbench that compares a local HTML/PDF proposal with a local Git repository and returns requirement-level code evidence, impact, risks, and a human-reviewed ready/revise/blocked decision.
+- target_user: An AI Engineer evaluating prompt, model, retriever, graph, or provider changes before implementation.
+- situation: The engineer currently reads the proposal, searches the repository, infers affected modules, and judges feasibility manually, while whole-repository LLM/JEV analysis is expensive and difficult to reproduce.
+
+# interview — ai-change-impact-review
+
+- status: SKIPPED
+- reason: The user supplied the product decision, low-token constraint, local-only boundary, and explicit plan/build request.
+
+# gate-2 cycle 1 — ai-change-impact-review
+
+- evidence: 6 independent repository/PDF/product signals recorded in PRD §2.
+- LTV: 240 value units × 25 users = 6,000 / cost 1,200 = value_score 5.0.
+- ambiguity: 10 → 8 → 6 → 4 → 3; narrowed by fixing local parsing, Git exclusion, deterministic evidence retrieval, one-call synthesis, and no-code-execution scope.
+- next: implement the deterministic local context boundary before provider-backed synthesis.
+
+# gate-3 — ai-change-impact-review
+
+- non_goals: full repository upload; code/build/test/deploy execution; file-by-file LLM/JEV judging; baseline/candidate bulk experiments.
+- breach_response: create a separate scoped phase and preserve the low-token read-only review contract.

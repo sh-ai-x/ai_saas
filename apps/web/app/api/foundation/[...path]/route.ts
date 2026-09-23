@@ -39,6 +39,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
     request.method === "GET" || request.method === "HEAD"
       ? undefined
       : await request.arrayBuffer();
+  if (body && !headers.has("content-length")) {
+    headers.set("content-length", String(body.byteLength));
+  }
 
   let upstream: Response;
   try {

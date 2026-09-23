@@ -184,6 +184,18 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(run["state"], "completed")  # type: ignore[index]
         self.assertEqual(run["result"]["output"], "Local echo: agent api")  # type: ignore[index]
 
+    def test_change_impact_url_and_review_routes_use_the_foundation_surface(self) -> None:
+        self.runtime.proposal_control.proposal_review.fetch_document = lambda url: {  # type: ignore[method-assign]
+            "document": {"name": "remote.html", "media_type": "text/html", "sha256": "remote", "sections": []},
+            "requirements": [],
+        }
+        status, document = self.request("POST", "/v1/change-impact/documents/from-url", {"url": "https://example.com/proposal"})
+        self.assertEqual(status, 200)
+        self.assertEqual(document["document"]["name"], "remote.html")  # type: ignore[index]
+        status, catalog = self.request("GET", "/v1/change-impact/catalog")
+        self.assertEqual(status, 200)
+        self.assertEqual(catalog["provider_budget"]["langchain_max_calls"], 1)  # type: ignore[index]
+
 
 if __name__ == "__main__":
     unittest.main()

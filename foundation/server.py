@@ -32,7 +32,7 @@ from .config import ConfigError, merged_environment, validate_profile
 from .local_runtime import DEMO_ACCOUNT_ID, DEMO_TENANT_ID, LocalRuntime
 
 
-MAX_BODY_BYTES = 64 * 1024
+MAX_BODY_BYTES = 256 * 1024
 MAX_REPOSITORY_IMPORT_BYTES = 25 * 1024 * 1024
 
 
@@ -159,6 +159,18 @@ class FoundationHandler(BaseHTTPRequestHandler):
         if path == "/v1/change-assurance/capabilities":
             self._request_tenant()
             self._json(200, self.runtime.proposal_capabilities())
+            return
+        if path in {"/v1/change-impact/catalog", "/v1/proposal-review/catalog"}:
+            self._request_tenant()
+            self._json(200, self.runtime.proposal_control.proposal_review.catalog())
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id:
+            tenant_id = self._request_tenant()
+            if review_suffix:
+                self._error(404, "not_found", "review route not found")
+                return
+            self._json(200, self.runtime.proposal_control.proposal_review.detail(review_id, tenant_id))
             return
         if path in {"/v1/repositories", "/v1/change-assurance/repositories"}:
             self._get_repositories(parsed.query)
@@ -345,6 +357,26 @@ class FoundationHandler(BaseHTTPRequestHandler):
             return
         if path in {"/v1/repositories/authorize", "/v1/change-assurance/repositories/authorize"}:
             self._authorize_repository(self._body())
+            return
+        if path in {"/v1/change-impact/documents/from-url", "/v1/proposal-review/documents/from-url"}:
+            self._request_tenant()
+            payload = self._body()
+            url = payload.get("url")
+            if not isinstance(url, str) or not url.strip():
+                raise ValueError("url is required")
+            self._json(200, self.runtime.proposal_control.proposal_review.fetch_document(url))
+            return
+        if path in {"/v1/change-impact/reviews", "/v1/proposal-review/reviews"}:
+            tenant_id = self._request_tenant()
+            self._json(201, self.runtime.proposal_control.proposal_review.start(tenant_id, self._body()))
+            return
+        review_id, review_suffix = self._review_route(path)
+        if review_id and review_suffix in {"decision", "resume"}:
+            tenant_id = self._request_tenant()
+            if review_suffix == "resume":
+                self._json(200, self.runtime.proposal_control.proposal_review.resume(review_id, tenant_id))
+            else:
+                self._json(200, self.runtime.proposal_control.proposal_review.decide(review_id, tenant_id, self._body()))
             return
         proposal_repository_id, proposal_id, proposal_suffix = self._proposal_route(path)
         if proposal_repository_id:
@@ -597,6 +629,18 @@ class FoundationHandler(BaseHTTPRequestHandler):
             if len(parts) == offset + 4 and parts[offset + 1] == "proposals" and parts[offset + 3] in {"resume", "reanalyze"}:
                 return parts[offset], parts[offset + 2], parts[offset + 3]
         return None, None, ""
+
+    @staticmethod
+    def _review_route(path: str) -> tuple[str | None, str]:
+        parts = [part for part in path.split("/") if part]
+        for prefix in (("v1", "change-impact", "reviews"), ("v1", "proposal-review", "reviews")):
+            if parts[: len(prefix)] != list(prefix) or len(parts) < len(prefix) + 1:
+                continue
+            if len(parts) == len(prefix) + 1:
+                return parts[-1], ""
+            if len(parts) == len(prefix) + 2:
+                return parts[-2], parts[-1]
+        return None, ""
 
     def _authorize_repository(self, payload: Mapping[str, Any]) -> None:
         tenant_id = self._request_tenant()

@@ -6,7 +6,7 @@ Read first:
 - `.dev-kit/hand-off/sot-harness-ai-saas-msa-20260918.md`
 - `docs/sot/architecture/system-map.md`
 - `docs/sot/operations/aws-docker-deployment.md`
-- `docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml`
+- `docs/setup-guides/00-local-foundation.md`
 
 Task:
 Create the smallest runnable foundation skeleton from the `mysaas` baseline. Establish the repository/module ownership map, versioned REST/SSE/event/provider contracts, environment profiles (`free-portfolio` and `aws-worker`), safe configuration validation, local Docker instructions, and deterministic contract checks. Do not add secrets or provision cloud resources.

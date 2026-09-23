@@ -2,7 +2,7 @@
 # loop-detect.sh — PostToolUse hook for Bash.
 #
 # Doom-loop detector (Pattern 1 from
-# docs/proposals/playbook-application/02-reanalysis.yaml). After every
+# the loop-detection contract). After every
 # Bash call, asks the sourced helper whether the last
 # ${LOOP_DETECT_THRESHOLD:-3} entries in
 # .dev-kit/hand-off/<session>.log are an identical tool + first-80-chars

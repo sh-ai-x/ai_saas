@@ -43,6 +43,13 @@
       "when": 1789967381000,
       "tag": "0005_faq_english",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790169000000,
+      "tag": "0006_change_impact_pricing",
+      "breakpoints": true
     }
   ]
 }

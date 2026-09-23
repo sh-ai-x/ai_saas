@@ -17,7 +17,7 @@ describe('FAQ policy and OpenAI boundary', () => {
   it('uses a provider timeout compatible with container network latency', () => {
     expect(DEFAULT_OPENAI_TIMEOUT_MS).toBe(5_000);
   });
-  it.each(['What is AI SaaS Foundation?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
+  it.each(['What is AI Change Impact Workbench?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
     const select = jest.fn();
     const result = await answerFaq(question, repository, { select });
     expect(result).toMatchObject({ outcome: 'answer', answer: seedFaqs[0].answer });

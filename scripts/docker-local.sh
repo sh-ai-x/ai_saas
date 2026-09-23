@@ -143,6 +143,22 @@ if [[ -z "$configured_repository_git_common_root" ]]; then
 fi
 export LOCAL_REPOSITORY_GIT_COMMON_ROOT="${configured_repository_git_common_root:-$repo_root}"
 
+# Proposal documents are independent from the selected repository. Mount the
+# common workspace parent read-only so file:// URLs from sibling worktrees can
+# be resolved without asking the user to copy the proposal into the repo.
+configured_document_host_root="${LOCAL_DOCUMENT_HOST_ROOT:-$(env_file_value LOCAL_DOCUMENT_HOST_ROOT)}"
+if [[ -z "$configured_document_host_root" ]]; then
+  document_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$document_common_dir" ]]; then
+    configured_document_host_root="$(cd -- "$(dirname -- "$document_common_dir")" && pwd)"
+  else
+    configured_document_host_root="$repo_root"
+  fi
+fi
+export LOCAL_DOCUMENT_HOST_ROOT="$configured_document_host_root"
+configured_document_container_root="${LOCAL_DOCUMENT_CONTAINER_ROOT:-$(env_file_value LOCAL_DOCUMENT_CONTAINER_ROOT)}"
+export LOCAL_DOCUMENT_CONTAINER_ROOT="${configured_document_container_root:-/local-documents}"
+
 # docker:local is a local profile. Never let a copied Neon URL silently make
 # migrations or browser traffic target a cloud database. A remote target is
 # possible only with an explicit opt-in for diagnostics.
