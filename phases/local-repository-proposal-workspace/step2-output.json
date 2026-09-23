@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "step": 2,
+  "phase": "local-repository-proposal-workspace",
+  "exit_code": 0,
+  "stdout": "recovery verification: independent bounded verification completed after Codex transport idle timeout\ntests.test_local_repository_catalog: 4 tests OK\ntests.test_proposal_verified_change_agent: 5 tests OK\ntests.test_local_execution.SandboxPolicyTests: 2 tests OK\ntests.test_local_execution.LocalExecutionTests.test_approved_run_is_isolated_and_returns_typed_review_package: 1 test OK\ntests.test_local_execution.LocalExecutionTests.test_tampered_approval_and_commit_drift_fail_before_patch: 1 test OK\ntests.test_local_proposal_persistence.LocalProposalPersistenceTests: 3 tests OK\ntests.test_local_proposal_persistence.LocalProposalApiContractTests.test_create_list_open_and_restart_are_repository_and_tenant_scoped: 1 test OK\npython3 scripts/local-smoke.py: pass\ndocker compose -f docker/dev/compose.yaml config --quiet: exit 0\ndocker info: exit 0\ngit diff --check: exit 0\npython3 -m compileall -q agent_platform services project_packs foundation tests: exit 0\n",
+  "stderr": "original Codex sub-agent transport ended with SIGTERM after WebSocket idle/reconnect hang; implementation was independently verified in the isolated step worktree.\n",
+  "duration_seconds": 14510.0,
+  "timestamp": "2026-09-22T22:11:34.667623+00:00",
+  "recovery": {
+    "original_subagent_exit_code": -15,
+    "reason": "WebSocket idle timeout during Codex sub-agent finalization",
+    "independent_verification": true,
+    "verification_scope": "approval-bypass, source-immutability, diff artifact, test policy, commit drift, trace lifecycle, Docker smoke"
+  }
+}
