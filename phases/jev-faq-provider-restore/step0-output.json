@@ -1,0 +1,53 @@
+{
+  "name": "restore-jev-provider",
+  "status": "complete",
+  "provider": "jev-systemone (config-flagged, default off) + openai-responses-gpt-4o-mini (default)",
+  "implementation": [
+    "apps/web/lib/faq/jev.ts recovered from 05426b1, both bugs fixed via one categoryCriteria(candidates) helper feeding validation and the model-facing criteria object from the same derivation",
+    "apps/web/lib/faq/provider.ts +1 line: DEFAULT_PROVIDER_TIMEOUT_MS = 5_000, the shared budget both adapters import",
+    "apps/web/lib/faq/openai.ts: DEFAULT_OPENAI_TIMEOUT_MS aliased to the shared constant; name and value (5_000) preserved so the pre-existing test assertion is unaffected",
+    "apps/web/app/api/faq/route.ts: FAQ_PROVIDER env conditional selects createJevProvider vs createOpenAiProvider, defaulting to OpenAI",
+    "docs/proposals/faq-support/jev-cs-faq-bot.yaml: record-correction amendment section added",
+    "apps/web/tests/faq.test.ts: +12 dedicated Jev tests (category derivation regression, answerable-as-probability, one-typed-call shape, 7-mode fails-closed matrix, timeout-clamp regression) and +10 parameterized conformance tests shared across both adapters"
+  ],
+  "verification": [
+    {
+      "command": "pnpm --filter ai-saas-foundation-web lint",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm --filter ai-saas-foundation-web exec jest --runInBand tests/faq.test.ts",
+      "exit_code": 0,
+      "tests_passed": 57,
+      "tests_failed": 0
+    },
+    {
+      "command": "pnpm --filter ai-saas-foundation-web build",
+      "exit_code": 0,
+      "result": "next build succeeded, /api/faq route present in output"
+    },
+    {
+      "command": "manual: next dev --port 3000, curl POST /api/faq (default provider)",
+      "result": "byte-identical behavior to pre-change: exact match answers, free text without a key clarifies"
+    },
+    {
+      "command": "manual: FAQ_PROVIDER=jev next dev --port 3000, curl POST /api/faq (no JEV_API_KEY set)",
+      "result": "degrades to outcome=clarify, no error, confirming the provider is inert by construction without a key"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "security": {
+    "live_provider_calls": 0,
+    "production_database_writes": 0,
+    "new_dependencies": 0,
+    "client_provider_credentials": false
+  },
+  "remaining_gates": [
+    "Live Jev wire-contract verification against the real api.typesafe.ai endpoint — deferred to step1, now that a JEV_API_KEY is available",
+    "FAQ_PROVIDER/JEV_* environment variable documentation — deferred to step1"
+  ],
+  "handoff": ".dev-kit/hand-off/plan→build.md"
+}

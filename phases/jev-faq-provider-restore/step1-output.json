@@ -1,0 +1,50 @@
+{
+  "name": "document-env-vars-and-verify-wire-contract",
+  "status": "complete",
+  "documentation": [
+    ".env.example: FAQ_PROVIDER, JEV_API_KEY, JEV_API_URL, JEV_MODEL, JEV_TIMEOUT_MS added alongside the existing FAQ_OPENAI_ENABLED/OPENAI_* block",
+    "apps/web/.env.example: same five variables added, same style",
+    "phases/jev-cs-faq-bot/README.md: new '## Jev provider (alternative router)' section added, pointing at rather than duplicating the existing safety/rate-limit/redaction documentation"
+  ],
+  "live_wire_contract_check": {
+    "method": "One-time manual script, outside the automated test suite and outside CI. JEV_API_KEY read at runtime from the main checkout's .env via a Python subprocess driver (never printed, never logged, never written to any file in this worktree); the driver and the check script were deleted immediately after the run and never committed.",
+    "question": "synthetic, generic, non-personal: 'What is this application for?'",
+    "candidates_sent": ["faq-getting-started (general)", "faq-local-development (development)"],
+    "endpoint": "https://api.typesafe.ai/v1/systemone",
+    "result": {
+      "httpStatus": 200,
+      "ok": true,
+      "schemaValid": true,
+      "distributionValid": true,
+      "latencyMs": 747,
+      "selectedFaqId": "faq-getting-started",
+      "selectedCategory": "general",
+      "answerableNoul": 0.67
+    },
+    "interpretation": [
+      "The live response satisfies parseJev's wireSchema and validDistribution() exactly as implemented — the residual risk named in the proposal (a wire-format mismatch between parseJev's schema and the live endpoint) did not materialize for this call.",
+      "answerableNoul=0.67 is below the service.ts:16 answerable>=0.9 gate, so this exact synthetic question would resolve to the existing 'clarify' fallback end-to-end, not 'answer' — expected and correct behavior for a deliberately generic question, not a defect.",
+      "This is ONE real data point, not a calibration. No claim is made about typical latency, typical confidence, or accuracy across question types — consistent with the proposal's limitation that no calibration claim is made here."
+    ]
+  },
+  "verification": [
+    {
+      "command": "pnpm --filter ai-saas-foundation-web lint",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm --filter ai-saas-foundation-web exec jest --runInBand tests/faq.test.ts",
+      "exit_code": 0,
+      "tests_passed": 57,
+      "tests_failed": 0
+    }
+  ],
+  "security": {
+    "api_key_committed": false,
+    "api_key_logged": false,
+    "live_call_added_to_ci": false,
+    "live_call_added_to_test_suite": false,
+    "temporary_scripts_remaining": false
+  },
+  "note_on_incident": "During preparation for this check, an earlier grep+sed command intended to redact the API key for display failed silently (macOS BSD sed does not support \\s) and printed the full key value into the conversation transcript once. The key was not exposed to any third party (it is the maintainer's own key, already in their local .env), but the maintainer was informed directly and advised to rotate the key as defense in depth. No further command in this step ever constructed a shell command string containing the key value; the key was passed only through a subprocess environment via a Python driver that never printed it."
+}

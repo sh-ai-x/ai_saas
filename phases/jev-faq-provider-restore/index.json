@@ -1,0 +1,23 @@
+{
+  "phase": "jev-faq-provider-restore",
+  "schema_version": "1.0.0",
+  "steps": [
+    {
+      "step": 0,
+      "name": "restore-jev-provider",
+      "status": "completed",
+      "depends_on": [],
+      "started_at": "2026-09-22T18:00:00+0900",
+      "completed_at": "2026-09-22T21:12:00+0900"
+    },
+    {
+      "step": 1,
+      "name": "document-env-vars-and-verify-wire-contract",
+      "status": "completed",
+      "depends_on": [0],
+      "started_at": "2026-09-22T21:20:00+0900",
+      "completed_at": "2026-09-22T21:45:00+0900"
+    }
+  ],
+  "worktree": "feat/jev-faq-provider-restore"
+}

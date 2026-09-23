@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { FaqEntry } from './contracts';
-import type { FaqProvider, Selection } from './provider';
+import { DEFAULT_PROVIDER_TIMEOUT_MS, type FaqProvider, type Selection } from './provider';
 import { boundedJson } from './bounded-json';
 import { isSensitive, normalize, redact } from './matcher';
 
-export const DEFAULT_OPENAI_TIMEOUT_MS = 5_000;
+export const DEFAULT_OPENAI_TIMEOUT_MS = DEFAULT_PROVIDER_TIMEOUT_MS;
 
 const decisionSchema = z.object({
   faqId: z.string().min(1).max(40),

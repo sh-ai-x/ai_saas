@@ -1,115 +1,70 @@
-# PRD — Toss Payments Subscription Sandbox Integration
+# PRD — Restore Jev as the FAQ Provider
 
 ## 1. Frame
 
-- Goal: Connect the existing subscription catalog and admin Toss enable switch to a verified Toss Payments V2 sandbox flow that can be exercised at localhost:3000 without charging a real payment method.
-- Target user: A SaaS product administrator and developer validating a subscription checkout locally before production payment contracting.
-- Situation: The catalog has subscription options and a Toss adapter, but the browser uses the normal one-time payment flow, admin provider selection can be shadowed by the mock environment default, and the server has no complete billing-auth-to-recurring-approval path.
+- Goal: Restore the archived `jev.ts` FAQ provider behind the existing `FaqProvider` port as a config-flagged alternative to `openai.ts`, fix the two bugs a verbatim revert would re-ship, document why OpenAI was chosen, and document the environment variables so the switch is operable.
+- Target user: The repository maintainer / operator who currently cannot tell from any file why the FAQ bot routes through OpenAI instead of Jev, and who has no config path back to Jev once TypeSafe/Jev API access clears its waitlist.
+- Situation: A customer-facing FAQ support bot is merged on `origin/main`. Jev was its original provider (`05426b1`/`03a1faf`), then deleted outright and replaced with OpenAI (`726dcaa`) with no rationale recorded anywhere in the repository. The provider port (`apps/web/lib/faq/provider.ts`) was kept identical between adapters specifically so this restoration would be cheap.
 
 ## 2. Validate
 
 ### Independent evidence
 
-1. **Toss Payments official V2 billing guide** — subscription services must issue a billing key after the first authentication and call the automatic billing approval API on each billing period; the browser flow uses `requestBillingAuth()` and the server receives `authKey` and `customerKey`. Source: [Toss Payments billing guide](https://docs.tosspayments.com/guides/v2/billing), [billing window integration](https://docs.tosspayments.com/guides/v2/billing/integration). Date: 2026-09-20.
-2. **Repository implementation evidence** — `apps/web/components/pricing-catalog.tsx:16-29` currently submits one generic checkout and opens only `checkoutUrl`; `apps/web/app/payments/toss/success/route.ts:5-28` confirms only a normal `paymentKey`; `apps/web/lib/pricing/repository.ts:278-283` lets `PAYMENT_PROVIDER` override the persisted admin provider setting. Date: 2026-09-20.
-3. **User/runtime signal** — the requested behavior is specifically that enabling Toss from the admin payment screen makes subscription test payment work locally, after a previous Foundation startup failure caused by an invalid `APP_SECRET_KEY`. This requires a reproducible sandbox setup and an end-to-end contract instead of a UI-only toggle. Date: 2026-09-20.
+1. **Git history** — `apps/web/lib/faq/jev.ts` does not exist on `origin/main` (`git ls-tree origin/main -- apps/web/lib/faq/jev.ts` returns nothing); it was introduced with the feature in `05426b1`/`03a1faf` and deleted in `726dcaa fix(faq): replace JEV with OpenAI structured router`, recoverable verbatim via `git show 05426b1:apps/web/lib/faq/jev.ts`. Source: repository commit history. Date: 2026-09-22.
+2. **Source code** — `apps/web/lib/faq/openai.ts:94` declares `answerable` as a JSON Schema boolean and `:45` maps it to `1|0`, so the `answerable >= 0.9` gate at `apps/web/lib/faq/service.ts:16` is degenerate (equivalent to `=== 1`) under the currently active provider; Jev's Noul (`jev.ts:8,17` at `05426b1`) is the only configuration where that existing threshold does real work. Source: static code reading. Date: 2026-09-22.
+3. **Maintainer statement** — the repo owner stated directly in conversation on 2026-09-22 that TypeSafe/Jev API access is pending waitlist approval, and that the OpenAI swap was an access-availability stopgap, not a technical or design rejection of Jev; this is recorded in no file in the repository prior to this PRD. Source: direct conversation, not independently verifiable from repo artifacts alone — recorded here as the PRD's own evidence trail. Date: 2026-09-22.
 
 ### Value score
 
-Assumption for this implementation decision: $120 expected first-year value per validated SaaS user, 50 reachable early users, and $1,200 engineering/runtime cost.
+This is an internal engineering/config change, not a monetized user-facing feature, so `value_score` is framed as engineering cost avoided rather than user LTV:
 
-`value_score = ($120 × 50) / $1,200 = 5.0` — PASS (threshold ≥ 3.0).
+- The archaeological recovery performed once in this cycle (locating the deleted commit, diffing it against the current adapter, finding and fixing two bugs) took real engineering time. Estimate: 2 hours at $100/hr = $200 per recurrence.
+- Without a config flag and a written record, every future "should we use Jev?" conversation repeats this recovery from scratch. Conservatively 3 such recurrences avoided over the next year (waitlist status changes, a new engineer asks, a future audit) = $600 value.
+- Cost of this change: recovery + 2 bug fixes + provider-conformance tests + docs, already performed = ~1 hour additional engineering = $100 (the recovery cost is counted once, in the value side, not double-counted in cost).
+
+`value_score = $600 / $100 = 6.0` — PASS (threshold ≥ 3.0).
 
 ### Ambiguity loop
 
-`ambiguity_score: 10 → 8 → 6 → 4 → 3` — PASS (threshold ≤ 3).
+`ambiguity_score: 10 → 6 → 3 → 2` — PASS (threshold ≤ 3).
 
-- 10: provider and subscription behavior were not yet mapped to code.
-- 8: MCP guidance fixed the provider contract to Toss V2 billing auth and recurring approval.
-- 6: repository tracing identified the env-provider override, generic browser payment call, and missing billing-auth route.
-- 4: the web payment order/subscription tables were selected as the settlement authority for the catalog flow; the existing Foundation console payment path remains backward-compatible.
-- 3: the phase is limited to first sandbox charge, idempotent settlement, and a documented local path; production scheduling and live operations remain out of scope.
+- 10: scope was completely open — "use Jev somewhere in this repo" with no concrete integration point identified.
+- 6: repository investigation (this conversation, 2026-09-22) identified the FAQ router as the one spot where Jev was already built, shipped-adjacent, and only sidelined by an access gate — narrowing from "where could Jev apply" to "restore what was already there."
+- 3: iterative proposal refinement (draft → cheapest-slice trim → cons/limitations resolution → third-bug documentation) converged the scope to exactly 5 files, explicitly deferring ranking and email-escalation as separate follow-on proposals.
+- 2: this PRD's own gate-2 cycle confirms no remaining open design question — the only two items still explicitly open for reviewer judgment (5000ms vs a tighter Jev-specific timeout; inline conditional vs factory module) are already resolved with stated rationale in the proposal, not blocking implementation.
 
 ## 3. Non-goals
 
-1. **Live charging or production capture.** Rationale: the user explicitly requested sandbox-only validation. Breach response: reject the scope change and create a separate production-readiness plan with contract, key, webhook, and security review.
-2. **Full production subscription operations.** Rationale: recurring schedules, retries, dunning, cancellation policy, refunds, and webhook tunnel operations are not required to validate the first sandbox charge. Breach response: record the request as a separate lifecycle/operations phase after this sandbox contract is green.
-3. **Replacing the Foundation billing adapter or adding another provider.** Rationale: the web pricing order/subscription tables are the source of truth for this catalog flow, while the existing Foundation Toss path remains backward-compatible for the workspace console. Breach response: defer provider abstraction changes and preserve the current Toss-only change set.
-4. **Authentication, pricing visual redesign, or unrelated admin authorization changes.** Rationale: only the payment selection and checkout contracts are in scope. Breach response: create a separate plan with its own tests and worktree.
+1. **Removing, deprecating, or disabling the OpenAI adapter.** Rationale: OpenAI remains the default and fully supported; this is a restoration, not a replacement. Breach response: reject any request to remove OpenAI as part of this phase; scope a separate deprecation proposal only after Jev has production traffic evidence.
+2. **Retuning the `confidence`/`answerable` thresholds at `service.ts:16`, or any calibration work.** Rationale: `confidence` and `answerable` mean materially different things across the two adapters, and retuning without real Jev traffic would be guessing. Breach response: defer to a follow-on proposal once the rollout sequence's parallel-run step produces real distribution data.
+3. **The FAQ widget's unbounded button list (ranking) and the human-notification gap on a genuine miss (email escalation).** Rationale: both are real, independent problems already documented in the proposal's "Deferred" section, worth doing whether or not Jev is ever enabled — bundling them would have made a cheap, reversible change expensive to review. Breach response: defer each to its own proposal; do not fold either into this phase's steps.
+4. **A provider-factory abstraction module.** Rationale: at exactly two adapters, a factory file is more indirection than the ternary it would replace — cost optimization here means implementation/comprehension cost, not only runtime cost. Breach response: reconsider only if and when a third FAQ provider is proposed.
 
 ## 4. Phase plan
 
-Phase index: `phases/toss-subscription-sandbox/index.json`
+Phase index: `phases/jev-faq-provider-restore/index.json`
 
-### Step 0 — toss-subscription-sandbox-e2e
+### Step 0 — restore-jev-provider
 
-A red-first, end-to-end implementation covering the Toss V2 billing-auth browser handoff, server billing-key exchange and first recurring sandbox approval, idempotent entitlement/credit settlement, admin provider activation, container configuration, and setup-guide instructions.
+Recover `apps/web/lib/faq/jev.ts` from commit `05426b1` behind the existing `FaqProvider` port, fix both archived bugs (category derivation at both call sites; timeout clamp reconciled to a shared `DEFAULT_PROVIDER_TIMEOUT_MS`), wire an inline `FAQ_PROVIDER` env conditional into `route.ts` defaulting to OpenAI, add the record-correction amendment to `docs/proposals/faq-support/jev-cs-faq-bot.yaml`, and add both a dedicated Jev test suite and a cross-provider conformance suite. **Status: completed** — implemented and verified before this PRD was written; this step documents work already done, not work still pending.
+
+### Step 1 — document-env-vars-and-verify-wire-contract
+
+Document `FAQ_PROVIDER` and the `JEV_*` environment variables in `.env.example`, `apps/web/.env.example`, and the phase README (the proposal's own "Review and next steps" lists this as required, not yet done). Then perform step 1 of the proposal's stated rollout sequence: verify the live wire contract against the real `api.typesafe.ai` endpoint exactly once, manually, outside CI, using the `JEV_API_KEY` now available in the maintainer's local `.env`, and record the (redacted, non-secret) outcome.
 
 ## 5. Acceptance criteria
 
-1. Subscription and one-time checkout modes call their correct Toss V2 SDK methods while returning no secret or billing key.
-2. Billing auth success performs server-side billing-key issuance and first sandbox approval with order/amount/customer validation and exactly-once effects.
-3. Admin Toss enable is honored in local/test mode, validates sandbox keys, records an audit reason, and preserves live-provider safety.
-4. Local Compose and setup documentation make the localhost:3000 sandbox path reproducible, including generated `APP_SECRET_KEY` and official MCP setup.
-5. Web type/tests and focused Python billing tests pass without live payment calls.
+1. `apps/web/lib/faq/jev.ts` exists, implements `FaqProvider`, derives its category set from the live candidate list at both the validation and model-criteria call sites, and uses the shared `DEFAULT_PROVIDER_TIMEOUT_MS` instead of a hard clamp.
+2. `apps/web/app/api/faq/route.ts` selects between `createJevProvider` and `createOpenAiProvider` via `process.env.FAQ_PROVIDER`, defaulting to OpenAI when unset.
+3. `docs/proposals/faq-support/jev-cs-faq-bot.yaml` carries an amendment section stating why OpenAI was chosen over Jev.
+4. `FAQ_PROVIDER`, `JEV_API_KEY`, `JEV_API_URL`, `JEV_MODEL`, and `JEV_TIMEOUT_MS` are documented in both `.env.example` files and the phase README, consistent with the existing `FAQ_OPENAI_ENABLED`/`OPENAI_*` documentation style.
+5. The full web test/lint/build suite passes with zero regressions, and a one-time manual live-wire-contract check against the real Jev endpoint is performed and its outcome recorded without leaking the API key or any user question content into a committed file.
 
-Each item maps 1:1 to the acceptance criteria in `phases/toss-subscription-sandbox/step0.md`.
+Each item maps 1:1 to the acceptance criteria in `phases/jev-faq-provider-restore/step0.md` and `step1.md`.
 
 ## 6. Hand-off
 
-- Interview contract: skipped and recorded because this worktree had no interview hand-off and the user supplied an explicit ordered implementation request.
-- Review artifact: `/dev-kit:proposal toss-payment/subscription-sandbox`.
-- Next invocation: `/dev-kit:build`.
-- Build must use the step's TDD order: capture RED, implement GREEN, refactor, then run the declared verification commands.
-
----
-
-# OpenAI-routed FAQ Support Bot — Minimal Cost-safe Vertical Slice
-
-## 1. Frame
-
-- **Goal:** Ship a bottom-right FAQ Support bot that answers catalog-backed questions deterministically and uses one bounded OpenAI Structured Output call only when fixed matching misses.
-- **Target user:** A product user trying to resolve a common setup, workspace, or support question without opening a support request.
-- **Situation:** The application has a Drizzle FAQ table and seed data but no API, AI routing path, or visible FAQ surface.
-
-## 2. Decision
-
-Use the existing `FaqProvider` port with a direct OpenAI Responses API adapter using `gpt-4o-mini` and strict JSON Schema output. LangChain/LangGraph are intentionally not added: they are orchestration libraries, not model access, and this fixed FAQ flow has no graph, tool, memory, or RAG requirement. Direct HTTP keeps the dependency and latency budget smaller.
-
-The model returns only `faqId`, `category`, `answerable`, and `confidence`. Application code validates those fields and returns answer prose owned by the Drizzle catalog. Exact/alias matches remain zero-cost and never call OpenAI.
-
-### Independent evidence
-
-1. OpenAI lists GPT-4o mini as a fast, affordable small model with Structured Outputs support, Responses API support, and $0.15/$0.60 per million input/output tokens. [src:https://developers.openai.com/api/docs/models/gpt-4o-mini;ts:2026-09-20;type:primary]
-2. OpenAI Structured Outputs with `text.format` and `strict: true` is designed to make the response conform to the supplied JSON Schema. [src:https://developers.openai.com/ko-KR/api/docs/guides/structured-outputs;ts:2026-09-20;type:primary]
-3. The Responses API supports `store: false`, bounded `max_output_tokens`, and no tools for this stateless classification request. [src:https://developers.openai.com/api/reference/cli/resources/responses/methods/create;ts:2026-09-20;type:primary]
-
-## 3. Cost, latency, accuracy, and safety policy
-
-- Exact/alias match: zero provider calls.
-- AI miss path: one call, at most five public FAQ candidates, no conversation history or account context.
-- Output: strict schema, known FAQ ID allowlist, category check, confidence `>= .85`, answerable gate, catalog-only answer text.
-- Budget: `gpt-4o-mini`, `max_output_tokens=80`, 1.5-second provider deadline, no retries, one in-flight request, 30-second circuit cooldown, and 60 API requests/minute per process.
-- Privacy: normalized/redacted question, server-only `OPENAI_API_KEY`, `store:false`, no tools, no persistence, no tenant/account/payment data.
-- Failure: disabled/missing key, timeout, malformed output, rate limit, provider error, low confidence, or unknown ID returns deterministic clarification/handoff.
-
-## 4. Non-goals
-
-1. Open-ended generated answers, RAG, embeddings, memory, attachments, or arbitrary tools.
-2. Account, billing, payment, password, or ticket mutations.
-3. Browser-to-provider calls or client-side provider credentials.
-4. Live provider calls in local/CI; tests use mocked HTTP and the default remains provider-free.
-
-## 5. Acceptance criteria
-
-- **REQ-1:** Drizzle owns `faq_entries`; migration/seed data and repository tests are committed.
-- **REQ-2:** Exact/alias matches make zero provider calls; misses make at most one bounded OpenAI call and never return provider-generated prose.
-- **REQ-3:** `GET /api/faq` and `POST /api/faq` expose versioned validated contracts with deterministic `answer`, `clarify`, and `handoff` outcomes.
-- **REQ-4:** The root layout renders a right-bottom widget with presets, free text, loading/error states, catalog-only answers, and a support CTA.
-- **REQ-5:** Focused tests, typecheck, full web test/build, browser smoke, and diff checks pass without live credentials or production writes.
-
-## 6. Operational gate
-
-Enable only in staging first with `FAQ_OPENAI_ENABLED=true`, a server-injected `OPENAI_API_KEY`, and a measured synthetic FAQ set. Record p50/p95/p99 latency, provider-call rate, confidence calibration, correct-routing rate, false-answer rate, fallback rate, and monthly spend before production promotion. The model price and provider limits are reference data, not this product's SLO.
-
-Phase directory remains `phases/jev-cs-faq-bot/` for continuity with the already-created plan artifacts; its implementation/provider naming is OpenAI-based.
+- Interview contract: skipped and recorded because this worktree had no interview hand-off and the design was already fully settled through the proposal at `docs/proposals/reviewing/jev-typesafe-integration/idea-jev-typesafe-integration.yaml` (iteratively reviewed with the maintainer across multiple rounds: draft → cheapest-slice trim → cons/limitations resolution → third-bug documentation).
+- Review artifact: `docs/proposals/reviewing/jev-typesafe-integration/idea-jev-typesafe-integration.html`.
+- Next invocation: `/dev-kit:build` (this PRD documents step0 as already built/verified and step1 as the remaining work to execute).
+- Build must use the step's TDD order for step1: capture RED where a new assertion is meaningful, implement GREEN, refactor, then run the declared verification commands.

@@ -117,7 +117,10 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn('export WEB_DATABASE_URL_UNPOOLED="$local_database_url"', script)
         self.assertIn("ALLOW_REMOTE_DATABASE=true requires WEB_DATABASE_URL and WEB_DATABASE_URL_UNPOOLED.", script)
         self.assertIn('command_mode="down"', script)
-        self.assertIn('"${compose[@]}" down "${down_args[@]}"', script)
+        # The guarded ${arr[@]+"${arr[@]}"} expansion is required, not stylistic:
+        # a bare "${down_args[@]}" on an empty array raises "unbound variable"
+        # under set -u in bash < 4.4, which is what macOS ships (3.2).
+        self.assertIn('"${compose[@]}" down "${down_args[@]+"${down_args[@]}"}"', script)
 
     def test_docker_env_example_declares_worktree_and_remote_database_guards(self) -> None:
         env_example = (ROOT / ".env.docker.example").read_text(encoding="utf-8")

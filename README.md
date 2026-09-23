@@ -449,3 +449,29 @@ after interruption. `InngestDispatcher` carries only run identifiers and
 limits; `FargateSpotBoundary` is an optional ARM64 worker-only launch
 description with no inbound route. Prompts and payment payloads are excluded
 from workflow/SSE payloads and redacted from streamed output.
+
+## FAQ support
+
+`apps/web/lib/faq/` is a customer-facing FAQ bot layered as a Drizzle-owned
+catalog (`apps/web/db/schema/faq.ts`), a deterministic matcher
+(`matcher.ts`), a one-method `FaqProvider` port (`provider.ts`) both adapters
+implement identically, the answer policy (`service.ts`), and a versioned
+route (`apps/web/app/api/faq/route.ts`) behind the root-layout widget.
+`FAQ_PROVIDER=jev` selects the Jev (TypeSafe) adapter; anything else,
+including unset, selects the OpenAI adapter, which is the default and stays
+inert without `FAQ_OPENAI_ENABLED=true` and a key. Neither provider authors
+user-visible prose; both only pick a catalog row id.
+
+A provider call is the last branch of `answerFaq()` — sensitive questions,
+exact/alias hits, and empty candidate sets resolve with no model call — and
+carries only redacted, normalized text plus at most five
+`{id, category, question}` triples, never answer text, PII, or session data.
+The reply must name a candidate by both id and category and clear
+`confidence >= 0.85 && answerable >= 0.9`, derived from validated
+Choice/Choice/Noul distributions for Jev and from a strict JSON-schema
+decision for OpenAI; anything else, including timeouts and the 30-second
+circuit breaker, degrades to the deterministic clarify/handoff fallback. See
+[phases/jev-cs-faq-bot/README.md](phases/jev-cs-faq-bot/README.md) for
+operational setup and
+[phases/jev-faq-provider-restore/README.md](phases/jev-faq-provider-restore/README.md)
+for the Jev request-flow mechanism and why it was restored.
