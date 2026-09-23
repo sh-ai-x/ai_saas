@@ -121,9 +121,10 @@ export FOUNDATION_PUBLIC_URL="${FOUNDATION_PUBLIC_URL:-http://localhost:${FOUNDA
 export WEB_PUBLIC_URL="${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT}}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL:-http://localhost:${WEB_PORT}}"
 
-# Expose the selected local checkout read-only to foundation. The browser
-# picker confirms a directory, while the server analyzes only this mounted
-# allowlist; no host write access is granted to the container.
+# Keep the current checkout as an optional read-only server-side repository.
+# The browser picker independently imports a selected directory into the
+# foundation state volume, so arbitrary folder selection does not require a
+# host-path environment variable or host write access.
 configured_repository_host_root="${LOCAL_REPOSITORY_HOST_ROOT:-$(env_file_value LOCAL_REPOSITORY_HOST_ROOT)}"
 export LOCAL_REPOSITORY_HOST_ROOT="${configured_repository_host_root:-$repo_root}"
 configured_repository_container_root="${LOCAL_REPOSITORY_CONTAINER_ROOT:-$(env_file_value LOCAL_REPOSITORY_CONTAINER_ROOT)}"

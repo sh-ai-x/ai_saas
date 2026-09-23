@@ -297,7 +297,7 @@ export function RepositorySelector({ onSelect, selected }: Props) {
       <p className="selector-help">
         Finder에서 Git 레포지토리 폴더를 선택하면 읽기 권한을 확인한 뒤 서버 작업 공간에 안전한 사본으로 가져옵니다. 원본 폴더는 수정하지 않습니다.
       </p>
-      {loading && <p className="selector-status">Mounted repositories are still being discovered…</p>}
+      {loading && <p className="selector-status">기존 서버 레포 목록을 불러오는 중입니다. 폴더 선택은 바로 진행할 수 있습니다.</p>}
       {error && <div className="picker-error" role="alert">{error}</div>}
       {pickerError && <div className="picker-error" role="alert">{pickerError}</div>}
 
