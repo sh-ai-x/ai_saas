@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live PDF chat with search-to-show evidence navigation</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg: #1d1d1f;
+  --bg: #fbfbfd;
+  --muted: #5b5b62;
+  --border: #d2d2d7;
+  --card-bg: #ffffff;
+  --th-bg: #f5f5f7;
+  --row-alt: #fafafa;
+  --code-bg: #f5f5f7;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.08);
+  --ok: #1f8a3b;
+  --warn: #a06400;
+  --bad: #b03030;
+  --callout-bg: rgba(10, 132, 255, 0.06);
+  --callout-border: #0a84ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f5f5f7;
+    --bg: #1c1c1e;
+    --muted: #aeaeb2;
+    --border: #38383a;
+    --card-bg: #2c2c2e;
+    --th-bg: #3a3a3c;
+    --row-alt: #232325;
+    --code-bg: #2c2c2e;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.18);
+    --ok: #4cd964;
+    --warn: #ff9f0a;
+    --bad: #ff453a;
+    --callout-bg: rgba(10, 132, 255, 0.14);
+    --callout-border: #0a84ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; margin: 3.5rem 0 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.6rem; }
+p { margin: 0.7rem 0; }
+.meta { color: var(--muted); font-size: 0.92rem; margin: 0 0 2.5rem; }
+.tags { margin: 0 0 1.5rem; }
+.tag {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 0.4rem;
+}
+.tag-ok { background: rgba(31, 138, 59, 0.12); color: var(--ok); }
+.tag-warn { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.tag-bad { background: rgba(176, 48, 48, 0.12); color: var(--bad); }
+.tag-info { background: var(--accent-soft); color: var(--accent); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--th-bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+tr:nth-child(even) td { background: var(--row-alt); }
+td code, th code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.88em; }
+.callout {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  border-radius: 6px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.5rem 0;
+}
+.callout .label { font-weight: 600; margin-bottom: 0.3rem; display: block; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+li > strong { color: var(--accent); }
+code { font-family: 'SF Mono', Menlo, Consolas, monospace; background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 8px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+pre code { background: transparent; padding: 0; }
+blockquote {
+  border-left: 3px solid var(--border);
+  margin: 1rem 0;
+  padding: 0.2rem 1rem;
+  color: var(--muted);
+}
+.section-divider { border: 0; border-top: 1px solid var(--border); margin: 3rem 0; }
+.back-link {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.back-link a { color: var(--accent); }
+.back-link a:hover { text-decoration: underline; }
+.toc {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 0 0 3rem;
+  font-size: 0.95rem;
+}
+.toc strong { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.toc ol { margin: 0; padding-left: 1.2rem; }
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* ----- Before / After + Pros / Cons / Limitations ---------------------------
+ * Structured sections emitted when the YAML declares
+ * `before:`, `after:`, `pros:`, `cons:`, `limitations:`. See
+ * `skills/proposal/SKILL.md` §Workflow and `lib/render_proposal_html.py`
+ * `_render_before_after` / `_render_pros_cons_limitations`. Color cues
+ * reuse the existing --ok / --warn / --bad tokens so dark-mode parity
+ * is automatic. */
+.ba-section { margin: 2.5rem 0 1rem; }
+.ba-section h2 { margin-top: 0; }
+.ba-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+@media (min-width: 880px) {
+  .ba-grid { grid-template-columns: 1fr 1fr; }
+}
+.ba-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.ba-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.before-card { border-left: 4px solid var(--muted); }
+.after-card  { border-left: 4px solid var(--accent); }
+.before-card h3 { color: var(--muted); }
+.after-card h3  { color: var(--accent); }
+.evidence-list, .files-list { padding-left: 1.2rem; margin: 0.4rem 0 0.7rem; }
+.evidence-list li { margin: 0.25rem 0; }
+.files-list li { margin: 0.5rem 0; }
+.file-path {
+  display: inline-block;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}
+.pcl-section { margin: 2rem 0 1rem; }
+.pcl-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pros-list, .cons-list, .limitations-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0 0.6rem;
+}
+.pros-list li, .cons-list li, .limitations-list li {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 1.6rem;
+  margin: 0.2rem 0;
+}
+.pros-list li::before {
+  content: "✓"; /* check */
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.cons-list li::before {
+  content: "✗"; /* ballot x */
+  position: absolute; left: 0;
+  color: var(--bad); font-weight: 700;
+}
+.limitations-list li::before {
+  content: "!";      /* warn glyph */
+  position: absolute; left: 0;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--bg);
+  font-weight: 700; font-size: 0.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pcl-pros h3    { color: var(--ok); }
+.pcl-cons h3    { color: var(--bad); }
+.pcl-limit h3   { color: var(--warn); }
+/* ----- Ralph-style structured sections (ambiguity / scope / gate_contract) ---
+ * Emitted when the YAML declares `ambiguity:`, `scope:`,
+ * `gate_contract:`. Color cues reuse the existing tokens so
+ * dark-mode parity is automatic. */
+.amb-section, .scope-section, .gate-section { margin: 2rem 0 1rem; }
+.amb-section h3, .scope-section h3, .gate-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+.amb-list { list-style: none; padding-left: 0; margin: 0.5rem 0; }
+.amb-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin: 0.6rem 0;
+  box-shadow: var(--shadow);
+}
+.amb-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.amb-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+.amb-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.amb-badge-blocking { background: rgba(176, 48, 48, 0.15); color: var(--bad); }
+.amb-badge-default  { background: rgba(91, 91, 98, 0.15); color: var(--muted); }
+.amb-question { margin: 0.3rem 0; }
+.amb-default {
+  margin-top: 0.4rem;
+  font-size: 0.92em;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+  padding-left: 0.7rem;
+}
+.scope-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 720px) {
+  .scope-grid { grid-template-columns: 1fr 1fr; }
+}
+.scope-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+.scope-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.scope-in-card { border-left: 4px solid var(--ok); }
+.scope-out-card { border-left: 4px solid var(--muted); }
+.scope-in-card h4  { color: var(--ok); }
+.scope-out-card h4 { color: var(--muted); }
+.scope-list { list-style: none; padding-left: 0; margin: 0; }
+.scope-list li {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 1.3rem;
+  margin: 0.2rem 0;
+}
+.scope-in-card .scope-list li::before {
+  content: "✓";
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.scope-out-card .scope-list li::before {
+  content: "✗";
+  position: absolute; left: 0;
+  color: var(--muted); font-weight: 700;
+}
+.gate-table { font-size: 0.92em; }
+.gate-table th { background: var(--th-bg); }
+.gate-table td { vertical-align: top; }
+.gate-row-attended td { opacity: 0.7; font-style: italic; }
+.muted { color: var(--muted); }
+/* ----- Timeline chips -------------------------------------------------------
+ * Emitted by `_meta_line` when the proposal YAML declares
+ * `started:` or `shipped:` (both YYYY-MM-DD). Visual cue mirrors the
+ * existing --ok / --warn tokens so dark-mode parity is automatic. */
+.timeline-chip {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.timeline-started { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.timeline-shipped { background: rgba(31, 138, 59, 0.12);  color: var(--ok);  }
+</style>
+</head>
+<body>
+
+<h1>Live PDF chat with search-to-show evidence navigation</h1>
+<p class="meta">2026-09-23 · <span class="tag tag-warn">draft</span></p>
+<div class="tags"><span class="tag tag-info">pdf-qa</span><span class="tag tag-info">chat</span><span class="tag tag-info">live-viewer</span><span class="tag tag-info">search-to-show</span><span class="tag tag-info">jev</span><span class="tag tag-info">langgraph</span><span class="tag tag-info">agent-worker</span><span class="tag tag-info">user-workspace</span></div>
+<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">What the user sees</a></li><li><a href="#sec-1">The core loop — search then show</a></li><li><a href="#sec-2">The bonus — summarization as enrichment</a></li><li><a href="#sec-3">Decision — session and message state</a></li><li><a href="#sec-4">Decision — evidence span representation</a></li><li><a href="#sec-5">Decision — client-side PDF rendering</a></li><li><a href="#sec-6">Decision — one port, two methods</a></li><li><a href="#sec-7">Decision — fail-closed behavior</a></li><li><a href="#sec-8">MVP scope boundary</a></li><li><a href="#sec-9">Open questions for review</a></li><li><a href="#ba-section">Before / After</a></li><li><a href="#pcl-pros">Pros</a></li><li><a href="#pcl-cons">Cons</a></li><li><a href="#pcl-limit">Limitations</a></li></ol></div>
+<h2 id="sec-0">What the user sees</h2>
+<p>The workspace is one route, <code>/app/pdf-qa</code>, and one persistent layout. Both halves are mounted from the moment the route loads and neither is ever unmounted, collapsed behind a modal, or revealed by a click.</p>
+<h3>Left — the chat panel</h3>
+<p>A scrolling message list that accumulates for the life of the session. Each exchange appends a user message and an assistant message; earlier exchanges stay on screen and stay interactive, so the user can return to the third answer, press Next, and watch the right pane follow. A sticky composer sits at the bottom. This is an ordinary chat surface, not a question box that replaces its own output — which is exactly what <code>apps/web/components/faq-widget.tsx:7-13</code> does today and why that component cannot be stretched into this one.</p>
+<h3>Right — the live PDF</h3>
+<p>The document renders continuously beside the conversation. It is the same pdf.js instance for the whole session, so every highlight is a scroll and an overlay repaint rather than a load. At narrow widths the panes stack with the viewer pinned above the composer; it is never dropped.</p>
+<h3>The bond between them</h3>
+<p>Exactly one span is active at a time, held in the workspace component and read by both panes. The chat emphasizes the underlined mark; the viewer scrolls to it and highlights it. One piece of state, two renderings — which is why they cannot drift apart.</p>
+<hr class="section-divider">
+
+<h2 id="sec-1">The core loop — search then show</h2>
+<p>This is the load-bearing feature and it is deliberately short. Everything in this section happens within one HTTP request and one turn of the chat.</p>
+<h3>1. The user asks</h3>
+<p>A message is appended to the list immediately, optimistically. The question goes to <code>POST /api/pdf-qa/messages</code>.</p>
+<h3>2. Search</h3>
+<p>The document's page strings were extracted once at upload and stored, so nothing is re-parsed here. The server narrows to at most five candidate sections and issues one Jev call: a <code>choice</code> over those candidate ids plus <code>none</code>, and a <code>noul</code> guard asking whether one candidate genuinely contains the answer. The five-candidate ceiling is the bound <code>apps/web/lib/faq/jev.ts:44</code> already enforces. The reply carries <code>choice</code>, <code>confidence</code>, and <code>probabilities</code> — a classification, not prose.</p>
+<h3>3. Resolve to offsets</h3>
+<p>Within the chosen section the server scans for the passages that match the question terms and converts each to a <code>{page, start, end}</code> range over the stored page string. A passage occurring once resolves with no model call. Several plausible occurrences trigger one more bounded <code>choice</code> call to pick the right one. Zero matches is an immediate, explicit failure.</p>
+<h3>4. Show</h3>
+<p>The response returns the assistant message with its located spans. The chat renders the located passage with its underline and the viewer scrolls and highlights in the same commit. The user asked and the document moved; no spinner in between, no job to wait on.</p>
+<h3>5. Step</h3>
+<p>Prev and Next advance the active-span cursor in document order. Each press re-emphasizes the mark and moves the right pane. Unresolved spans remain listed, labelled "location unavailable", and are skipped by the cursor.</p>
+<h3>Why this is not behind the queue</h3>
+<p>An earlier framing of this feature had the LangGraph pipeline produce the evidence spans, which put a queue dispatch and a poll cycle between the question and the highlight. That is recorded here as a deliberate change, not a silent one: search now owns the span, and the request budget is the provider deadline at <code>apps/web/lib/faq/provider.ts:4</code> rather than a worker round-trip.</p>
+<hr class="section-divider">
+
+<h2 id="sec-2">The bonus — summarization as enrichment</h2>
+<p>Summarization is in scope and it is secondary. It never gates the loop above.</p>
+<p>Once the located message has already rendered, the turn dispatches a run over the shipped path: <code>POST /v1/runs</code> at <code>foundation/server.py:316</code> through the proxy at <code>apps/web/app/api/foundation/[...path]/route.ts:20</code>, then <code>InngestDispatcher.dispatch</code> at <code>services/run_service/workflow.py:37</code>, then <code>BoundedInngestWorkflow.handle</code> at <code>services/agent_worker/workflow.py:19-25</code>. The dispatcher sends identifiers and limits only, and the worker reads its input from the run store, as <code>services/run_service/workflow.py:15-18</code> states.</p>
+<p>The graph at <code>services/agent_worker/graph.py</code> receives a span that search has already resolved. Its nodes are <code>load_located_span</code>, <code>summarize</code>, and <code>cite_supporting_spans</code>. It writes prose and any additional supporting quotes back to the message row; the chat panel polls <code>GET /v1/runs/&lt;id&gt;</code> (<code>foundation/server.py:189</code>) and patches them into the message in place.</p>
+<p>Three rules keep the bonus from damaging the core. The summary slot is reserved in the message from first render, so nothing reflows when it lands. Enrichment may add spans but may never reorder or remove the ones the cursor is currently walking. And enrichment may never move the viewer — only a user action does that. If the run is throttled, interrupted, or never returns, the message keeps its located answer and its working highlight, and the slot simply shows that no summary is available.</p>
+<hr class="section-divider">
+
+<h2 id="sec-3">Decision — session and message state</h2>
+<p>State is persisted server-side in PostgreSQL through Drizzle, across <code>pdf_qa_documents</code>, <code>pdf_qa_sessions</code>, and <code>pdf_qa_messages</code>.</p>
+<p>A chat that accumulates history needs a message table by definition — that is the first reason. The second is the enrichment: it completes out of band and must patch a row that already exists, which the identifiers-only dispatch contract at <code>services/run_service/workflow.py:15-18</code> makes unavoidable.</p>
+<p><code>pdf_qa_documents</code> also stores the extracted per-page text as <code>jsonb</code> alongside <code>extractor_version</code>. That is what makes search-to-show a string scan instead of a re-parse, and it is what lets the server resolve offsets that the client viewer will agree with, because both read the same extraction.</p>
+<p>Spans live on the message row rather than in their own table, so an answer and its evidence are written atomically and a partially enriched message can never render with another message's spans.</p>
+<p>The one deliberate exception is the Prev/Next cursor, which stays in React state. It is a view position, not conversation content; persisting it would mean a write per button press for something a reload can correctly reset.</p>
+<hr class="section-divider">
+
+<h2 id="sec-4">Decision — evidence span representation</h2>
+<p>A span is <code>{page, start, end, line, extractorVersion}</code>. <code>start</code> and <code>end</code> are zero-based character offsets into the normalized text-layer string for that page; <code>line</code> is a derived one-based label; <code>extractorVersion</code> is the validity key.</p>
+<h3>Why offsets are the key</h3>
+<p>A PDF has no line numbers, no character offsets, and no intrinsic logical reading order — a page is a set of positioned glyph-run operators. Any line number a reader sees is manufactured by an extraction pass, and this proposal says so plainly rather than implying the file carries one. The extraction concatenates <code>getTextContent().items</code> in their returned order into one page string, and buckets those same items into lines by the y-translation component of each item's transform matrix within a tolerance band. The concatenation yields the offsets; the banding yields the line.</p>
+<p>Offsets are the lookup key because they are exact and because they map in both directions: the same range identifies the substring to underline in the chat and, through the text-layer DOM nodes, the <code>Range</code> whose client rects become the viewer highlight. The derived <code>line</code> is shown to the user and never used to locate anything.</p>
+<h3>Rejected — bounding-box rectangles</h3>
+<p>Rectangles survive re-extraction, but they cannot be mapped back into the chat text to produce the underline, and one logical span crossing a line break becomes a rectangle list. Rects are still produced, just at render time from the offset range, so the highlight is obtained without storing geometry that could disagree with the text.</p>
+<h3>Rejected — page plus line index alone</h3>
+<p>Too coarse. A line routinely carries both the cited clause and unrelated text, so an underline at line granularity would over-claim.</p>
+<h3>Honest handling of drift</h3>
+<p>Offsets are stable only under a fixed extraction. <code>EXTRACTOR_VERSION</code> is stamped on the document row and on every span; a mismatch marks the document's spans unresolvable and requires re-extraction. This converts a silent wrong-highlight bug into a visible, explicit refusal.</p>
+<hr class="section-divider">
+
+<h2 id="sec-5">Decision — client-side PDF rendering</h2>
+<p>The viewer uses <code>pdfjs-dist</code> directly rather than <code>react-pdf</code> or any other React wrapper, and it is mounted for the whole session.</p>
+<p>The feature needs the rendered text-layer DOM for offset-to-rect mapping and the raw <code>getTextContent()</code> items for the extraction pass. A wrapper sits on top of the same <code>pdfjs-dist</code> and would have to be pierced for both, so it adds a dependency without adding capability — and <code>apps/web/package.json</code> keeps a deliberately small 11-package runtime set.</p>
+<p>Two mechanics matter for review. The pdf.js worker (<code>pdfjs-dist/build/pdf.worker.min.mjs</code>) is served as a pinned local static asset matching the installed version exactly, with no CDN reference. And <code>scrollToSpan</code> works by locating the text-layer nodes covering the offset range, building a DOM <code>Range</code> over them, reading <code>getClientRects()</code>, scrolling the container to the first rect, and painting one absolutely positioned overlay div per rect above the page canvas. The overlay is purely visual; it never mutates the text layer.</p>
+<p>Because the pane is persistent, the code split is at the route rather than at the interaction: <code>/app/pdf-qa</code> loads the viewer chunk on entry, and no other route in the app carries <code>pdfjs-dist</code> at all. Pages inside the mounted viewer still render lazily as they scroll into view.</p>
+<hr class="section-divider">
+
+<h2 id="sec-6">Decision — one port, two methods</h2>
+<p>Both Jev call sites share a single new port, <code>PdfQaProvider</code>, with <code>findSection()</code> and <code>locateSpan()</code>, implemented by one closure.</p>
+<p>The decisive reason is shared failure state. In <code>apps/web/lib/faq/jev.ts:37-38</code>, <code>openUntil</code> and <code>inFlight</code> are captured per provider instance. Two separate ports would mean two closures and two independent circuit breakers: a Jev outage would have to be rediscovered by the second call site, and the thirty-second cooldown at <code>:65</code> would protect only whichever method tripped it. One closure means one breaker and one in-flight guard covering both halves of a single request.</p>
+<p>The two calls are also the same shape — a bounded candidate list, one <code>choice</code> question, one <code>noul</code> guard, one confidence gate — so a single port is an honest abstraction rather than a convenience bundle.</p>
+<p>Reusing <code>FaqProvider</code> was rejected outright: its signature at <code>apps/web/lib/faq/provider.ts:3</code> is</p>
+<p><code>select(text, candidates: FaqEntry[]) =&gt; Promise&lt;Selection | null&gt;</code>, typed</p>
+<p>to the FAQ catalog. Widening it would couple two unrelated features through one interface.</p>
+<hr class="section-divider">
+
+<h2 id="sec-7">Decision — fail-closed behavior</h2>
+<p>The governing rule is that the live pane never moves to a guess. Four failure classes, four explicit refusals.</p>
+<h3>Search cannot decide</h3>
+<p><code>choice === 'none'</code>, or confidence below the gate, produces "I could not find a section that answers this" as the assistant message, with no spans and no viewer movement. The gate is the one shipped at <code>apps/web/lib/faq/service.ts:16</code>: confidence at least 0.85 and answerability at least 0.9.</p>
+<h3>A quote is not verbatim in the document</h3>
+<p>If cited text is not a verbatim substring of the extracted page strings the span is dropped rather than approximated. Fuzzy matching is deliberately excluded, because a near-match highlight is a confident-looking wrong citation. This applies equally to spans arriving from enrichment.</p>
+<h3>Locate cannot resolve a tie</h3>
+<p>The span renders as "location unavailable", the cursor skips it, and the viewer stays where it is.</p>
+<h3>Extractor version mismatch</h3>
+<p>Every span for that document is marked unresolvable until re-extraction.</p>
+<h3>Data sent to the provider</h3>
+<p>The question is redacted and normalized before it leaves the process, as <code>apps/web/lib/faq/jev.ts:53</code> already does via <code>redact()</code> and <code>normalize()</code>. Document text is the user's own upload and is sent only as bounded candidate excerpts, at most five, never the whole document. Session, history, headers, and database context are not sent, matching the property documented at <code>phases/jev-cs-faq-bot/README.md:38-41</code>.</p>
+<p>Absent <code>JEV_API_KEY</code> the provider is inert by construction rather than erroring — the degradation <code>phases/jev-cs-faq-bot/README.md:82-83</code> records for the FAQ path. In that state the chat reports that search is unavailable instead of falling back to a weaker locator.</p>
+<hr class="section-divider">
+
+<h2 id="sec-8">MVP scope boundary</h2>
+<h3>In scope</h3>
+<p>The persistent split-pane workspace. The multi-turn chat with accumulating history. The search-to-show loop end to end, including Prev/Next synchronization. One text-layer PDF per session, uploaded by the signed-in user. Server-persisted sessions and messages. Both English and Korean source text, since extraction is encoding-agnostic and neither Jev question depends on language.</p>
+<h3>In scope, secondary</h3>
+<p>LangGraph summarization as asynchronous enrichment over an already-located span, with the three non-interference rules above.</p>
+<h3>Out of scope for v1</h3>
+<p>Scanned or image-only PDFs — an empty text layer is detected at upload and rejected with an explicit message; OCR is future-work, not a silent degradation. Multi-document corpora and cross-document citation. Annotation, bookmarking, or export of highlights. Token-streamed summaries; the enrichment is polled, not streamed.</p>
+<h3>Interface language</h3>
+<p>New UI strings ship in English. The shipped FAQ catalog at <code>apps/web/lib/faq/seed.ts:2-8</code> is already English, while <code>apps/web/components/foundation-console.tsx:30</code> and <code>:39</code> still carry Korean strings, so the codebase is mid-migration and new surfaces ship English.</p>
+<hr class="section-divider">
+
+<h2 id="sec-9">Open questions for review</h2>
+<h3>Section slicing strategy</h3>
+<p>Search narrows to at most five candidate sections. Heading-anchored slicing is the default with fixed page windows as the fallback for documents without detectable headings. Whether a long document needs a coarse pre-filter ahead of that bound is a real question this proposal does not settle, and it is the main risk to the sub-deadline feel of the core loop.</p>
+<h3>Document storage</h3>
+<p>The schema records a storage key for the original file; which store backs it is left open. It affects neither the span contract nor any decision above, because search reads the extracted page text, not the PDF bytes.</p>
+<h3>Line banding tolerance</h3>
+<p>The y-translation tolerance grouping text items into one line is a tunable constant. It should be pinned by test fixtures over representative documents rather than guessed, and it is part of <code>EXTRACTOR_VERSION</code>, so changing it correctly invalidates existing spans.</p>
+<hr class="section-divider">
+
+<section id="ba-section" class="ba-section"><h2>Before / After</h2><div class="ba-grid"><div class="ba-card before-card"><h3>Before (current state)</h3><p>There is no chat interface and no PDF viewer anywhere in this repository, and no LangGraph code either. The user workspace at <code>/app</code> is a single non-navigable console, so there is no menu structure a new feature can attach to, and the one conversational surface that exists — the FAQ widget — is a one-shot question box that discards its own history, not a chat.</p>
+<p>What does exist, and what the core loop builds on, is a proven structured-decision provider (Jev) that returns a bounded <code>choice</code> inside a single request, plus a bounded queue-backed run path into <code>services/agent_worker</code> that this proposal uses only for the secondary summarization step.</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--muted);">Evidence</h4><ul class="evidence-list"><li><code>grep -rli "langgraph" apps services packages</code> and <code>grep -rli "pdf" apps services packages</code> both return zero files; chat, viewer, and graph are all greenfield.</li><li><code>apps/web/components/faq-widget.tsx:7-13</code> holds a single <code>result</code> object, not a message list — asking again replaces the previous answer, so it is not a chat surface and cannot be extended into one.</li><li><code>apps/web/package.json</code> lists 11 runtime dependencies and contains no PDF library and no <code>inngest</code> entry; the queue path is Python-side only.</li><li><code>apps/web/lib/faq/provider.ts:3</code> defines the only provider port in the repo — <code>select(text, candidates: FaqEntry[]) =&gt; Promise&lt;Selection | null&gt;</code> — typed to the FAQ catalog and not reusable for PDF spans; <code>:4</code> sets <code>DEFAULT_PROVIDER_TIMEOUT_MS = 5_000</code>, the in-request latency budget the core loop inherits.</li><li><code>apps/web/lib/faq/jev.ts:36-68</code> is the hardened Jev adapter: per-closure circuit breaker and in-flight guard at <code>:37-38</code>, <code>redirect: 'error'</code> at <code>:51</code>, 16KiB <code>boundedJson</code> cap at <code>:60</code>, AbortController/timeout race at <code>:62-64</code>, 30s cooldown at <code>:65</code>.</li><li><code>apps/web/lib/faq/jev.ts:24-27</code> <code>validDistribution()</code> rejects any answer whose probabilities do not sum to ~1 or whose max does not match the chosen option.</li><li><code>apps/web/lib/faq/jev.ts:44</code> already caps a request at five candidates, the same bound the section search reuses.</li><li><code>apps/web/lib/faq/service.ts:16</code> is the fail-closed gate: <code>confidence &lt; 0.85</code> or <code>answerable &lt; 0.9</code> returns <code>fallback('clarify')</code> instead of an answer.</li><li><code>apps/web/app/api/faq/route.ts:5-10</code> is the route-handler precedent: <code>runtime = 'nodejs'</code>, <code>dynamic = 'force-dynamic'</code>, provider chosen by <code>process.env.FAQ_PROVIDER === 'jev'</code>, all Jev config env-gated.</li><li><code>apps/web/app/app/page.tsx:12-17</code> renders one <code>&lt;nav className="user-app-nav"&gt;</code> and then <code>&lt;FoundationConsole /&gt;</code>; there is no tab, route group, or menu list under <code>/app</code>.</li><li><code>apps/web/components/foundation-console.tsx:194-198</code> is a flat three-panel section (<code>01 / AGENT RUN</code>, <code>02 / BILLING</code>, <code>03 / ACTIVITY</code>), not a navigable menu container.</li><li><code>apps/web/app/admin/page.tsx:7-9</code> shows the existing menu precedent: an <code>admin-card-grid</code> of plain <code>&lt;a href&gt;</code> cards to sibling routes.</li><li><code>services/agent-worker/</code> (hyphen) holds only <code>README.md</code>; the real Python package is <code>services/agent_worker/</code> with <code>boundary.py</code>, <code>providers.py</code>, <code>runtime.py</code>, <code>workflow.py</code> and no graph module.</li><li><code>services/agent_worker/runtime.py:46-47</code> <code>BoundedWorker</code> "executes one run with explicit step, call, and wall-clock limits"; <code>services/agent_worker/workflow.py:19-25</code> accepts only a <code>run.requested</code> envelope carrying a <code>run_id</code>.</li><li><code>services/run_service/workflow.py:13-18</code> <code>InngestDispatcher</code> states the boundary directly: "the sender receives only identifiers and limits; the worker reads the immutable input from the run store", with limits capped at 32 steps / 32 model calls / 900s at <code>:28-31</code>.</li><li><code>foundation/server.py:316</code> (<code>POST /v1/runs</code>), <code>:326</code> (<code>POST /v1/runs/&lt;id&gt;</code>), and <code>:189</code> (<code>GET /v1/runs/&lt;id&gt;</code>) are the shipped run endpoints, reached from the browser through the proxy at <code>apps/web/app/api/foundation/[...path]/route.ts:20</code>.</li><li><code>docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml:64-65</code> (status <code>ready-for-review</code>, the accepted baseline) assigns <code>services/agent-worker/</code> the role: "Queue-backed LangGraph execution, checkpoints, retries, and OTel correlation; initially Inngest-backed, later extractable to FastAPI/ECS."</li></ul></div><div class="ba-card after-card"><h3>After (proposed state)</h3><p>Add a new top-level <code>/app/pdf-qa</code> menu entry whose workspace is a persistent split pane: a multi-turn chat panel on one side — message list, accumulating turn history, always-present input box — and a live pdf.js viewer on the other, mounted for the whole session and never hidden behind a modal or an on-click reveal.</p>
+<p>The load-bearing capability is search then show. The user asks a question in the chat; a single bounded Jev <code>choice</code> call picks the relevant section and a deterministic pass resolves it to exact character offsets; the chat message and the viewer highlight land together in that same turn, inside one request and one provider deadline. Prev and Next step the cursor across the located spans and the viewer follows immediately. This loop involves no queue, no background job, and no graph.</p>
+<p>Summarization is a bonus layered on top of a span that search has already found. After the located answer has rendered, the turn asynchronously dispatches a LangGraph run in <code>services/agent_worker</code> that returns prose and any additional supporting spans, patched into the same chat message when it arrives. This is a deliberate change from an earlier framing in which the graph produced the spans: the graph is now an enrichment over a result the user already has, so if the worker is slow, throttled, or never returns, the turn is still complete and the highlight is still correct.</p><h4 style="font-size:0.85rem;margin:0.8rem 0 0.3rem;color:var(--accent);">Files</h4><ul class="files-list"><li><span class="file-path">apps/web/app/app/page.tsx</span><p>Add a menu card grid above <code>&lt;FoundationConsole /&gt;</code> linking to <code>/app/pdf-qa</code>, mirroring the <code>admin-card-grid</code> pattern at <code>apps/web/app/admin/page.tsx:7-9</code>.</p></li><li><span class="file-path">apps/web/app/app/pdf-qa/page.tsx</span><p>New server component hosting the split-pane workspace; same <code>getSafeSession()</code> guard and <code>redirect("/login?next=/app/pdf-qa")</code> as the parent route.</p></li><li><span class="file-path">apps/web/components/pdf-qa-workspace.tsx</span><p>Client component owning the persistent two-pane layout and the shared active-span state; both panes mount together on route entry and neither is conditionally rendered.</p></li><li><span class="file-path">apps/web/components/pdf-chat-panel.tsx</span><p>Multi-turn chat surface — scrolling message list keyed by turn id, accumulating history across the session, sticky composer, per-message underlined evidence marks, Prev/Next control, and an in-place "summary pending" slot that fills when the async enrichment lands.</p></li><li><span class="file-path">apps/web/components/pdf-viewer.tsx</span><p>Always-mounted <code>pdfjs-dist</code> viewer rendering page canvases plus the text layer; exposes <code>scrollToSpan(page, start, end)</code> mapping offsets to text-layer DOM nodes via <code>Range.getClientRects()</code> and painting a highlight overlay. Driven by the workspace's active-span state, never opened or closed.</p></li><li><span class="file-path">apps/web/lib/pdf-qa/provider.ts</span><p>New port <code>PdfQaProvider { findSection(question, sections); locateSpan(quote, occurrences) }</code> with a shared confidence/answerability result shape; not a reuse of <code>FaqProvider</code>.</p></li><li><span class="file-path">apps/web/lib/pdf-qa/jev.ts</span><p>Single <code>createPdfQaJevProvider()</code> closure implementing both methods, copying the hardening of <code>apps/web/lib/faq/jev.ts:36-68</code> (one breaker, one in-flight guard, bounded response, redirect block, distribution validation) over a <code>choice</code> + <code>noul</code> question pair per method.</p></li><li><span class="file-path">apps/web/lib/pdf-qa/extract.ts</span><p>Deterministic upload-time text-layer extraction — concatenate <code>getTextContent().items</code> in order into a per-page string, band items into lines by transform y-translation, stamp an <code>EXTRACTOR_VERSION</code>. Runs once per document so the search path never re-extracts.</p></li><li><span class="file-path">apps/web/lib/pdf-qa/search.ts</span><p>The core search-to-show resolver — section candidate selection, verbatim occurrence scan over the stored page strings, and offset resolution; calls the provider only when a tie needs breaking.</p></li><li><span class="file-path">apps/web/lib/pdf-qa/spans.ts</span><p>Span contracts and verification — Zod schema for <code>{page, start, end, line, extractorVersion}</code> plus <code>verifySpan()</code> requiring the cited text to be a verbatim substring of the extracted page string.</p></li><li><span class="file-path">apps/web/app/api/pdf-qa/sessions/route.ts</span><p>New route handler (<code>runtime = 'nodejs'</code>, <code>dynamic = 'force-dynamic'</code>) creating a chat session bound to one uploaded document and returning the extracted page strings the viewer and search share, following <code>apps/web/app/api/faq/route.ts:5-10</code>.</p></li><li><span class="file-path">apps/web/app/api/pdf-qa/messages/route.ts</span><p>The search-to-show endpoint. Runs the Jev find-step plus deterministic resolution and returns the chat message with its located spans inside one request; then fires the enrichment dispatch without awaiting it.</p></li><li><span class="file-path">apps/web/app/api/pdf-qa/enrich/route.ts</span><p>Dispatches the optional LangGraph summarization by POSTing <code>/v1/runs</code> through the foundation proxy, and exposes the poll the chat panel uses to patch prose into an already-rendered message.</p></li><li><span class="file-path">apps/web/db/schema/pdf-qa.ts</span><p>New Drizzle tables <code>pdf_qa_documents</code> (id, tenant, storage key, page count, page_text jsonb, extractor_version), <code>pdf_qa_sessions</code> (id, tenant, user, document), <code>pdf_qa_messages</code> (id, session, seq, role, body, spans jsonb, summary_run_id, summary_status).</p></li><li><span class="file-path">apps/web/drizzle/0006_pdf_qa.sql</span><p>Generated migration for the three tables, following the numbering already in <code>apps/web/drizzle/</code>.</p></li><li><span class="file-path">apps/web/app/globals.css</span><p>Styles for the <code>/app</code> menu card grid, the split-pane workspace at desktop and stacked at narrow widths, the chat message list and composer, the evidence underline and active-span emphasis, and the viewer highlight overlay.</p></li><li><span class="file-path">apps/web/package.json</span><p>Add <code>pdfjs-dist</code> as the only new runtime dependency; no PDF React wrapper and no <code>inngest</code> package.</p></li><li><span class="file-path">services/agent_worker/graph.py</span><p>New LangGraph enrichment pipeline <code>load_located_span -&gt; summarize -&gt; cite_supporting_spans</code>, invoked through <code>BoundedWorker</code> so it inherits the step / model-call / wall-clock limits at <code>services/agent_worker/runtime.py:46-47</code>. It receives an already-resolved span; it does not perform search.</p></li><li><span class="file-path">services/agent-worker/README.md</span><p>Document the enrichment graph, its input contract (a resolved span, not a raw question), and that it is optional to a completed chat turn.</p></li><li><span class="file-path">apps/web/tests/pdf-qa-search.test.ts</span><p>Red-first coverage for the search-to-show path — single-request resolution, span verification, extractor-version mismatch rejection, and every fail-closed branch (no section, low confidence, unverifiable quote, enrichment never arriving).</p></li></ul></div></div></section><section id="pcl-pros" class="pcl-section pcl-pros"><h3>Pros</h3><ul class="pros-list"><li><strong>[3/3] Search-to-show completes inside one request, with no queue hop.</strong> The find-step is a single Jev call bounded by <code>DEFAULT_PROVIDER_TIMEOUT_MS = 5_000</code> (<code>apps/web/lib/faq/provider.ts:4</code>) and raced against an AbortController at <code>apps/web/lib/faq/jev.ts:62-64</code>; the highlight therefore lands on one provider deadline rather than after a <code>run.requested</code> dispatch and a poll cycle.</li><li><strong>[3/3] The viewer pane is always mounted, so showing a result is a state update, not a mount.</strong> <code>scrollToSpan</code> resolves offsets against text-layer DOM that is already in the document and paints an overlay from <code>Range.getClientRects()</code>; there is no viewer open, no PDF re-parse, and no first-paint cost on the turn that needs to feel instant.</li><li><strong>[3/3] Most locate operations need no model call at all.</strong> A quote occurring exactly once in the stored page strings resolves deterministically in <code>apps/web/lib/pdf-qa/search.ts</code>; the provider is consulted only to break a genuine tie, so the common path is bounded by a string scan rather than by network latency.</li><li><strong>[3/3] The chat surface is genuinely new rather than a stretched FAQ widget.</strong> <code>apps/web/components/faq-widget.tsx:7-13</code> stores one <code>result</code> and replaces it on each ask, so history is structurally absent; a message list keyed by turn id is the smallest honest shape for multi-turn, and it is what makes Prev/Next across an earlier answer coherent.</li><li><strong>[3/3] Summarization can fail without damaging the product.</strong> The enrichment runs over the existing bounded path — <code>services/run_service/workflow.py:15-18</code> sends identifiers only and <code>services/agent_worker/runtime.py:46-47</code> caps steps, calls, and wall-clock — and it patches an already-rendered message, so a throttled or interrupted worker degrades the turn to search-to-show rather than breaking it.</li><li><strong>[3/3] The Jev hardening pattern is proven in-tree and copied wholesale.</strong> <code>apps/web/lib/faq/jev.ts:51</code> blocks redirects, <code>:60</code> caps the response at 16KiB, <code>:65</code> opens a 30-second breaker on any failure, and <code>:24-27</code> rejects an inconsistent probability distribution.</li><li><strong>[3/3] Fail-closed behavior has an exact precedent to match.</strong> <code>apps/web/lib/faq/service.ts:16</code> rejects <code>confidence &lt; 0.85</code> or <code>answerable &lt; 0.9</code> into <code>fallback('clarify')</code>; the find and locate steps reuse that identical gate, so scrolling the live pane to a wrong location is unreachable by construction, not by convention.</li><li><strong>[3/3] No new queue or background-job dependency.</strong> <code>apps/web/package.json</code> has no <code>inngest</code> entry; Inngest is a Python injected-sender protocol (<code>services/run_service/workflow.py:13-22</code>), so <code>pdfjs-dist</code> is the only package added on the web side.</li><li><strong>[3/3] Menu placement follows an existing precedent instead of inventing a tab system.</strong> <code>apps/web/app/admin/page.tsx:7-9</code> already ships a card grid of plain links to sibling routes, and <code>apps/web/app/app/page.tsx:14-15</code> has the slot for it directly above <code>&lt;FoundationConsole /&gt;</code>.</li><li><strong>[3/3] The enrichment graph lands where the accepted baseline already assigned it.</strong> <code>docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml:64-65</code> reserves <code>services/agent-worker/</code> for "Queue-backed LangGraph execution, checkpoints, retries, and OTel correlation; initially Inngest-backed", so the secondary capability fills a reserved slot instead of opening a new service.</li><li><strong>[2/3] One machine key, one human label.</strong> The chat underline and the viewer highlight are computed from the same <code>{page, start, end}</code> offsets, so the two panes cannot disagree; the derived <code>line</code> is display-only and never used for lookup.</li></ul></section><section id="pcl-cons" class="pcl-section pcl-cons"><h3>Cons</h3><ul class="cons-list"><li><strong>[1/3] Text-layer offsets drift when the extraction code changes.</strong> Mitigated by stamping <code>EXTRACTOR_VERSION</code> on <code>pdf_qa_documents</code> and on every span, and failing closed on mismatch — a drifted span renders as "location unavailable", never as a wrong highlight — with re-extraction available over the same bounded-run path.</li><li><strong>[1/3] An always-mounted viewer cannot defer its own cost the way an on-click one could.</strong> Accepted deliberately, because deferring it is what the "real-time" requirement rules out; mitigated by scoping the code split to the <code>/app/pdf-qa</code> route so no other page carries <code>pdfjs-dist</code>, by pinning a self-hosted worker file to the installed version with no CDN, and by rendering pages lazily within the mounted pane.</li><li><strong>[1/3] An enriched message mutates after it has already rendered.</strong> Mitigated by reserving the summary slot in the message from the start so the layout does not jump, and by a hard rule that enrichment may add prose and supporting spans but may never move the viewer or reorder the spans the user is currently stepping through.</li><li><strong>[1/3] A worst-case question costs two Jev calls.</strong> Accepted because the second fires only on a genuine multi-occurrence tie and the single-occurrence path skips it entirely; the shared in-flight guard at <code>apps/web/lib/faq/jev.ts:38</code> serializes the pair, and both sit inside the same request budget.</li></ul></section><section id="pcl-limit" class="pcl-section pcl-limit"><h3>Limitations</h3><ul class="limitations-list"><li><strong>[0/3] Scanned and image-only PDFs are out of scope by design.</strong> An empty text layer is rejected at upload with an explicit message rather than silently producing no highlights. Future-work: an OCR pre-pass writing a synthetic text layer under its own <code>EXTRACTOR_VERSION</code>.</li><li><strong>[0/3] One document per session; no cross-document search.</strong> Future-work: a corpus-level pre-filter ahead of the find-step, preserving the five-candidate bound that <code>apps/web/lib/faq/jev.ts:44</code> enforces today.</li><li><strong>[0/3] The Prev/Next cursor is not persisted, so a reload returns to the first span of the last message.</strong> It is view position, not conversation content, and persisting it would cost a write per button click. Future-work: a <code>?span=</code> parameter once deep-linking to an evidence span is requested.</li><li><strong>[1/3] The circuit breaker and in-flight guard are instance-local.</strong> <code>phases/jev-cs-faq-bot/README.md:45-50</code> already documents this for the FAQ path — multiple serverless instances multiply the budget, and an ingress rate limit is the stated remedy. Out-of-scope by design here; this proposal inherits the property rather than changing it.</li><li><strong>[0/3] No highlight persistence, annotation, or export.</strong> Future-work: a <code>pdf_qa_bookmarks</code> table reusing the same <code>{page, start, end, extractorVersion}</code> span shape, so no contract change is needed to add it.</li></ul></section>
+
+<hr class="section-divider">
+
+<footer>Generated 2026-09-23 · render via <code>/dev-kit:proposal</code></footer>
+</body>
+</html>
