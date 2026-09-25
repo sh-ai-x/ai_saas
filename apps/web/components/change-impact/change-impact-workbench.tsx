@@ -211,9 +211,19 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// The browser folder picker never exposes an OS absolute path (a platform
+// privacy boundary, not something app code can work around), and no repo
+// name may be pre-configured server-side: the analyzed repository changes
+// on every pick. editorFileRoot only ever matches by coincidence — the one
+// repository the server happened to be started against.
+function rootMatchesEditorFileRoot(editorFileRoot: string, name: string) {
+  return Boolean(editorFileRoot) && editorFileRoot.replace(/\/+$/, "").split("/").pop() === name;
+}
+
 export function ChangeImpactWorkbench() {
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("implementation");
   const [editorFileRoot, setEditorFileRoot] = useState("");
+  const [knownRepositories, setKnownRepositories] = useState<Record<string, string>>({});
   const [selectedRequirementId, setSelectedRequirementId] = useState("");
   const [proposal, setProposal] = useState<File | null>(null);
   const [proposalUrl, setProposalUrl] = useState("");
@@ -360,8 +370,69 @@ export function ChangeImpactWorkbench() {
     if (!codeFiles.length) throw new Error("No analyzable code files were found. Select the repository root rather than its parent folder.");
     setRepoFiles(retained);
     setRepositoryStatus("ready");
-    setRepositoryMessage(`Prepared ${codeFiles.length} code files from ${root}. Worktrees and generated output were excluded.`);
     setStatus(`${root} · ${codeFiles.length} code files ready · worktrees excluded`);
+    // Some Chromium builds carry a non-standard absolute `.path` on File
+    // objects from a directory picker. When it's there, use it directly —
+    // instant, exact, no server round trip. Detected at runtime per pick;
+    // most browsers (Safari, Firefox, sandboxed Chromium) leave it
+    // undefined, and we fall through to the server lookup below. Reported
+    // visibly either way — no DevTools needed to see which path fired.
+    const nativePathEntry = entries.find((entry) => typeof (entry.file as File & { path?: string }).path === "string" && (entry.file as File & { path?: string }).path);
+    const nativePath = nativePathEntry ? (nativePathEntry.file as File & { path?: string }).path! : "";
+    if (nativePath && nativePathEntry && nativePath.length > nativePathEntry.path.length && nativePath.endsWith(nativePathEntry.path)) {
+      const absoluteRoot = nativePath.slice(0, nativePath.length - nativePathEntry.path.length).replace(/\/+$/, "");
+      setKnownRepositories((current) => ({ ...current, [root]: absoluteRoot }));
+      setRepositoryMessage(`Prepared ${codeFiles.length} code files from ${root}. VS Code path (from browser): ${absoluteRoot}`);
+    } else {
+      setRepositoryMessage(`Prepared ${codeFiles.length} code files from ${root}. Browser did not expose an absolute path; checking the server for a mounted match…`);
+      void resolveEditorRoot(root, codeFiles.length);
+    }
+  }
+
+  // Fired by the existing "Choose Git repository directory" button — the
+  // moment a repo is picked, look up its real host path by exact folder
+  // name. No prompt, no typing, no pre-declared repo list: any repository
+  // under LOCAL_REPOSITORY_HOST_ROOT resolves the instant it's picked, and
+  // nothing you haven't picked is ever enumerated (name-scoped, not a full
+  // catalog listing — that's what made the eager version slow).
+  async function resolveEditorRoot(root: string, codeFileCount: number) {
+    if (rootMatchesEditorFileRoot(editorFileRoot, root) || knownRepositories[root]) return;
+    try {
+      const body = await api<JsonRecord>(`/v1/repositories?name=${encodeURIComponent(root)}`);
+      // host_path (not canonical_path — that's container-internal) is the
+      // path translated back to this machine's real filesystem.
+      const paths = [
+        ...new Set(
+          ((body.repositories as JsonRecord[] | undefined) ?? [])
+            .map((entry) => String(entry.host_path ?? ""))
+            .filter(Boolean),
+        ),
+      ];
+      if (paths.length === 1) {
+        setKnownRepositories((current) => ({ ...current, [root]: paths[0] }));
+        setRepositoryMessage(`Prepared ${codeFileCount} code files from ${root}. VS Code path (from server): ${paths[0]}`);
+        return;
+      }
+      // More than one repository shares this folder name. A general,
+      // non-repo-specific tie-break: prefer the one closest to the mounted
+      // workspace root -- a repo nested inside another project is almost
+      // always a dependency clone, not the one meant by name alone. Only
+      // when depth itself ties does this stay genuinely ambiguous.
+      if (paths.length > 1) {
+        const depth = (path: string) => path.split("/").filter(Boolean).length;
+        const sorted = [...paths].sort((left, right) => depth(left) - depth(right));
+        if (depth(sorted[0]) < depth(sorted[1])) {
+          setKnownRepositories((current) => ({ ...current, [root]: sorted[0] }));
+          setRepositoryMessage(`Prepared ${codeFileCount} code files from ${root}. VS Code path (closest to workspace root among ${paths.length} matches): ${sorted[0]}`);
+          return;
+        }
+        setRepositoryMessage(`Prepared ${codeFileCount} code files from ${root}. "Open in VS Code" is unavailable: ${paths.length} repositories on this machine are named "${root}" at the same depth — ${paths.join(" · ")}`);
+        return;
+      }
+      setRepositoryMessage(`Prepared ${codeFileCount} code files from ${root}. "Open in VS Code" is unavailable: no server-mounted repository named "${root}" was found.`);
+    } catch {
+      setRepositoryMessage(`Prepared ${codeFileCount} code files from ${root}. "Open in VS Code" is unavailable: the repository catalog is not configured on the server.`);
+    }
   }
 
   async function onRepository(event: ChangeEvent<HTMLInputElement>) {
@@ -528,9 +599,17 @@ export function ChangeImpactWorkbench() {
   const activeRequirementKind = String(activeRequirement?.kind_code ?? (String(activeRequirement?.requirement_id).startsWith("AC-") ? "AC" : "REQ"));
   const activeRequirementLabel = activeRequirementKind === "AC" ? "Acceptance Criteria" : "Requirement";
   const activeRequirementDescription = String(activeRequirement?.kind_description ?? (activeRequirementKind === "AC" ? "A concrete and verifiable condition for deciding completion" : "A functional, quality, or operational capability the system must provide or preserve"));
+  // editorFileRoot is a single server-configured path (LOCAL_REPOSITORY_HOST_ROOT),
+  // correct only for the one repository that server was started against. A
+  // different repository analyzed through the browser folder picker has no
+  // server-known host path, so only trust editorFileRoot when its last path
+  // segment matches the analyzed repo's folder name; otherwise require a
+  // per-repo override the user enters once and we persist in localStorage.
+  const activeRepoRootName = String(repoContext?.root_name ?? "");
+  const resolvedEditorRoot = rootMatchesEditorFileRoot(editorFileRoot, activeRepoRootName) ? editorFileRoot : knownRepositories[activeRepoRootName] ?? "";
   const editorHref = (item: JsonRecord) => {
-    if (!editorFileRoot) return "";
-    const root = editorFileRoot.replace(/\/+$/, "");
+    if (!resolvedEditorRoot) return "";
+    const root = resolvedEditorRoot.replace(/\/+$/, "");
     const encodedPath = String(item.path).split("/").map((part) => encodeURIComponent(part)).join("/");
     return `vscode://file${root.startsWith("/") ? root : `/${root}`}/${encodedPath}:${String(item.start_line)}:1`;
   };
@@ -599,7 +678,7 @@ export function ChangeImpactWorkbench() {
         </section>
         <section className="impact-card">
           <div className="panel-heading"><div><p className="eyebrow">02 / REPOSITORY</p><h3>Choose a Git repository</h3></div><span className="tag">READ ONLY</span></div>
-          <p className="panel-copy">The browser reads the repository through the folder picker. It creates bounded excerpts for requirement evidence and excludes .git, all worktrees, secrets, binaries, and build output.</p>
+          <p className="panel-copy">The browser reads the repository through the folder picker and analyzes only .py .ts .tsx .js .jsx .mjs .go .rs .java .kt .sql .md .json .yaml .yml .html .css files up to 256KB each. Excluded: .git, worktrees, node_modules, .next, dist, build, coverage, target, .venv/venv, __pycache__, .cache, .turbo; .env files, *.pem/*.key/*.p12/*.pfx/*.crt/*.cer, and any credential/secret path segment; anything the repo's own .gitignore matches; and files beyond a 600-file / 8MB analysis budget.</p>
           <button type="button" className="file-picker file-picker-button" onClick={() => void chooseRepository()} disabled={busy}>{selectedCount ? `${selectedCount} files selected · choose again` : "Choose Git repository directory"}</button>
           <input ref={directoryInputRef} className="repository-fallback-input" type="file" {...({ webkitdirectory: "" } as any)} multiple onChange={onRepository} />
           <div className={`repository-progress repository-progress-${repositoryStatus}`} role="status" aria-live="polite">{["loading", "analyzing"].includes(repositoryStatus) && <span className="loading-spinner" aria-hidden="true" />}<span>{repositoryMessage}</span></div>
