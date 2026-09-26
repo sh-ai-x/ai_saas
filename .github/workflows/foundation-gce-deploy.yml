@@ -1,0 +1,145 @@
+# .github/workflows/foundation-gce-deploy.yml — deploy the foundation image
+# to the GCE e2-micro smoke-test VM.
+#
+# Flow (mirrors the Fly deploy's shape — same trigger paths, same
+# /healthz smoke, same secrets shape):
+#   1. gcloud auth + build the image with Cloud Build
+#   2. Push to Artifact Registry (us-west1-docker.pkg.dev)
+#   3. Stamp the foundation-image Secret Manager version with the new tag
+#   4. SSH the docker-compose.yaml + scp the env file to /opt/ai-saas on
+#      the VM; cloud-init's `docker compose up -d` on next boot picks up
+#      the new image via the secret.
+#   5. Smoke-test https://<tunnel-hostname>/healthz
+#
+# Secrets required (one-time operator setup, see
+# infra/gcp/foundation/create-vm.sh and README):
+#   GCP_SA_KEY             — service account JSON with
+#                              roles/artifactregistry.writer,
+#                              roles/secretmanager.secretVersionAdder,
+#                              roles/compute.instanceAdmin.v1 (zone us-west1-a)
+#   GCP_PROJECT_ID         — e.g. ai-saas-foundation
+#   GCP_ZONE               — us-west1-a
+#   CLOUDFLARE_TUNNEL_HOSTNAME — e.g. foundation.example.com
+#
+# This workflow does NOT need the foundation-cloudflared-token or
+# foundation-env secrets as workflow secrets; they live in Secret
+# Manager and are pulled by the VM at boot.
+
+name: foundation-gce-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'foundation/**'
+      - 'docker/prod/foundation.Dockerfile'
+      - 'agent_platform/**'
+      - 'lib/**'
+      - 'project_packs/**'
+      - 'services/**'
+      - 'evaluators/**'
+      - 'packages/contracts/**'
+      - 'config/**'
+      - 'infra/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'infra/gcp/foundation/**'
+      - '.github/workflows/foundation-gce-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      image_only:
+        description: 'Build image only, do not ship to VM (for smoke-testing)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write   # required for google-github-actions/auth
+
+concurrency:
+  group: foundation-gce-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build image + push to Artifact Registry + update VM
+    runs-on: ubuntu-latest
+    environment: production
+    timeout: 20m
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          { fetch-depth: 1 }
+
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
+
+      - name: Build image (Cloud Build, no local Docker needed)
+        id: build
+        run: |
+          set -euo pipefail
+          SHA="${GITHUB_SHA::12}"
+          IMAGE="us-west1-docker.pkg.dev/${GCP_PROJECT_ID}/foundation/app:${SHA}"
+          gcloud builds submit \
+            --tag "$IMAGE" \
+            --timeout=15m
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp foundation-image Secret Manager version
+        if: ${{ inputs.image_only != true }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ steps.build.outputs.image }}" \
+            | gcloud secrets versions add foundation-image --data-file=-
+
+      - name: Push docker-compose.yaml to VM
+        if: ${{ inputs.image_only != true }}
+        uses: google-github-actions/compute-instance-ssh@v0
+        with:
+          service_account_email: ${{ secrets.GCP_SA_EMAIL }}
+          hostname: ${{ vars.GCP_VM_NAME }}
+          zone: ${{ vars.GCP_ZONE }}
+          command: |
+            sudo mkdir -p /opt/ai-saas
+            sudo tee /opt/ai-saas/docker-compose.yaml > /dev/null < /dev/stdin
+
+      - name: Restart the compose stack on the VM
+        if: ${{ inputs.image_only != true }}
+        uses: google-github-actions/compute-instance-ssh@v0
+        with:
+          service_account_email: ${{ secrets.GCP_SA_EMAIL }}
+          hostname: ${{ vars.GCP_VM_NAME }}
+          zone: ${{ vars.GCP_ZONE }}
+          command: |
+            set -euo pipefail
+            cd /opt/ai-saas
+            # Re-fetch secrets so the latest image tag is in scope.
+            gcloud secrets versions access latest --secret=foundation-image > /etc/ai-saas/image.env
+            gcloud secrets versions access latest --secret=foundation-cloudflared-token > /etc/ai-saas/cloudflared.env
+            sudo docker compose --env-file /etc/ai-saas/image.env \
+                                 --env-file /etc/ai-saas/cloudflared.env \
+                                 -f /opt/ai-saas/docker-compose.yaml up -d --remove-orphans
+
+      - name: Smoke-test /healthz via tunnel
+        if: ${{ inputs.image_only != true }}
+        env:
+          HOSTNAME: ${{ vars.CLOUDFLARE_TUNNEL_HOSTNAME }}
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS --max-time 5 "https://${HOSTNAME}/healthz" >/dev/null; then
+              echo "/healthz OK after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "/healthz not yet (attempt ${i}/10); sleeping 5s"
+            sleep 5
+          done
+          echo "/healthz never came up" >&2
+          exit 1

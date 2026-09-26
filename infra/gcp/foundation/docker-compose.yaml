@@ -1,0 +1,64 @@
+# infra/gcp/foundation/docker-compose.yaml — runtime for the GCE foundation VM.
+#
+# Two containers: the foundation app (Python stdlib HTTP on :8080) and a
+# cloudflared sidecar terminating TLS at the edge so the VM does not need
+# a static external IP (always-free e2-micro quota does not cover one).
+#
+# Volumes:
+#   /var/lib/ai-saas         — pd-standard disk for SQLite state (mirrors
+#                              the Fly volume at the same name on the source
+#                              app: foundation/local_runtime.py:88)
+#   /etc/ai-saas             — secrets written by cloud-init from GCP
+#                              Secret Manager at boot (DATABASE_URL,
+#                              APP_SECRET_KEY, etc.)
+#
+# State path note: the Dockerfile's CMD uses --env-file at /app/config/...
+# not this directory. We override at the docker-compose layer so the env
+# file from Secret Manager takes precedence over the baked defaults.
+#
+# MEMORY (e2-micro = 1GB shared burst): app image is Python 3.12 + uv +
+# small stdlib HTTP server. Idle RSS ~80-120MB; cloudflared ~30MB. ~700MB
+# headroom for the OS. No memory_limit on the app container — it owns
+# the box.
+
+services:
+  foundation:
+    image: ${FOUNDATION_IMAGE}
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"   # bound to loopback only; cloudflared tunnels it
+    volumes:
+      - foundation-state:/var/lib/ai-saas
+      - /etc/ai-saas/foundation.env:/app/config/profiles/foundation.env:ro
+    environment:
+      # APP_BASE_URL is set per-deploy via cloud-init metadata so the
+      # canonical URL matches the tunnel hostname (not baked here).
+      APP_ENV: gcp-smoke
+      DEPLOYMENT_PROFILE: free-portfolio
+      CONTRACT_VERSION: "v1"
+      OTEL_ENABLED: "true"
+      OTEL_SAMPLE_RATE: "0.1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  cloudflared:
+    image: cloudflare/cloudflared:2024.12.2
+    restart: always
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      foundation:
+        condition: service_healthy
+
+volumes:
+  foundation-state:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/foundation-state

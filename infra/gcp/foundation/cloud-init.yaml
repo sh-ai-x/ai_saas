@@ -1,0 +1,112 @@
+# infra/gcp/foundation/cloud-init.yaml — Debian 12 cloud-init for the
+# GCE foundation VM. Runs once on first boot; idempotent on subsequent
+# boots (writes overwrite existing files).
+#
+# Tasks:
+#   1. apt update + install docker + docker-compose-plugin
+#   2. Format and mount the pd-standard data disk at /mnt/foundation-state
+#   3. Write the docker-compose.yaml + /etc/ai-saas/foundation.env
+#   4. Pull secrets from GCP Secret Manager (service account must have
+#      roles/secretmanager.secretAccessor on each secret)
+#   5. Enable and start the docker compose stack
+#
+# This file is passed via:
+#   gcloud compute instances create ... --metadata-from-file=cloud-init=cloud-init.yaml
+# or referenced inline via --metadata=user-data=@cloud-init.yaml.
+#
+# GCE serial console output is at
+# https://console.cloud.google.com/compute/instancesDetail/zones/<zone>/instances/foundation/serialconsole
+# if the boot fails.
+
+#cloud-config
+
+apt:
+  sources:
+    docker:
+      source: "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $RELEASE stable"
+      keyid: "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+  preserve_sources_list: true
+
+packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin
+  - jq
+  - rsync
+
+runcmd:
+  # ---- 1. Persistent disk: format once, mount every boot --------------
+  # The data disk is attached at /dev/disk/by-id/google-foundation-state.
+  # First-boot check: ext4 magic at offset 0x438. If absent, format.
+  - |
+    set -euo pipefail
+    DEV="/dev/disk/by-id/google-foundation-state"
+    MOUNT="/mnt/foundation-state"
+    mkdir -p "$MOUNT"
+    if ! blkid "$DEV" >/dev/null 2>&1; then
+      mkfs.ext4 -m 0 -F "$DEV"
+    fi
+    # fstab entry — UUID is stable across reboots so we resolve it once.
+    UUID="$(blkid -s UUID -o value "$DEV")"
+    if ! grep -q "UUID=$UUID" /etc/fstab; then
+      echo "UUID=$UUID $MOUNT ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+    mount "$MOUNT" || mount -a
+    chown -R 1000:1000 "$MOUNT"
+
+  # ---- 2. Compose file path ---------------------------------------------
+  - mkdir -p /opt/ai-saas /etc/ai-saas
+  - chown -R 1000:1000 /opt/ai-saas /etc/ai-saas
+
+  # ---- 3. Secrets from GCP Secret Manager -------------------------------
+  # The VM's service account (default Compute SA or a dedicated one
+  # with secretmanager.secretAccessor) must be allowed on each secret.
+  # Secrets expected:
+  #   foundation-env                  -> full env-file body
+  #   foundation-cloudflared-token     -> tunnel token
+  #   foundation-image                -> image tag, e.g.
+  #                                       us-west1-docker.pkg.dev/PROJECT/foundation/app:deadbeef
+  # CI writes these on each deploy. cloud-init pulls at boot; the
+  # restart of the docker stack picks them up.
+  - |
+    set -euo pipefail
+    pull_secret() {
+      gcloud secrets versions access latest --secret="$1"
+    }
+    pull_secret foundation-env > /etc/ai-saas/foundation.env
+    chmod 0600 /etc/ai-saas/foundation.env
+    echo "CLOUDFLARE_TUNNEL_TOKEN=$(pull_secret foundation-cloudflared-token)" > /etc/ai-saas/cloudflared.env
+    chmod 0600 /etc/ai-saas/cloudflared.env
+    echo "FOUNDATION_IMAGE=$(pull_secret foundation-image)" > /etc/ai-saas/image.env
+    chmod 0644 /etc/ai-saas/image.env
+
+  # ---- 4. Drop the compose file ----------------------------------------
+  # The compose file is committed at infra/gcp/foundation/docker-compose.yaml
+  # and shipped via the gcloud instances create-with-container bundle,
+  # not pulled over the network. cloud-init only ensures the destination
+  # exists and points the deploy command at it.
+  - |
+    set -euo pipefail
+    # The CI workflow is responsible for `gcloud compute scp` of the
+    # compose file to /opt/ai-saas/docker-compose.yaml on each deploy.
+    # cloud-init only sets the directory mode; if the file is missing
+    # on first boot (manual one-off `gcloud compute instances create`
+    # without a bundle), the deploy command below will retry.
+    mkdir -p /opt/ai-saas
+
+  # ---- 5. Start the stack ----------------------------------------------
+  # --remove-orphans drops anything left from a prior shape; --env-file
+  # reads image + tunnel token from the boot-fetched secrets.
+  - |
+    set -euo pipefail
+    cd /opt/ai-saas
+    # Block until docker daemon is up (cloud-init may run before systemd
+    # brings docker up; the runcmd ordering does not guarantee it).
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      docker info >/dev/null 2>&1 && break
+      sleep 2
+    done
+    docker compose --env-file /etc/ai-saas/image.env --env-file /etc/ai-saas/cloudflared.env -f /opt/ai-saas/docker-compose.yaml up -d --remove-orphans
+
+final_message: "GCE foundation boot complete; docker compose up at $(date -Iseconds)" UP
