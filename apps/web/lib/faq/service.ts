@@ -13,7 +13,7 @@ export async function answerFaq(question: string, repository: FaqRepository, pro
     const selection = await provider.select(normalize(redact(question)), candidates);
     if (!selection) return fallback('clarify');
     const row = candidates.find(x => x.id === selection.faqId && x.category === selection.category);
-    if (!row || !Number.isFinite(selection.confidence) || selection.confidence < 0.85 || selection.confidence > 1 || !Number.isFinite(selection.answerable) || selection.answerable < 0.9 || selection.answerable > 1) return fallback('clarify');
+    if (!row || !Number.isFinite(selection.confidence) || selection.confidence < 0.85 || selection.confidence > 1 || !Number.isFinite(selection.answerable) || selection.answerable < 0.85 || selection.answerable > 1) return fallback('clarify');
     return answer(row);
   } catch { return fallback(); }
 }
