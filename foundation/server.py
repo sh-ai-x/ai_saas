@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 from dataclasses import asdict
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -491,12 +492,33 @@ class FoundationHandler(BaseHTTPRequestHandler):
             records = self.runtime.proposal_control.catalog.list_repositories(name=raw_name)
         else:
             records = self.runtime.proposal_control.catalog.list_repositories()
+        # canonical_path is the container-internal mount path (used for read
+        # operations on this side of the bind mount); it is never a real
+        # path on the caller's host machine. Translate it to the one the
+        # caller's editor can actually open, using the same host/container
+        # root pair editor_file_root was derived from.
+        # LOCAL_REPOSITORY_ROOTS (what the catalog walks, e.g. /local-repositories)
+        # is a different, unrelated setting from the actual bind-mount
+        # boundary (LOCAL_REPOSITORY_CONTAINER_ROOT, e.g. /local-repositories/dev,
+        # paired 1:1 with the host path in editor_file_root). Catalog roots.[0]
+        # is frequently a *parent* of the real boundary, not the boundary
+        # itself, and using it here would produce a corrupted path (a
+        # doubled path segment). Only the container-root env var is correct.
+        editor_file_root = self.runtime.proposal_control.proposal_review.editor_file_root if self.runtime.proposal_control.proposal_review else None
+        container_root = os.environ.get("LOCAL_REPOSITORY_CONTAINER_ROOT", "").strip() or None
+
+        def to_host_path(container_path: str) -> str | None:
+            if not editor_file_root or not container_root or not container_path.startswith(container_root):
+                return None
+            return editor_file_root.rstrip("/") + container_path[len(container_root) :]
+
         self._json(
             200,
             {
                 "repositories": [
                     {
                         "repository": self.runtime.proposal_control.catalog.public_record(record),
+                        "host_path": to_host_path(record.canonical_path),
                         "authorization": self.runtime.proposal_control.catalog.authorization_state(tenant_id, record.repository_id),
                     }
                     for record in records
