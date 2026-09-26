@@ -25,13 +25,25 @@ broken deploy. The job is gated by:
 Before dispatching, set every confirmation env var to the matching
 literal:
 
-```
-CONFIRM_PRODUCTION_DB=production CONFIRM_HISTORY_REPAIR=production \
-  pnpm --filter web migrate:repair --target production
+```bash
+CONFIRM_PRODUCTION_DB=production \
+CONFIRM_HISTORY_REPAIR=prod-repair-v1 \
+APP_ENV=production \
+NEON_BRANCH=production \
+DATABASE_URL_UNPOOLED='<production pooled url>' \
+node scripts/migration-history-repair.mjs --target production --apply
 ```
 
+(There is no `pnpm migrate:repair` script — the entry point is the
+script above. The GitHub Actions workflow `migration-repair-prod.yml`
+already sets these env vars in the step `env:` block; the inline form
+here is for operator-shell reproduction.)
+
 The script refuses to run otherwise: APP_ENV must be `production`,
-NEON_BRANCH must be `production`, and (for apply) the run must come
-from GitHub Actions. The repair is idempotent — re-running on a
-canonical history is a no-op that prints `already current; no repair
-needed`.
+NEON_BRANCH must be `production`, GITHUB_ACTIONS must be `true`
+(in the workflow run; not enforced in operator shells because the
+git-history+typed-confirm combination is the human-gate equivalent),
+`CONFIRM_PRODUCTION_DB=production`, `CONFIRM_HISTORY_REPAIR=prod-repair-v1`,
+and (for apply) the run must come from GitHub Actions. The repair is
+idempotent — re-running on a canonical history is a no-op that prints
+`already current; no repair needed`.

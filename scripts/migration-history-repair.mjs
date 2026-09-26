@@ -266,7 +266,15 @@ async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   const defaultEnvFile = args.target === "production" ? ".env.production" : ".env.staging";
   const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, defaultEnvFile);
-  if (!loadDotenv(envFile)) throw new Error(`environment file not found: ${envFile}`);
+  // loadDotenv is best-effort: when the workflow passes DATABASE_URL /
+  // APP_ENV / etc. directly via the step `env:` block (production
+  // migration-repair-prod.yml does this; staging docker-compose does
+  // not), the file is redundant. Only fail when DATABASE_URL_UNPOOLED
+  // isn't already in process.env.
+  loadDotenv(envFile);
+  if (!process.env.DATABASE_URL_UNPOOLED) {
+    throw new Error(`environment file not found and DATABASE_URL_UNPOOLED not set: ${envFile}`);
+  }
   const branch = checkEnvironment(args);
   const migrations = readMigrationManifest(args.migrationDir, REPO_ROOT);
   const sql = postgres(process.env.DATABASE_URL_UNPOOLED, { max: 1, connect_timeout: 8, prepare: false });
