@@ -36,7 +36,7 @@ Drizzle migration job, and the Next.js web image. It does not require Vercel,
 Neon, Google, Toss, or Lemon Squeezy credentials in its default local mode.
 
 ```bash
-cp .env.local.example .env
+cp .env.local.example .env.local
 pnpm docker:local
 ```
 
