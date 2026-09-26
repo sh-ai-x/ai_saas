@@ -102,6 +102,29 @@ class MigrationHistoryRepairContractTests(unittest.TestCase):
         self.assertIn('"ca15976228b72e97c66f7e326b076479605e079e46f056cf099f6c30eabdb27f"', source)
         self.assertIn("delete from drizzle.__drizzle_migrations where id >", source)
 
+    def test_main_does_not_require_disk_env_file_when_process_env_has_vars(self):
+        """The production workflow passes DATABASE_URL_UNPOOLED via
+        step `env:` and does NOT materialise .env.production on disk.
+        The script's main() must accept this configuration rather than
+        throwing 'environment file not found'. loadDotenv is best-effort;
+        the env file is only required when DATABASE_URL_UNPOOLED is not
+        already in process.env.
+        """
+        source = SCRIPT.read_text()
+        # main() must not throw unconditionally on a missing env file.
+        self.assertNotIn(
+            'throw new Error(`environment file not found: ${envFile}`)',
+            source,
+        )
+        # The fallback must mention DATABASE_URL_UNPOOLED as the
+        # canonical readiness signal.
+        self.assertIn("DATABASE_URL_UNPOOLED", source)
+        # loadDotenv is called regardless of file presence (best-effort).
+        self.assertRegex(
+            source,
+            r"loadDotenv\(envFile\);\s*\n\s*if\s*\(\!process\.env\.DATABASE_URL_UNPOOLED\)",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
