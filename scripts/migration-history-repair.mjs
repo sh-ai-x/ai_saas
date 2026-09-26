@@ -24,7 +24,6 @@ const REQUIRED_FAQ_IDS = [
   "faq-getting-started",
   "faq-google-login",
   "faq-local-development",
-  "faq-agent-run",
   "faq-pricing-billing",
   "faq-support",
 ];
