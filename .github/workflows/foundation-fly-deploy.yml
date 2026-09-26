@@ -1,0 +1,85 @@
+name: foundation-fly-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'foundation/**'
+      - 'docker/prod/foundation.Dockerfile'
+      - 'agent_platform/**'
+      - 'lib/**'
+      - 'project_packs/**'
+      - 'services/**'
+      - 'evaluators/**'
+      - 'packages/contracts/**'
+      - 'config/**'
+      - 'infra/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'fly.toml'
+      - '.github/workflows/foundation-fly-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      image_only:
+        description: 'Build image only, do not release (for smoke-testing)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy foundation to Fly.io
+    runs-on: ubuntu-latest
+    environment: production
+    timeout: 15m
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Pinned to a specific commit SHA verified against the
+      # superfly/flyctl-actions v1.x release tag. Mutable branch
+      # refs (@master) are a supply-chain hygiene violation — a
+      # force-push or upstream compromise rewrites the deploy step
+      # that holds FLY_API_TOKEN.
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@1cbc9b6f5b73bb87c0bb50e63b8e8c5b5c3a8c91 # v1.1.0
+        with:
+          flyctl-version: latest
+
+      - name: Build and deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          INPUT_IMAGE_ONLY: ${{ inputs.image_only }}
+        run: |
+          set -euo pipefail
+          if [ "${INPUT_IMAGE_ONLY:-false}" = "true" ]; then
+            flyctl deploy --build-only --push
+          else
+            flyctl deploy --remote-only
+          fi
+
+      - name: Smoke-test /healthz
+        if: ${{ inputs.image_only != true }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS --max-time 5 "https://ai-saas-foundation.fly.dev/healthz" >/dev/null; then
+              echo "/healthz OK after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "/healthz not yet (attempt ${i}/10); sleeping 5s"
+            sleep 5
+          done
+          echo "/healthz never came up" >&2
+          flyctl logs --no-tail || true
+          exit 1
