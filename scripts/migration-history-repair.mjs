@@ -57,7 +57,12 @@ function parseArgs(argv) {
     else if (value === "--json") args.json = true;
     else throw new Error(`unknown argument: ${value}`);
   }
-  if (args.target !== "staging") throw new Error("history repair is limited to --target staging");
+  if (!["staging", "production"].includes(args.target)) {
+    throw new Error("history repair is limited to --target staging or --target production");
+  }
+  if (args.target === "production" && args.cleanupLegacy) {
+    throw new Error("--cleanup-legacy is limited to --target staging");
+  }
   return args;
 }
 
@@ -69,14 +74,25 @@ function sameRows(actual, expected) {
   return JSON.stringify(actual.map(rowTuple)) === JSON.stringify(expected);
 }
 
-function checkEnvironment({ apply, cleanupLegacy }) {
+function checkEnvironment({ target, apply, cleanupLegacy }) {
   const branch = (process.env.NEON_BRANCH ?? "").trim().toLowerCase();
-  if ((process.env.APP_ENV ?? "").trim().toLowerCase() !== "staging") throw new Error("APP_ENV must be staging");
+  const appEnv = (process.env.APP_ENV ?? "").trim().toLowerCase();
+  if (!process.env.DATABASE_URL_UNPOOLED) throw new Error("DATABASE_URL_UNPOOLED is required");
+
+  if (target === "production") {
+    if (appEnv !== "production") throw new Error("APP_ENV must be production");
+    if (branch !== "production") throw new Error("NEON_BRANCH must be production");
+    if (apply && process.env.CONFIRM_PRODUCTION_DB !== "production") throw new Error("set CONFIRM_PRODUCTION_DB=production");
+    if (apply && process.env.GITHUB_ACTIONS !== "true") throw new Error("production apply is allowed only from GitHub Actions");
+    if (apply && process.env.CONFIRM_HISTORY_REPAIR !== "production") throw new Error("set CONFIRM_HISTORY_REPAIR=production");
+    return branch;
+  }
+
+  if (appEnv !== "staging") throw new Error("APP_ENV must be staging");
   if (!branch || PROTECTED_BRANCHES.has(branch)) throw new Error("NEON_BRANCH must be a non-production branch");
   if (apply && process.env.CONFIRM_STAGING_DB !== "staging") throw new Error("set CONFIRM_STAGING_DB=staging");
   if (apply && cleanupLegacy && process.env.CONFIRM_LEGACY_CLEANUP !== "stage2") throw new Error("set CONFIRM_LEGACY_CLEANUP=stage2");
   if (apply && !cleanupLegacy && process.env.CONFIRM_HISTORY_REPAIR !== "stage2") throw new Error("set CONFIRM_HISTORY_REPAIR=stage2");
-  if (!process.env.DATABASE_URL_UNPOOLED) throw new Error("DATABASE_URL_UNPOOLED is required");
   return branch;
 }
 
@@ -149,7 +165,7 @@ function print(result, asJson) {
   if (result.ok && result.mode === "plan") console.log("no database changes made");
 }
 
-async function applyRepair(sql, state, migrations) {
+async function applyRepair(sql, state, migrations, target) {
   const toss = migrations.find((migration) => migration.tag === "0003_toss_catalog_krw");
   const english = migrations.find((migration) => migration.tag === "0005_faq_english");
   if (!toss || !english) throw new Error("canonical 0003/0005 migrations are required");
@@ -173,7 +189,7 @@ async function applyRepair(sql, state, migrations) {
     `;
     await tx`
       insert into drizzle.__drizzle_migrations_repair_backup (repair_key, target, neon_branch, original_rows, original_faq_rows)
-      values (${REPAIR_KEY}, 'staging', ${process.env.NEON_BRANCH}, ${tx.json(state.history)}, ${tx.json(state.faqConflicts)})
+      values (${REPAIR_KEY}, ${target}, ${process.env.NEON_BRANCH}, ${tx.json(state.history)}, ${tx.json(state.faqConflicts)})
       on conflict (repair_key) do nothing
     `;
 
@@ -225,7 +241,8 @@ async function cleanupLegacyFaq(sql, state) {
 
 async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
-  const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, ".env.staging");
+  const defaultEnvFile = args.target === "production" ? ".env.production" : ".env.staging";
+  const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, defaultEnvFile);
   if (!loadDotenv(envFile)) throw new Error(`environment file not found: ${envFile}`);
   const branch = checkEnvironment(args);
   const migrations = readMigrationManifest(args.migrationDir, REPO_ROOT);
@@ -234,7 +251,7 @@ async function main(argv = process.argv.slice(2)) {
     const state = await collectState(sql, migrations);
     if (args.cleanupLegacy) {
       const checks = validateLegacyCleanup(state).map(([name, ok, detail]) => ({ name, ok, detail }));
-      const result = { ok: checks.every((check) => check.ok), target: "staging", branch, mode: args.apply ? "apply" : "plan", checks };
+      const result = { ok: checks.every((check) => check.ok), target: args.target, branch, mode: args.apply ? "apply" : "plan", checks };
       if (!result.ok || !args.apply) {
         print(result, args.json);
         return result.ok ? 0 : 1;
@@ -247,7 +264,7 @@ async function main(argv = process.argv.slice(2)) {
     if (sameRows(state.history, state.expected)) {
       const result = {
         ok: true,
-        target: "staging",
+        target: args.target,
         branch,
         mode: args.apply ? "apply" : "plan",
         checks: [{ name: "canonical-history", ok: true, detail: `${migrations.length} rows already current; no repair needed` }],
@@ -256,12 +273,12 @@ async function main(argv = process.argv.slice(2)) {
       return 0;
     }
     const checks = validateCandidate(state).map(([name, ok, detail]) => ({ name, ok, detail }));
-    const result = { ok: checks.every((check) => check.ok), target: "staging", branch, mode: args.apply ? "apply" : "plan", checks };
+    const result = { ok: checks.every((check) => check.ok), target: args.target, branch, mode: args.apply ? "apply" : "plan", checks };
     if (!result.ok || !args.apply) {
       print(result, args.json);
       return result.ok ? 0 : 1;
     }
-    await applyRepair(sql, state, migrations);
+    await applyRepair(sql, state, migrations, args.target);
     result.checks.push({ name: "canonical-history", ok: true, detail: `${migrations.length} rows restored` });
     result.checks.push({ name: "data-verification", ok: true, detail: "KRW catalog and English FAQ verified" });
     print(result, args.json);
