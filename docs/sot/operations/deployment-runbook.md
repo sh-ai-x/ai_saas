@@ -135,6 +135,18 @@ If history is `incompatible`, stop. Do not retry the apply command, edit the
 history table manually, or create a new migration that hides the divergence.
 Open a reviewed staging repair change with an explicit data-preservation plan.
 
+For one specific, known drift shape on `staging` — migration files edited
+after they were already applied — `scripts/migration-history-repair.mjs`
+(`pnpm db:repair-history:stage`, add `-- --apply` with
+`CONFIRM_STAGING_DB=staging CONFIRM_HISTORY_REPAIR=stage2` to write) relabels
+history rows to the canonical current hashes and runs only the genuinely
+missing data-migration SQL, without re-executing already-applied DDL. It is
+deliberately hardcoded to the current migration set and this repo's specific
+history signature — it is a one-time incident repair, not a general tool, and
+is intentionally staging-only (`pnpm db:cleanup:legacy:stage` is the related
+legacy-FAQ-row cleanup, same confirmation pattern with
+`CONFIRM_LEGACY_CLEANUP=stage2`).
+
 Production is CI-only:
 
 ```bash
