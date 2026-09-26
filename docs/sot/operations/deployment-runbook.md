@@ -147,6 +147,12 @@ is intentionally staging-only (`pnpm db:cleanup:legacy:stage` is the related
 legacy-FAQ-row cleanup, same confirmation pattern with
 `CONFIRM_LEGACY_CLEANUP=stage2`).
 
+Run plan mode first (omit `--apply`) to inspect the per-check
+PASS/FAIL summary before writing; pass `--json` for a machine-readable
+variant suitable for piping into a ticket or pager. The repair is
+idempotent — re-running against an already-canonical history is a
+no-op that prints `already current; no repair needed`.
+
 Production is CI-only:
 
 ```bash
