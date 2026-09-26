@@ -1,0 +1,73 @@
+# fly.toml — production deployment config for the foundation service.
+#
+# Boots the Python FastAPI surface in foundation/server.py on port 8080,
+# backed by an existing Neon Postgres (DATABASE_URL secret) and a small
+# persistent volume for the SQLite state store at /var/lib/ai-saas.
+#
+# Runbook (after `brew install flyctl && fly auth login`):
+#   fly apps create ai-saas-foundation
+#   fly volumes create foundation_state --size 1 --region nrt
+#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://ai-saas-foundation.fly.dev ...
+#   fly deploy
+#
+# Auto-deploys from main via .github/workflows/foundation-fly-deploy.yml.
+#
+# Notes:
+# - [env] holds ONLY build-time / non-secret defaults. Anything
+#   environment-specific (APP_ENV, AUTH_PROVIDER, PAYMENT_PROVIDER,
+#   MOCK_PAYMENTS_ENABLED, AGENT_PROVIDER_MODE, run-quota limits) is
+#   set per-environment via `fly secrets` and must NOT be baked in
+#   here — a fake payment provider or fake agent mode baked into a
+#   production build is a billing-integrity exposure.
+# - [metrics] is intentionally absent: the foundation app has no
+#   /metrics route, and exposing Fly's metrics scraper on the public
+#   app port would let anyone hit a private collector endpoint.
+# - release_command is intentionally absent: foundation.contract_check
+#   already runs at build time inside the Dockerfile (line 30), so
+#   re-running it as a release hook would hold prod hostage to a
+#   check that already passed.
+
+app = "ai-saas-foundation"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "docker/prod/foundation.Dockerfile"
+
+[env]
+  APP_BASE_URL = "https://ai-saas-foundation.fly.dev"
+  CONTRACT_VERSION = "v1"
+  WORKFLOW_PROVIDER = "local"
+  OTEL_ENABLED = "true"
+  OTEL_SAMPLE_RATE = "0.1"
+
+[[mounts]]
+  source = "foundation_state"
+  destination = "/var/lib/ai-saas"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "get"
+    path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
