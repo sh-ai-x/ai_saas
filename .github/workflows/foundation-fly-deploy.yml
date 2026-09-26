@@ -44,12 +44,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Pinned to a specific commit SHA verified against the
+      # superfly/flyctl-actions v1.x release tag. Mutable branch
+      # refs (@master) are a supply-chain hygiene violation — a
+      # force-push or upstream compromise rewrites the deploy step
+      # that holds FLY_API_TOKEN.
       - name: Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@1cbc9b6f5b73bb87c0bb50e63b8e8c5b5c3a8c91 # v1.1.0
+        with:
+          flyctl-version: latest
 
       - name: Build and deploy
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          INPUT_IMAGE_ONLY: ${{ inputs.image_only }}
         run: |
           set -euo pipefail
           if [ "${INPUT_IMAGE_ONLY:-false}" = "true" ]; then
@@ -57,8 +65,6 @@ jobs:
           else
             flyctl deploy --remote-only
           fi
-        env:
-          INPUT_IMAGE_ONLY: ${{ inputs.image_only }}
 
       - name: Smoke-test /healthz
         if: ${{ inputs.image_only != true }}

@@ -7,10 +7,25 @@
 # Runbook (after `brew install flyctl && fly auth login`):
 #   fly apps create ai-saas-foundation
 #   fly volumes create foundation_state --size 1 --region nrt
-#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://ai-saas-foundation.fly.dev
+#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://ai-saas-foundation.fly.dev ...
 #   fly deploy
 #
 # Auto-deploys from main via .github/workflows/foundation-fly-deploy.yml.
+#
+# Notes:
+# - [env] holds ONLY build-time / non-secret defaults. Anything
+#   environment-specific (APP_ENV, AUTH_PROVIDER, PAYMENT_PROVIDER,
+#   MOCK_PAYMENTS_ENABLED, AGENT_PROVIDER_MODE, run-quota limits) is
+#   set per-environment via `fly secrets` and must NOT be baked in
+#   here — a fake payment provider or fake agent mode baked into a
+#   production build is a billing-integrity exposure.
+# - [metrics] is intentionally absent: the foundation app has no
+#   /metrics route, and exposing Fly's metrics scraper on the public
+#   app port would let anyone hit a private collector endpoint.
+# - release_command is intentionally absent: foundation.contract_check
+#   already runs at build time inside the Dockerfile (line 30), so
+#   re-running it as a release hook would hold prod hostage to a
+#   check that already passed.
 
 app = "ai-saas-foundation"
 primary_region = "nrt"
@@ -19,20 +34,13 @@ primary_region = "nrt"
   dockerfile = "docker/prod/foundation.Dockerfile"
 
 [env]
-  APP_ENV = "production"
   APP_BASE_URL = "https://ai-saas-foundation.fly.dev"
-  PAYMENT_PROVIDER = "mock"
-  MOCK_PAYMENTS_ENABLED = "true"
   CONTRACT_VERSION = "v1"
   WORKFLOW_PROVIDER = "local"
-  AGENT_PROVIDER_MODE = "fake"
   OTEL_ENABLED = "true"
   OTEL_SAMPLE_RATE = "0.1"
-  RUN_QUOTA_MAX_RUNS = "10"
-  RUN_QUOTA_MAX_UNITS = "100"
-  RUN_QUOTA_PERIOD_SECONDS = "86400"
 
-[mounts]
+[[mounts]]
   source = "foundation_state"
   destination = "/var/lib/ai-saas"
 
@@ -59,19 +67,7 @@ primary_region = "nrt"
     method = "get"
     path = "/healthz"
 
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "5s"
-    grace_period = "10s"
-
-[deploy]
-  release_command = "uv run --frozen --no-dev python -m foundation.contract_check"
-
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory = "512mb"
-
-[metrics]
-  port = 8080
-  path = "/metrics"
