@@ -25,8 +25,22 @@ class MigrationHistoryRepairContractTests(unittest.TestCase):
         self.assertIn("NEON_BRANCH must be production", source)
         self.assertIn('CONFIRM_PRODUCTION_DB !== "production"', source)
         self.assertIn('CONFIRM_HISTORY_REPAIR !== "production"', source)
-        # Production apply is gated to GitHub Actions — no local apply.
-        self.assertIn("production apply is allowed only from GitHub Actions", source)
+        # Production target is gated to GitHub Actions for BOTH plan and
+        # apply (plan mode dumps migration history + FAQ/pricing/catalog
+        # row counts via --json; without the gate any holder of
+        # DATABASE_URL_UNPOOLED could read the full state).
+        self.assertIn("production target is allowed only from GitHub Actions", source)
+
+    def test_repair_key_is_target_scoped(self):
+        source = SCRIPT.read_text()
+        # REPAIR_KEY must be derived from target so staging and
+        # production backup rows do not collide on the same primary key.
+        self.assertIn("function repairKeyFor(target)", source)
+        self.assertIn("${target}-canonical-v1", source)
+        # The shared hardcoded key would silently drop the production
+        # backup row via `on conflict (repair_key) do nothing` after a
+        # staging apply. Verify no literal survives.
+        self.assertNotIn("const REPAIR_KEY =", source)
 
     def test_cleanup_legacy_is_staging_only(self):
         source = SCRIPT.read_text()

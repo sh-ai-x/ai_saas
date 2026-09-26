@@ -10,7 +10,14 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const requireFromWeb = createRequire(pathToFileURL(path.join(REPO_ROOT, "apps/web/package.json")));
 const postgres = requireFromWeb("postgres");
 
-const REPAIR_KEY = "stage2-canonical-v1";
+// REPAIR_KEY must be target-scoped: a hardcoded shared key would let a
+// staging apply silently drop the production backup row via the
+// `on conflict (repair_key) do nothing` clause (audit trail gone
+// before the production mutation runs). See maintenance review on
+// PR #43 round 2 — critical finding.
+function repairKeyFor(target) {
+  return `${target}-canonical-v1`;
+}
 const LEGACY_HISTORY = [
   [1, "19d877e52b3a5780ba6e4146c5fa08510b5b0c53e9c3a09c506f3cbebf7bb1e3", "1789779671842"],
   [2, "a4511550b760a7b552a6407563d01a4480b21db42fb1afc4d1f7dde39108931b", "1789780992501"],
@@ -82,8 +89,13 @@ function checkEnvironment({ target, apply, cleanupLegacy }) {
   if (target === "production") {
     if (appEnv !== "production") throw new Error("APP_ENV must be production");
     if (branch !== "production") throw new Error("NEON_BRANCH must be production");
+    // Production is gated to GitHub Actions for BOTH plan and apply.
+    // Plan mode dumps `__drizzle_migrations` history, FAQ row
+    // presence, and pricing/catalog row counts via --json; the same
+    // DATABASE_URL_UNPOOLED that proves write authority is enough
+    // to read everything. Operator surface stays in CI.
+    if (process.env.GITHUB_ACTIONS !== "true") throw new Error("production target is allowed only from GitHub Actions");
     if (apply && process.env.CONFIRM_PRODUCTION_DB !== "production") throw new Error("set CONFIRM_PRODUCTION_DB=production");
-    if (apply && process.env.GITHUB_ACTIONS !== "true") throw new Error("production apply is allowed only from GitHub Actions");
     if (apply && process.env.CONFIRM_HISTORY_REPAIR !== "production") throw new Error("set CONFIRM_HISTORY_REPAIR=production");
     return branch;
   }
@@ -141,9 +153,20 @@ function validateLegacyCleanup(state) {
   return checks;
 }
 
-function validateCandidate(state) {
+function validateCandidate(state, target) {
   const checks = [];
-  checks.push(["legacy-history-signature", sameRows(state.history, LEGACY_HISTORY), `${state.history.length} history rows`]);
+  // LEGACY_HISTORY is the staging drift shape. Production's
+  // __drizzle_migrations signature diverges (different hashes and
+  // row counts), so this check only makes sense against staging.
+  if (target === "staging") {
+    checks.push(["legacy-history-signature", sameRows(state.history, LEGACY_HISTORY), `${state.history.length} history rows`]);
+  } else {
+    // Production skip — the staging signature check is meaningless
+    // here. The production workflow only repairs when the canonical
+    // expected history does NOT match (see main() short-circuit on
+    // `sameRows(state.history, state.expected)`).
+    checks.push(["legacy-history-signature", true, `skipped (target=${target}; staging signature is not applicable)`]);
+  }
   checks.push(["faq-table", state.faqTable, "public.faq_entries exists"]);
   checks.push(["pricing-table", state.pricingTable, "public.pricing_options exists"]);
   checks.push(["catalog-table", state.catalogTable, "public.pricing_catalog_settings exists"]);
@@ -189,7 +212,7 @@ async function applyRepair(sql, state, migrations, target) {
     `;
     await tx`
       insert into drizzle.__drizzle_migrations_repair_backup (repair_key, target, neon_branch, original_rows, original_faq_rows)
-      values (${REPAIR_KEY}, ${target}, ${process.env.NEON_BRANCH}, ${tx.json(state.history)}, ${tx.json(state.faqConflicts)})
+      values (${repairKeyFor(target)}, ${target}, ${process.env.NEON_BRANCH}, ${tx.json(state.history)}, ${tx.json(state.faqConflicts)})
       on conflict (repair_key) do nothing
     `;
 
@@ -231,7 +254,7 @@ async function cleanupLegacyFaq(sql, state) {
     await tx`
       update drizzle.__drizzle_migrations_repair_backup
       set legacy_faq_rows = ${tx.json(state.legacyFaqRows)}
-      where repair_key = ${REPAIR_KEY}
+      where repair_key = ${repairKeyFor(target)}
     `;
     await tx`delete from public.faq_entries where id in ${tx(LEGACY_FAQ_IDS)}`;
     const remaining = await tx`select count(*)::int as count from public.faq_entries where id in ${tx(LEGACY_FAQ_IDS)}`;
@@ -272,7 +295,7 @@ async function main(argv = process.argv.slice(2)) {
       print(result, args.json);
       return 0;
     }
-    const checks = validateCandidate(state).map(([name, ok, detail]) => ({ name, ok, detail }));
+    const checks = validateCandidate(state, args.target).map(([name, ok, detail]) => ({ name, ok, detail }));
     const result = { ok: checks.every((check) => check.ok), target: args.target, branch, mode: args.apply ? "apply" : "plan", checks };
     if (!result.ok || !args.apply) {
       print(result, args.json);
