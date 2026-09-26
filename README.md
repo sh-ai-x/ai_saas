@@ -311,7 +311,7 @@ cp .env.staging.example .env.staging
 pnpm docker:neon
 ```
 
-`docker:neon` derives an isolated `3200`/`8280` host-port block per worktree.
+`docker:neon` exposes the web console on `3200` and the API on `8280`.
 The web container receives the pooled `DATABASE_URL`; the one-shot
 `web-migrate` container receives only `DATABASE_URL_UNPOOLED`. Stop that
 worktree with `pnpm docker:neon:down`. Create/select the Neon branch with Neon
@@ -349,12 +349,11 @@ cp .env.local.example .env.local
 pnpm docker:local
 ```
 
-The first available slot uses `http://localhost:3100` for the web console and
-`http://localhost:8180/healthz` for the API health check. Other worktrees get
-the next free block (`+10` per slot), and the Compose output prints the exact
-published ports. The Docker-only host ports are intentionally separate from
-the process-mode/legacy defaults (`3000`, `8080`, and `5432`). Container-to-
-container URLs remain `web:3000`, `foundation:8080`, and `postgres:5432`.
+The fixed host ports for the standard Docker profile are `http://localhost:3100`
+for the web console and `http://localhost:8180/healthz` for the API health check.
+These are intentionally separate from the process-mode defaults (`3000`, `8080`,
+and `5432`). Container-to-container URLs remain `web:3000`, `foundation:8080`,
+and `postgres:5432`.
 The default profile uses mock payments, while the browser has no local/mock
 login fallback. Local Compose PostgreSQL uses trust authentication and does
 not require `POSTGRES_PASSWORD`. For live Google login, fill

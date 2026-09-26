@@ -69,17 +69,16 @@ pnpm docker:local
 ```
 
 The stable internal ports are web `3000`, Foundation `8080`, and PostgreSQL
-`5432`. Host ports are allocated per worktree:
+`5432`. Host ports are fixed per profile:
 
-| Service | Host port |
-|---|---:|
-| Web | `3100 + slot * 10` |
-| Foundation | `8180 + slot * 10` |
-| PostgreSQL | `55433 + slot * 10` |
+| Profile | Web | Foundation | PostgreSQL |
+|---|---:|---:|---:|
+| `pnpm --filter ai-saas-foundation-web dev` (process-only) | `3000` | `8080` | `5432` |
+| `pnpm docker:local` | `3100` | `8180` | `55433` |
+| `pnpm docker:neon` | `3200` | `8280` | — |
 
-Set `DOCKER_LOCAL_SLOT=0..39` when a deterministic slot is needed. Stop one
-worktree with `pnpm docker:local down`; add `--volumes` only when its local
-data is disposable.
+Stop one worktree with `pnpm docker:local down`; add `--volumes` only when
+its local data is disposable.
 
 To run the web console against a selected Neon branch instead of local
 PostgreSQL:
@@ -90,8 +89,8 @@ pnpm docker:neon
 ```
 
 The Neon profile does not start PostgreSQL. It uses the pooled URL for runtime
-traffic, the direct URL for the one-shot migration container, and allocates
-host ports from web `3200 + slot * 10` and Foundation `8280 + slot * 10`.
+traffic, the direct URL for the one-shot migration container, and exposes the
+web console on host port `3200` and the API on `8280`.
 
 ## 4. Drizzle and Neon migration workflow
 
