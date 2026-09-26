@@ -68,7 +68,7 @@ class MigrationVerificationContractTests(unittest.TestCase):
 
     def test_release_loads_an_explicit_env_file_for_plan(self):
         with tempfile.TemporaryDirectory() as directory:
-            env_file = Path(directory) / ".env.stage"
+            env_file = Path(directory) / ".env.staging"
             env_file.write_text(
                 "\n".join(
                     [
@@ -92,7 +92,7 @@ class MigrationVerificationContractTests(unittest.TestCase):
 
     def test_env_file_cannot_self_author_staging_apply(self):
         with tempfile.TemporaryDirectory() as directory:
-            env_file = Path(directory) / ".env.stage"
+            env_file = Path(directory) / ".env.staging"
             env_file.write_text(
                 "\n".join(
                     [

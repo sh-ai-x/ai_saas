@@ -61,10 +61,10 @@ from the current Git branch name.
 ## 3. Local Docker workflow
 
 The local command deliberately forces the web runtime and Drizzle migration to
-the worktree-local PostgreSQL service, even if a Neon URL is present in `.env`:
+the worktree-local PostgreSQL service, even if a Neon URL is present in `.env.local`:
 
 ```bash
-cp .env.docker.example .env
+cp .env.local.example .env.local
 pnpm docker:local
 ```
 
@@ -85,7 +85,7 @@ To run the web console against a selected Neon branch instead of local
 PostgreSQL:
 
 ```bash
-cp .env.neon.example .env.neon
+cp .env.staging.example .env.staging
 pnpm docker:neon
 ```
 
@@ -103,20 +103,20 @@ pnpm run web:db:generate
 git diff -- apps/web/drizzle
 ```
 
-For the shared staging branch, `.env.stage` must contain `APP_ENV=staging`,
+For the shared staging branch, `.env.staging` must contain `APP_ENV=staging`,
 the pooled `DATABASE_URL`, and the direct `DATABASE_URL_UNPOOLED`. Supply the
 branch name explicitly:
 
 ```bash
 NEON_BRANCH=stage2 \
-pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
 
 NEON_BRANCH=stage2 \
-pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 
 CONFIRM_STAGING_DB=staging \
 NEON_BRANCH=stage2 \
-pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 The order is mandatory:

@@ -226,7 +226,7 @@ async function cleanupLegacyFaq(sql, state) {
 
 async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
-  const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, ".env.stage");
+  const envFile = args.fromFile ? path.resolve(args.fromFile) : path.join(REPO_ROOT, ".env.staging");
   if (!loadDotenv(envFile)) throw new Error(`environment file not found: ${envFile}`);
   const branch = checkEnvironment(args);
   const migrations = readMigrationManifest(args.migrationDir, REPO_ROOT);

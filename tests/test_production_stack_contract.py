@@ -95,7 +95,7 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn("BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3100}", web)
 
     def test_docker_env_example_matches_isolated_public_defaults(self) -> None:
-        env_example = (ROOT / ".env.docker.example").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.local.example").read_text(encoding="utf-8")
 
         for expected in (
             "POSTGRES_PORT=55433",
@@ -123,13 +123,13 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn('"${compose[@]}" down "${down_args[@]+"${down_args[@]}"}"', script)
 
     def test_docker_env_example_declares_worktree_and_remote_database_guards(self) -> None:
-        env_example = (ROOT / ".env.docker.example").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.local.example").read_text(encoding="utf-8")
         self.assertIn("DOCKER_LOCAL_SLOT=", env_example)
         self.assertIn("ALLOW_REMOTE_DATABASE=false", env_example)
 
     def test_neon_docker_contract_has_a_separate_worktree_runner(self) -> None:
         script = (ROOT / "scripts/docker-neon.sh").read_text(encoding="utf-8")
-        env_example = (ROOT / ".env.neon.example").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.staging.example").read_text(encoding="utf-8")
 
         self.assertIn("NEON_DOCKER_SLOT", script)
         self.assertIn("docker/neon/compose.yaml", script)

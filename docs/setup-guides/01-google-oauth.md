@@ -216,10 +216,10 @@ For a Neon staging OAuth check, use the reviewed migration gate instead of a
 raw package migration command:
 
 ```bash
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 The Drizzle config still reads `apps/web/.env.local` for local-only commands.

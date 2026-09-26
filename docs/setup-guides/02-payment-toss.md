@@ -85,7 +85,7 @@ docker compose -p ai-saas-toss-sandbox \
 Do not use `-v` unless the disposable sandbox database should be removed.
 
 ```bash
-cp .env.docker.example .env
+cp .env.local.example .env.local
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
 export TOSS_CLIENT_KEY="test_ck_your_client_key"
 export TOSS_SECRET_KEY="test_sk_your_matching_secret_key"

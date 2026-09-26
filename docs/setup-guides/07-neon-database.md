@@ -65,9 +65,9 @@ queries. To run the web console in Docker against the selected branch, use
 the Neon-specific profile instead of the local PostgreSQL profile:
 
 ```bash
-cp .env.neon.example .env.neon
+cp .env.staging.example .env.staging
 # Copy DATABASE_URL and DATABASE_URL_UNPOOLED from the selected branch into
-# .env.neon, then add the required application and OAuth secrets.
+# .env.staging, then add the required application and OAuth secrets.
 pnpm docker:neon
 ```
 
@@ -119,14 +119,14 @@ must pass before the apply command is allowed to continue:
 
 ```bash
 NEON_BRANCH=stage2 \
-pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
 
 NEON_BRANCH=stage2 \
-pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 
 CONFIRM_STAGING_DB=staging \
 NEON_BRANCH=stage2 \
-pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 Success requires `migration-history: current`, no pending migrations, and the

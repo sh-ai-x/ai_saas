@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_NEON_PROJECT_ID = "lucky-boat-01406333"
 DEFAULT_NEON_BRANCH = "production"
 DEFAULT_WEB_ENV = Path("apps/web/.env.local")
-DEFAULT_NEON_ENV = Path(".env.local")
+DEFAULT_NEON_ENV = Path(".env.staging")
 ENV_KEY = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
 SAFE_VALUE = re.compile(r"^[A-Za-z0-9_./:@?&=+,%~-]+$")
 

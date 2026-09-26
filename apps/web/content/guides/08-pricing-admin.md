@@ -21,14 +21,14 @@ pnpm install
 pnpm docker:local
 ```
 
-For staging, load the ignored `.env.stage` file and use the reviewed release
+For staging, load the ignored `.env.staging` file and use the reviewed release
 gate:
 
 ```bash
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 Production migration is a CI-only release step. The migration creates plan

@@ -60,8 +60,8 @@ function loadDefaultEnv(target, fromFile) {
   }
 
   const candidates = target === "production"
-    ? [".env.production", ".env.prod", ".env"]
-    : [".env.stage", ".env.staging", ".env.neon", ".env"];
+    ? [".env.production"]
+    : [".env.staging", ".env.local"];
   const selected = candidates.find((candidate) => loadDotenv(path.join(REPO_ROOT, candidate), ENV_FILE_KEYS));
   return selected ?? null;
 }

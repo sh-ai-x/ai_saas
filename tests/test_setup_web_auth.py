@@ -22,7 +22,7 @@ class SetupWebAuthTests(unittest.TestCase):
             "--env-file",
             "apps/web/.env.local",
             "--neon-env-file",
-            ".env.local",
+            ".env.staging",
             *arguments,
         ]
         return subprocess.run(command, text=True, capture_output=True, env=env)
@@ -38,7 +38,7 @@ class SetupWebAuthTests(unittest.TestCase):
                 "UNRELATED=value\n",
                 encoding="utf-8",
             )
-            (root / ".env.local").write_text(
+            (root / ".env.staging").write_text(
                 "DATABASE_URL=postgresql://user:password@ep.example.neon.tech/db?sslmode=require\n"
                 "DATABASE_URL_UNPOOLED=postgresql://user:password@ep.example.neon.tech/db\n",
                 encoding="utf-8",
@@ -73,7 +73,7 @@ class SetupWebAuthTests(unittest.TestCase):
             fake_neon.write_text(
                 "#!/bin/sh\n"
                 f"printf '%s\\n' \"$*\" >> '{log}'\n"
-                "printf '%s\\n' 'DATABASE_URL=postgresql://linked:secret@ep.example.neon.tech/db?sslmode=require' > .env.local\n"
+                "printf '%s\\n' 'DATABASE_URL=postgresql://linked:secret@ep.example.neon.tech/db?sslmode=require' > .env.staging\n"
                 "exit 0\n",
                 encoding="utf-8",
             )
