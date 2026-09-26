@@ -6,11 +6,32 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "migration-history-repair.mjs"
 
 
 class MigrationHistoryRepairContractTests(unittest.TestCase):
-    def test_repair_is_staging_only_and_requires_explicit_confirmation(self):
+    def test_repair_accepts_only_staging_or_production_targets(self):
         source = SCRIPT.read_text()
-        self.assertIn('args.target !== "staging"', source)
+        # Both targets must be accepted; anything else is rejected.
+        self.assertIn('["staging", "production"]', source)
+        self.assertIn("--target staging or --target production", source)
+
+    def test_staging_repair_requires_staging_environment_and_confirmations(self):
+        source = SCRIPT.read_text()
+        self.assertIn("APP_ENV must be staging", source)
+        self.assertIn("NEON_BRANCH must be a non-production branch", source)
         self.assertIn('CONFIRM_STAGING_DB !== "staging"', source)
         self.assertIn('CONFIRM_HISTORY_REPAIR !== "stage2"', source)
+
+    def test_production_repair_requires_production_environment_and_extra_gates(self):
+        source = SCRIPT.read_text()
+        self.assertIn("APP_ENV must be production", source)
+        self.assertIn("NEON_BRANCH must be production", source)
+        self.assertIn('CONFIRM_PRODUCTION_DB !== "production"', source)
+        self.assertIn('CONFIRM_HISTORY_REPAIR !== "production"', source)
+        # Production apply is gated to GitHub Actions — no local apply.
+        self.assertIn("production apply is allowed only from GitHub Actions", source)
+
+    def test_cleanup_legacy_is_staging_only(self):
+        source = SCRIPT.read_text()
+        self.assertIn("--cleanup-legacy is limited to --target staging", source)
+        self.assertIn('CONFIRM_LEGACY_CLEANUP !== "stage2"', source)
 
     def test_repair_archives_history_before_normalizing_it(self):
         source = SCRIPT.read_text()
