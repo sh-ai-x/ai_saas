@@ -6,11 +6,72 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "migration-history-repair.mjs"
 
 
 class MigrationHistoryRepairContractTests(unittest.TestCase):
-    def test_repair_is_staging_only_and_requires_explicit_confirmation(self):
+    def test_repair_accepts_only_staging_or_production_targets(self):
         source = SCRIPT.read_text()
-        self.assertIn('args.target !== "staging"', source)
+        # Both targets must be accepted; anything else is rejected.
+        self.assertIn('["staging", "production"]', source)
+        self.assertIn("--target staging or --target production", source)
+
+    def test_staging_repair_requires_staging_environment_and_confirmations(self):
+        source = SCRIPT.read_text()
+        self.assertIn("APP_ENV must be staging", source)
+        self.assertIn("NEON_BRANCH must be a non-production branch", source)
         self.assertIn('CONFIRM_STAGING_DB !== "staging"', source)
         self.assertIn('CONFIRM_HISTORY_REPAIR !== "stage2"', source)
+
+    def test_production_repair_requires_production_environment_and_extra_gates(self):
+        source = SCRIPT.read_text()
+        self.assertIn("APP_ENV must be production", source)
+        self.assertIn("NEON_BRANCH must be production", source)
+        self.assertIn('CONFIRM_PRODUCTION_DB !== "production"', source)
+        # Production repair uses a distinct marker (mirroring staging's
+        # `stage2`) so the env-var literal can't collide with
+        # CONFIRM_PRODUCTION_DB.
+        self.assertIn('CONFIRM_HISTORY_REPAIR !== "prod-repair-v1"', source)
+        self.assertIn('set CONFIRM_HISTORY_REPAIR=prod-repair-v1', source)
+        # Production target is gated to GitHub Actions for BOTH plan and
+        # apply (plan mode dumps migration history + FAQ/pricing/catalog
+        # row counts via --json; without the gate any holder of
+        # DATABASE_URL_UNPOOLED could read the full state).
+        self.assertIn("production target is allowed only from GitHub Actions", source)
+
+    def test_repair_key_is_target_scoped(self):
+        source = SCRIPT.read_text()
+        # REPAIR_KEY must be derived from target so staging and
+        # production backup rows do not collide on the same primary key.
+        self.assertIn("function repairKeyFor(target)", source)
+        self.assertIn("${target}-canonical-v1", source)
+        # The shared hardcoded key would silently drop the production
+        # backup row via `on conflict (repair_key) do nothing` after a
+        # staging apply. Verify no literal survives.
+        self.assertNotIn("const REPAIR_KEY =", source)
+        # cleanupLegacyFaq must take target as its third argument so the
+        # UPDATE matches the staging backup row (regression caught in
+        # maintenance review round 3).
+        self.assertRegex(source, r"async\s+function\s+cleanupLegacyFaq\s*\(\s*sql\s*,\s*state\s*,\s*target\s*\)")
+        self.assertIn("cleanupLegacyFaq(sql, state, args.target)", source)
+
+    def test_prod_workflow_passes_env_without_writing_disk_file(self):
+        """The production workflow must NOT materialise .env.production on
+        disk: GitHub secret masking protects stdout only, and the URL
+        would be unredacted in the runner workspace for the lifetime of
+        the job. The script's loadDotenv checks `process.env` first, so
+        passing DATABASE_URL_UNPOOLED via the step `env:` block is
+        sufficient.
+        """
+        workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "migration-repair-prod.yml").read_text()
+        # DATABASE_URL_UNPOOLED must be set via the step env block.
+        self.assertRegex(workflow, r"DATABASE_URL_UNPOOLED:\s+\$")
+        # No file write of .env.production (no `cat > .env.production`).
+        self.assertNotIn("cat > .env.production", workflow)
+        # Heredoc of any flavour is gone too.
+        self.assertNotIn("<<EOF", workflow)
+        self.assertNotIn("<<'EOF'", workflow)
+
+    def test_cleanup_legacy_is_staging_only(self):
+        source = SCRIPT.read_text()
+        self.assertIn("--cleanup-legacy is limited to --target staging", source)
+        self.assertIn('CONFIRM_LEGACY_CLEANUP !== "stage2"', source)
 
     def test_repair_archives_history_before_normalizing_it(self):
         source = SCRIPT.read_text()
