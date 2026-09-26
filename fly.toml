@@ -1,0 +1,77 @@
+# fly.toml — production deployment config for the foundation service.
+#
+# Boots the Python FastAPI surface in foundation/server.py on port 8080,
+# backed by an existing Neon Postgres (DATABASE_URL secret) and a small
+# persistent volume for the SQLite state store at /var/lib/ai-saas.
+#
+# Runbook (after `brew install flyctl && fly auth login`):
+#   fly apps create ai-saas-foundation
+#   fly volumes create foundation_state --size 1 --region nrt
+#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://ai-saas-foundation.fly.dev
+#   fly deploy
+#
+# Auto-deploys from main via .github/workflows/foundation-fly-deploy.yml.
+
+app = "ai-saas-foundation"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "docker/prod/foundation.Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  APP_BASE_URL = "https://ai-saas-foundation.fly.dev"
+  PAYMENT_PROVIDER = "mock"
+  MOCK_PAYMENTS_ENABLED = "true"
+  CONTRACT_VERSION = "v1"
+  WORKFLOW_PROVIDER = "local"
+  AGENT_PROVIDER_MODE = "fake"
+  OTEL_ENABLED = "true"
+  OTEL_SAMPLE_RATE = "0.1"
+  RUN_QUOTA_MAX_RUNS = "10"
+  RUN_QUOTA_MAX_UNITS = "100"
+  RUN_QUOTA_PERIOD_SECONDS = "86400"
+
+[mounts]
+  source = "foundation_state"
+  destination = "/var/lib/ai-saas"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "get"
+    path = "/healthz"
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[deploy]
+  release_command = "uv run --frozen --no-dev python -m foundation.contract_check"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
+
+[metrics]
+  port = 8080
+  path = "/metrics"
