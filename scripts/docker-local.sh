@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
-env_file="$repo_root/.env"
+env_file="$repo_root/.env.local"
 compose_file="$repo_root/docker/prod/compose.yaml"
 command_mode="up"
 if [[ "${1:-}" == "down" ]]; then
@@ -19,7 +19,7 @@ fi
 
 if [[ ! -f "$env_file" ]]; then
   echo "Missing $env_file" >&2
-  echo "Create it first with: cp .env.docker.example .env" >&2
+  echo "Create it first with: cp .env.local.example .env.local" >&2
   exit 1
 fi
 

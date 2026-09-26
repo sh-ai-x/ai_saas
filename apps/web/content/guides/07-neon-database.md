@@ -43,7 +43,7 @@ neon link --project-id lucky-boat-01406333 --branch production -y
 ```
 
 This creates the ignored `.neon` context and pulls `DATABASE_URL`,
-`DATABASE_URL_UNPOOLED`, and `NEON_BRANCH` into the ignored `.env.local` file.
+`DATABASE_URL_UNPOOLED`, and `NEON_BRANCH` into the ignored `.env.staging` file.
 
 For the web app, run the setup command after linking. It copies the Neon URL
 into `apps/web/.env.local`, generates the Better Auth secret if needed, and
@@ -96,10 +96,10 @@ Keep `DATABASE_URL` pooled for application traffic and use
 `DATABASE_URL_UNPOOLED` for Drizzle migrations:
 
 ```bash
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 Success requires current migration history and the final

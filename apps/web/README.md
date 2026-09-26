@@ -42,7 +42,7 @@ From the repository root, the production-shaped Compose stack starts the web
 image, Foundation API, PostgreSQL companion, and Drizzle migration job:
 
 ```bash
-cp .env.docker.example .env
+cp .env.local.example .env.local
 pnpm docker:local
 ```
 
@@ -54,7 +54,7 @@ one-shot service applies the committed Drizzle migrations before the web
 container starts. The default Docker profile is local/demo mode with mock
 payments. Local Compose PostgreSQL uses trust authentication and does not
 require `POSTGRES_PASSWORD`. For live Google login, fill the server-only
-Better Auth and Google values in the ignored root `.env`; `apps/web/.env.local`
+Better Auth and Google values in the ignored root `.env.local`; `apps/web/.env.local`
 is used by process-mode commands, not automatically by Docker Compose.
 `pnpm docker:local` explicitly loads the root `.env`, rebuilds the local images, and
 force-recreates the containers so changed OAuth values are applied.
@@ -95,7 +95,7 @@ guide is imported at build time from the Markdown files in
 `apps/web/content/guides/*.md`, displayed as a read-only Markdown editor with
 line numbers, and rendered below as a GitHub-Flavored Markdown preview with
 headings, lists, tables, links, blockquotes, and fenced code. The database group
-contains the Neon PostgreSQL setup guide, including safe `.env.local`/`.neon`
+contains the Neon PostgreSQL setup guide, including safe `.env.staging`/`.neon`
 handling and read-only connection verification. The same source is mirrored as
 canonical documentation under `docs/setup-guides/`. Pricing is managed from
 `/admin/pricing` through Drizzle/Neon tables and supports one-time, monthly,

@@ -231,10 +231,10 @@ web process uses pooled `DATABASE_URL`; Drizzle migrations use direct
 pnpm docker:local
 
 # an explicitly selected Neon staging branch: preflight, plan, then apply
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
@@ -263,14 +263,14 @@ only committed Drizzle migrations, and verifies the final history afterward:
 
 ```bash
 NEON_BRANCH=stage2 \
-pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
 
 CONFIRM_STAGING_DB=staging \
 NEON_BRANCH=stage2 \
-pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
-For a no-write plan, use `pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"`.
+For a no-write plan, use `pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"`.
 The production equivalents are CI-only and require the production confirmation
 variables; never run a production migration from a developer shell.
 
@@ -305,7 +305,7 @@ Use the Neon Compose profile when the web console must run against a Neon
 preview or staging branch. It does not start a local PostgreSQL container:
 
 ```bash
-cp .env.neon.example .env.neon
+cp .env.staging.example .env.staging
 # Fill DATABASE_URL with the pooled URL and DATABASE_URL_UNPOOLED with the
 # direct URL from the selected Neon branch, then add the runtime secrets.
 pnpm docker:neon
@@ -345,7 +345,7 @@ PostgreSQL volume. See [ADR-0002](docs/adr/0002-worktree-port-and-database-isola
 for the local/preview/staging/production database boundary.
 
 ```bash
-cp .env.docker.example .env
+cp .env.local.example .env.local
 pnpm docker:local
 ```
 

@@ -9,8 +9,9 @@
 .env
 .env.*
 !.env.example
-!.env.docker.example
-!.env.neon.example
+!.env.local.example
+!.env.staging.example
+!.env.production.example
 node_modules/
 dist/
 build/

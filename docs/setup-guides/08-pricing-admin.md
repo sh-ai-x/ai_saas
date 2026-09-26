@@ -28,14 +28,14 @@ Client input cannot override amount, currency, interval, or billing mode.
 ## 3. Apply the database migration
 
 Do not run a raw Drizzle migration against a shared Neon branch. For staging,
-load the ignored `.env.stage` file and use the release gate from the
+load the ignored `.env.staging` file and use the release gate from the
 [deployment runbook](../sot/operations/deployment-runbook.md):
 
 ```bash
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.stage"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.stage"
+NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
+NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.stage"
+  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
 Production migration is a CI-only release step and requires the production

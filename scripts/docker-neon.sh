@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
-env_file="${NEON_DOCKER_ENV_FILE:-$repo_root/.env.neon}"
+env_file="${NEON_DOCKER_ENV_FILE:-$repo_root/.env.staging}"
 command_mode="up"
 if [[ "${1:-}" == "down" ]]; then
   command_mode="down"
@@ -17,7 +17,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 if [[ ! -f "$env_file" ]]; then
   echo "Missing $env_file" >&2
-  echo "Create it first with: cp .env.neon.example .env.neon" >&2
+  echo "Create it first with: cp .env.staging.example .env.staging" >&2
   exit 1
 fi
 
