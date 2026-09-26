@@ -96,7 +96,7 @@ function checkEnvironment({ target, apply, cleanupLegacy }) {
     // to read everything. Operator surface stays in CI.
     if (process.env.GITHUB_ACTIONS !== "true") throw new Error("production target is allowed only from GitHub Actions");
     if (apply && process.env.CONFIRM_PRODUCTION_DB !== "production") throw new Error("set CONFIRM_PRODUCTION_DB=production");
-    if (apply && process.env.CONFIRM_HISTORY_REPAIR !== "production") throw new Error("set CONFIRM_HISTORY_REPAIR=production");
+    if (apply && process.env.CONFIRM_HISTORY_REPAIR !== "prod-repair-v1") throw new Error("set CONFIRM_HISTORY_REPAIR=prod-repair-v1");
     return branch;
   }
 
@@ -243,7 +243,7 @@ async function applyRepair(sql, state, migrations, target) {
   });
 }
 
-async function cleanupLegacyFaq(sql, state) {
+async function cleanupLegacyFaq(sql, state, target) {
   await sql.begin(async (tx) => {
     await tx`set local lock_timeout = '5s'`;
     await tx`lock table public.faq_entries in access exclusive mode`;
@@ -279,7 +279,7 @@ async function main(argv = process.argv.slice(2)) {
         print(result, args.json);
         return result.ok ? 0 : 1;
       }
-      await cleanupLegacyFaq(sql, state);
+      await cleanupLegacyFaq(sql, state, args.target);
       result.checks.push({ name: "legacy-faq-cleanup", ok: true, detail: "known legacy FAQ rows removed and archived" });
       print(result, args.json);
       return 0;

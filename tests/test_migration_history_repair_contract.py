@@ -24,7 +24,11 @@ class MigrationHistoryRepairContractTests(unittest.TestCase):
         self.assertIn("APP_ENV must be production", source)
         self.assertIn("NEON_BRANCH must be production", source)
         self.assertIn('CONFIRM_PRODUCTION_DB !== "production"', source)
-        self.assertIn('CONFIRM_HISTORY_REPAIR !== "production"', source)
+        # Production repair uses a distinct marker (mirroring staging's
+        # `stage2`) so the env-var literal can't collide with
+        # CONFIRM_PRODUCTION_DB.
+        self.assertIn('CONFIRM_HISTORY_REPAIR !== "prod-repair-v1"', source)
+        self.assertIn('set CONFIRM_HISTORY_REPAIR=prod-repair-v1', source)
         # Production target is gated to GitHub Actions for BOTH plan and
         # apply (plan mode dumps migration history + FAQ/pricing/catalog
         # row counts via --json; without the gate any holder of
@@ -41,6 +45,28 @@ class MigrationHistoryRepairContractTests(unittest.TestCase):
         # backup row via `on conflict (repair_key) do nothing` after a
         # staging apply. Verify no literal survives.
         self.assertNotIn("const REPAIR_KEY =", source)
+        # cleanupLegacyFaq must take target as its third argument so the
+        # UPDATE matches the staging backup row (regression caught in
+        # maintenance review round 3).
+        self.assertRegex(source, r"async\s+function\s+cleanupLegacyFaq\s*\(\s*sql\s*,\s*state\s*,\s*target\s*\)")
+        self.assertIn("cleanupLegacyFaq(sql, state, args.target)", source)
+
+    def test_prod_workflow_passes_env_without_writing_disk_file(self):
+        """The production workflow must NOT materialise .env.production on
+        disk: GitHub secret masking protects stdout only, and the URL
+        would be unredacted in the runner workspace for the lifetime of
+        the job. The script's loadDotenv checks `process.env` first, so
+        passing DATABASE_URL_UNPOOLED via the step `env:` block is
+        sufficient.
+        """
+        workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "migration-repair-prod.yml").read_text()
+        # DATABASE_URL_UNPOOLED must be set via the step env block.
+        self.assertRegex(workflow, r"DATABASE_URL_UNPOOLED:\s+\$")
+        # No file write of .env.production (no `cat > .env.production`).
+        self.assertNotIn("cat > .env.production", workflow)
+        # Heredoc of any flavour is gone too.
+        self.assertNotIn("<<EOF", workflow)
+        self.assertNotIn("<<'EOF'", workflow)
 
     def test_cleanup_legacy_is_staging_only(self):
         source = SCRIPT.read_text()

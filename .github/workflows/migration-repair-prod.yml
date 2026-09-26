@@ -27,15 +27,14 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install locked web dependencies
         run: pnpm install --frozen-lockfile
-      - name: Write production env file
-        run: |
-          cat > .env.production <<EOF
-          APP_ENV=production
-          NEON_BRANCH=production
-          DATABASE_URL_UNPOOLED=${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
-          EOF
       - name: Run production migration history repair
         env:
+          APP_ENV: production
+          NEON_BRANCH: production
+          DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+          # Distinct repair marker (mirrors staging's `stage2`) so
+          # production-repair invocations can't be confused with
+          # production env literals. See scripts/migration-history-repair.mjs.
           CONFIRM_PRODUCTION_DB: production
-          CONFIRM_HISTORY_REPAIR: production
+          CONFIRM_HISTORY_REPAIR: prod-repair-v1
         run: node scripts/migration-history-repair.mjs --target production --apply
