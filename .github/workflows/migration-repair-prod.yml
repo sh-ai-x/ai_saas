@@ -1,0 +1,40 @@
+name: production-migration-history-repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "production" to confirm this repairs the production database'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    if: github.event.inputs.confirm == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install locked web dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run production migration history repair
+        env:
+          APP_ENV: production
+          NEON_BRANCH: production
+          DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+          # Distinct repair marker (mirrors staging's `stage2`) so
+          # production-repair invocations can't be confused with
+          # production env literals. See scripts/migration-history-repair.mjs.
+          CONFIRM_PRODUCTION_DB: production
+          CONFIRM_HISTORY_REPAIR: prod-repair-v1
+        run: node scripts/migration-history-repair.mjs --target production --apply

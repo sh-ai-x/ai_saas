@@ -93,3 +93,39 @@ curl -fsS https://ai-saas-foundation.fly.dev/healthz
 untouched). For a hard rollback, pick a prior machine image from
 `fly releases --app ai-saas-foundation` and run
 `fly deploy --app ai-saas-foundation --image <registry-image>`.
+
+## Production migration history repair
+
+The `migration-repair-prod.yml` workflow restores the canonical
+`__drizzle_migrations` history on the production database after a
+broken deploy. The job is gated by:
+
+- the `production` GitHub Environment (manual approval required), and
+- a `workflow_dispatch` input that must literally be `production`
+  (typed, not selected from a dropdown).
+
+Before dispatching, set every confirmation env var to the matching
+literal:
+
+```bash
+CONFIRM_PRODUCTION_DB=production \
+CONFIRM_HISTORY_REPAIR=prod-repair-v1 \
+APP_ENV=production \
+NEON_BRANCH=production \
+DATABASE_URL_UNPOOLED='<production pooled url>' \
+node scripts/migration-history-repair.mjs --target production --apply
+```
+
+(There is no `pnpm migrate:repair` script — the entry point is the
+script above. The GitHub Actions workflow `migration-repair-prod.yml`
+already sets these env vars in the step `env:` block; the inline form
+here is for operator-shell reproduction.)
+
+The script refuses to run otherwise: APP_ENV must be `production`,
+NEON_BRANCH must be `production`, GITHUB_ACTIONS must be `true`
+(in the workflow run; not enforced in operator shells because the
+git-history+typed-confirm combination is the human-gate equivalent),
+`CONFIRM_PRODUCTION_DB=production`, `CONFIRM_HISTORY_REPAIR=prod-repair-v1`,
+and (for apply) the run must come from GitHub Actions. The repair is
+idempotent — re-running on a canonical history is a no-op that prints
+`already current; no repair needed`.
