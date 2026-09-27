@@ -218,35 +218,61 @@ Drizzle is the schema and migration source of truth for the web database:
 - configuration: `apps/web/drizzle.config.ts`
 - migration history: `neondb.drizzle.__drizzle_migrations`
 
-After changing a schema file, generate and review a migration before applying
-it:
+Every workflow below is a `pnpm` command at the repo root. The same Drizzle
+config is reused for both local Docker (worktree-local Postgres) and the
+Neon-hosted staging / production branches. The web process uses the pooled
+`DATABASE_URL`; migrations always use the direct `DATABASE_URL_UNPOOLED`.
+
+#### Command surface
+
+| Stage | Command | Purpose |
+|---|---|---|
+| Local | `pnpm db:generate` | Generate a migration from a schema diff (creates `apps/web/drizzle/<tag>.sql` + journal entry) |
+| Local | `pnpm db:migrate` | Apply every committed-but-unapplied migration to the current `DATABASE_URL_UNPOOLED` (also runs inside `pnpm docker:local`'s `web-migrate`) |
+| Local | `pnpm db:status` | File-only check: total migrations, recent 5, orphan SQL files (no DB required) |
+| Local | `pnpm db:doctor` | Combined diagnostic: manifest consistency + destructive-statement scan + pooler-host check + best-effort preflight |
+| Staging | `pnpm db:verify:stage` | Read-only preflight against staging; rejects with reason on pooler-host, missing history, or destructive migrations |
+| Staging | `pnpm db:plan:stage` | No-write plan: list exactly which migrations would apply, with their SQL |
+| Staging | `pnpm db:migrate:stage` | Verify → plan → apply → re-verify in one shot (requires `CONFIRM_STAGING_DB=staging`) |
+| Staging | `pnpm db:doctor:stage` | Same as `db:doctor` but loads `.env.staging` and runs the staging preflight |
+| Staging | `pnpm db:repair-history:stage` | Recover when `__drizzle_migrations` is corrupted but every migration in the journal is actually applied |
+| Staging | `pnpm db:cleanup-legacy:stage` | Drop a stray `drizzle` schema left behind from an old apply |
+| Production | `pnpm db:verify:prod` | Read-only preflight against production |
+| Production | `pnpm db:plan:prod` | No-write plan |
+| Production | `pnpm db:migrate:prod` | CI-only. Requires `CONFIRM_PRODUCTION_DB=production` AND a GitHub Actions runner (`process.env.GITHUB_ACTIONS === "true"`). A developer shell cannot apply prod migrations. |
+
+Stage and prod are **separate commands on purpose** — `db:migrate:prod` will
+never run from a developer worktree even if the prod env-file is present.
+The confirmation variables are gate checks, not hints.
+
+#### Typical local-to-cloud flow
 
 ```bash
-pnpm web:db:generate
-git diff -- apps/web/drizzle
+# 1. Edit schema in apps/web/db/schema/
+pnpm db:generate
+git diff -- apps/web/drizzle                # review the SQL
+git add apps/web/drizzle && git commit
+
+# 2. Stage: dry-run, then apply.
+NEON_BRANCH=stage2 pnpm db:doctor:stage    # show any pre-existing problems
+pnpm db:verify:stage -- --from-file "$PWD/.env.staging"
+CONFIRM_STAGING_DB=staging pnpm db:migrate:stage -- --from-file "$PWD/.env.staging"
+
+# 3. Promotion to production runs in CI only.
+#    .github/workflows/release.yml reads the prod env-file from secrets,
+#    sets CONFIRM_PRODUCTION_DB=production, and runs pnpm db:migrate:prod.
 ```
 
-Apply committed migrations through the environment-specific release gate. The
-web process uses pooled `DATABASE_URL`; Drizzle migrations use direct
-`DATABASE_URL_UNPOOLED`. Drizzle never selects a Neon branch implicitly:
+#### Conflict / drift scenarios
 
-```bash
-# local Docker: web-migrate runs this automatically during docker:local
-pnpm docker:local
-
-# an explicitly selected Neon staging branch: preflight, plan, then apply
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
-CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
-```
-
-For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
-then load its ignored connection variables before running the migration. Never
-use the production connection string from a developer worktree. The normal
-cloud sequence is: create branch from `staging` → run Drizzle migration → run
-verification checks → delete the preview branch when the worktree or PR is
-retired.
+| Symptom | Likely cause | First command to run |
+|---|---|---|
+| `migration-history: incompatible` | A migration was edited after being applied; the SHA no longer matches the row in `__drizzle_migrations` | `pnpm db:doctor:stage` then `pnpm db:repair-history:stage` |
+| `schema already exists` / `relation already exists` notices | Database was already initialized; Drizzle emits these as PostgreSQL NOTICEs — confirm `migration release: APPLY PASS — staging history is current` | (no action; informational) |
+| `drizzle-doctor` reports `direct-url: FAIL` with `pooler` in the URL | `.env.staging` is pointing `DATABASE_URL_UNPOOLED` at the pooler host | Copy the direct URL from Neon and re-set `DATABASE_URL_UNPOOLED=` |
+| `orphan-sql: FAIL` | Someone dropped a `*.sql` file in `apps/web/drizzle/` without running `db:generate`, or edited the journal by hand | Either `git restore` the file or re-run `pnpm db:generate` after fixing the schema |
+| `destructive-migration:<tag>: WARN` | The migration contains `DROP TABLE` / `DROP COLUMN` / `TRUNCATE` | Confirm the change is intentional; otherwise rewrite the schema change before re-generating |
+| Doctor prints `preflight: WARN … did not return JSON` | Network issue or wrong env-file path | Verify `DATABASE_URL` / `DATABASE_URL_UNPOOLED` connectivity manually, then re-run |
 
 `pnpm docker:local` intentionally forces the web migration and application to
 the worktree-local PostgreSQL database, even if `.env` contains a Neon URL.
