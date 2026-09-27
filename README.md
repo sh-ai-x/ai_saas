@@ -1,7 +1,6 @@
 # AI SaaS foundation
 
-This is the smallest runnable, contract-first foundation extracted from the
-`mysaas` baseline. It keeps the first deployment as a modular monolith while
+It keeps the first deployment as a modular monolith while
 recording logical ownership and versioned REST, SSE, event, and provider
 boundaries for service extraction.
 
