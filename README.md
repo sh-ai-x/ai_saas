@@ -165,6 +165,29 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
   -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
 ```
 
+### Endpoints at a glance
+
+| Surface | URL / address | Where it runs |
+|---|---|---|
+| Foundation API (process mode) | `http://127.0.0.1:8080` | `uv run --locked python -m foundation.server` |
+| Web console (process mode) | `http://localhost:3000` | `pnpm --filter ai-saas-foundation-web dev` |
+| Postgres (process mode) | `localhost:5432` | host-side `psql` or any local client |
+| Web console (`pnpm docker:local`) | `http://localhost:3100` | `docker/prod/compose.yaml` (yes, prod compose — the local profile reuses it) |
+| Foundation API (`pnpm docker:local`) | `http://localhost:8180` | same compose; container-internal `foundation:8080` |
+| Postgres (`pnpm docker:local`) | `localhost:55433` → `postgres:5432` | same compose |
+| Web console (`pnpm docker:neon`) | `http://localhost:3200` | `docker/neon/compose.yaml`; connects to selected Neon branch |
+| Foundation API (`pnpm docker:neon`) | `http://localhost:8280` | same compose |
+| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://ai-saas-foundation.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `ai-saas-foundation` app, both `APP_ENV=staging` |
+| Vercel preview | `https://aisaas-git-<branch>-sh-ai-x.vercel.app` | auto per PR |
+| Fly.io public | `https://ai-saas-foundation.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
+| Neon cluster | project `ai_saas` (`lucky-boat-01406333`), `aws-ap-southeast-1` | branches `staging` (live) + `production` (dormant) |
+
+Host-port assignments are pinned by the `<SERVICE>_PORT` env vars in
+`.env.local.example` (`POSTGRES_PORT=55433`, `FOUNDATION_PORT=8180`,
+`WEB_PORT=3100`). Override at start time with `pnpm docker:local --port 3019`
+to publish the same container on a different host port; the script aligns
+`BETTER_AUTH_URL` and the Google OAuth callback to whatever you pick.
+
 ## Real integration setup guides
 
 The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
@@ -214,10 +237,16 @@ Register this exact callback in Google Cloud:
 a trailing slash, or expose `GOOGLE_CLIENT_SECRET` through a `NEXT_PUBLIC_*`
 variable.
 
+The live Vercel production deployment also needs its callback registered:
+`https://aisaas-git-main-sh-ai-x.vercel.app/api/auth/callback/google` (no
+trailing slash). Vercel preview URLs follow
+`https://aisaas-git-<branch>-sh-ai-x.vercel.app` and require their own
+Google Cloud OAuth client entries when you want preview-deploy logins.
+
 #### 3. Link Neon, configure Better Auth, and migrate Drizzle tables
 
 ```bash
-pnpm web:setup-auth -- --link-neon --neon-branch stage2 --app-env staging
+pnpm web:setup-auth -- --link-neon --neon-branch staging --app-env staging
 ```
 
 The command performs the remaining setup in order:
@@ -319,7 +348,7 @@ git diff -- apps/web/drizzle                # review the SQL
 git add apps/web/drizzle && git commit
 
 # 2. Stage: dry-run, then apply.
-NEON_BRANCH=stage2 pnpm db:doctor:stage    # show any pre-existing problems
+NEON_BRANCH=staging pnpm db:doctor:stage   # show any pre-existing problems
 pnpm db:verify:stage -- --from-file "$PWD/.env.staging"
 CONFIRM_STAGING_DB=staging pnpm db:migrate:stage -- --from-file "$PWD/.env.staging"
 
@@ -329,6 +358,13 @@ CONFIRM_STAGING_DB=staging pnpm db:migrate:stage -- --from-file "$PWD/.env.stagi
 ```
 
 #### Conflict / drift scenarios
+
+For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
+then load its ignored connection variables before running the migration. Never
+use the production connection string from a developer worktree. The normal
+cloud sequence is: create branch from `staging` → run Drizzle migration → run
+verification checks → delete the preview branch when the worktree or PR is
+retired.
 
 | Symptom | Likely cause | First command to run |
 |---|---|---|
@@ -357,11 +393,11 @@ traffic. The staging release wrapper performs a read-only preflight, applies
 only committed Drizzle migrations, and verifies the final history afterward:
 
 ```bash
-NEON_BRANCH=stage2 \
+NEON_BRANCH=staging \
 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
 
 CONFIRM_STAGING_DB=staging \
-NEON_BRANCH=stage2 \
+NEON_BRANCH=staging \
 pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
@@ -383,10 +419,18 @@ open a reviewed database-repair change. Do not edit or delete
 
 | Git ref | Vercel behavior | Database target | Migration authority |
 |---|---|---|---|
-| `feat/*`, `fix/*`, `docs/*` | Preview deployment | local Docker or disposable Neon preview | developer plan only |
-| `main` | Production deployment after PR checks | protected Neon `production` | CI release job only |
-| staging release | Preview/alias for user feedback | shared Neon `stage2` branch | preflight → plan → apply → verify |
-| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same production gate |
+| `feat/*`, `fix/*`, `docs/*` | Preview deployment (`aisaas-git-<branch>-sh-ai-x.vercel.app`) | local Docker or disposable Neon preview branch | developer plan only |
+| `main` | Production deployment (`aisaas-git-main-sh-ai-x.vercel.app`, `APP_ENV=staging`) | shared Neon `staging` branch | preflight → plan → apply → verify |
+| Neon `production` branch | not currently wired to any deploy target; reserved | protected Neon `production` | CI release job only (when promoted) |
+| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same staging → production gate |
+
+The Neon cluster has both a `staging` branch (the live deploy target) and a
+`production` branch (currently dormant, reserved for the CI-only release gate).
+`pnpm web:setup-auth` defaults `--neon-branch=production` and `--app-env=staging`
+so the staging env file (`apps/web/.env.staging`) and Vercel `production`
+alias point at the `staging` branch by design. Promote by switching
+`APP_ENV=production` plus the matching Neon branch — never by editing
+`DATABASE_URL` directly.
 
 Vercel build/deploy must not run database migrations. Deployments are
 immutable application artifacts; migrations run once as a serialized release
