@@ -152,13 +152,11 @@ function main() {
     console.error(`drizzle-doctor: ${err.message}`);
     process.exit(2);
   }
-  const target = args.target;
-  if (!target) {
-    console.error("drizzle-doctor: target required (staging | production)");
-    console.error("Usage: node scripts/drizzle-doctor.mjs <staging|production>");
-    process.exit(2);
-  }
-  if (target !== "staging" && target !== "production") {
+  // No target = offline mode: file-level checks only, no env / preflight.
+  // `pnpm db:doctor` lands here. `pnpm db:doctor:stage|prod` pass a
+  // target so env loading + DB preflight fire.
+  const target = args.target ?? "";
+  if (target && target !== "staging" && target !== "production") {
     console.error(`drizzle-doctor: target must be staging or production (got "${target}")`);
     process.exit(2);
   }
@@ -195,8 +193,10 @@ function main() {
     });
   }
 
-  checkConnectionEnv(findings, target, args.fromFile);
-  runPreflight(findings, target, args.fromFile);
+  if (target) {
+    checkConnectionEnv(findings, target, args.fromFile);
+    runPreflight(findings, target, args.fromFile);
+  }
 
   const fail = findings.some((f) => f.status === "FAIL");
   const warn = findings.some((f) => f.status === "WARN");

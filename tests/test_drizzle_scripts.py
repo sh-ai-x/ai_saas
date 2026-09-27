@@ -64,11 +64,21 @@ class DrizzleDoctorContractTests(unittest.TestCase):
     pooler-host check + (best-effort) preflight.
     """
 
-    def test_script_requires_target_argument(self) -> None:
-        # Calling without a target should print a usage error and exit 2.
-        result = run(["node", str(DOCTOR_SCRIPT)])
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("drizzle-doctor", result.stderr)
+    def test_bare_invocation_runs_in_offline_mode(self) -> None:
+        # `pnpm db:doctor` runs without a target; the script does file
+        # checks only and skips env/preflight. JSON target field is "".
+        result = run(
+            [
+                "node", str(DOCTOR_SCRIPT),
+                "--migration-dir", str(ROOT / "apps" / "web" / "drizzle"),
+            ],
+        )
+        self.assertEqual(result.returncode, 0, f"stdout={result.stdout}\nstderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["target"], "")
+        self.assertTrue(payload["ok"])
+        # Summary line still prints on stderr for terminal UX.
+        self.assertRegex(result.stderr, r"drizzle-doctor: PASS")
 
     def test_rejects_unknown_target(self) -> None:
         result = run(["node", str(DOCTOR_SCRIPT), "bogus"])
