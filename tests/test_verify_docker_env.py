@@ -265,5 +265,57 @@ class VerifyDockerEnvRuntimeTests(unittest.TestCase):
         self.assertRegex(result.stdout, r"TOSS_(CLIENT|SECRET|WEBHOOK)_KEY\s+WARN")
 
 
+class PnpmWrapperContractTests(unittest.TestCase):
+    """The `pnpm docker:verify` family must wrap `scripts/verify-docker.sh`,
+    which in turn wraps `scripts/verify-docker-env.sh`. Lock the wiring
+    down so future drift in `package.json` fails the test instead of
+    silently dropping the user-facing commands.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import json as _json
+        cls.package = _json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        cls.wrapper = (ROOT / "scripts" / "verify-docker.sh").read_text(encoding="utf-8")
+        cls.inspector = (ROOT / "scripts" / "verify-docker-env.sh").read_text(encoding="utf-8")
+
+    def test_wrapper_script_exists_and_is_executable(self) -> None:
+        p = ROOT / "scripts" / "verify-docker.sh"
+        self.assertTrue(p.exists())
+        import stat as _stat
+        self.assertTrue(p.stat().st_mode & _stat.S_IXUSR)
+
+    def test_pnpm_docker_verify_invokes_the_wrapper(self) -> None:
+        scripts = self.package.get("scripts", {})
+        for cmd in ("docker:verify", "docker:verify:local", "docker:verify:neon"):
+            with self.subTest(cmd=cmd):
+                self.assertIn(cmd, scripts, f"{cmd} missing from package.json")
+                self.assertIn("verify-docker.sh", scripts[cmd])
+
+    def test_wrapper_uses_lib_ports_registry(self) -> None:
+        # Wrapper must source scripts/lib/ports.sh so the project name
+        # lookup (and any future port logic) stays in one place.
+        self.assertRegex(
+            self.wrapper,
+            r"source\s+\"?\$repo_root/scripts/lib/ports\.sh\"?",
+        )
+
+    def test_wrapper_derives_compose_project_per_profile(self) -> None:
+        self.assertIn("ai-saas-${worktree_slug}", self.wrapper)
+        self.assertIn("ai-saas-neon-${worktree_slug}", self.wrapper)
+
+    def test_wrapper_handles_profile_argument(self) -> None:
+        # case pattern values appear unquoted in bash case statements.
+        self.assertIn("local)", self.wrapper)
+        self.assertIn("neon)", self.wrapper)
+        # Missing profile must surface a usage hint, not a generic crash.
+        self.assertIn("Usage:", self.wrapper)
+
+    def test_wrapper_uses_inline_env_file_per_profile(self) -> None:
+        # .env.local for local; .env.staging for neon (no rename).
+        self.assertIn(".env.local", self.wrapper)
+        self.assertIn(".env.staging", self.wrapper)
+
+
 if __name__ == "__main__":
     unittest.main()
