@@ -11,6 +11,10 @@ SQLite/PostgreSQL-compatible transactional persistence; provider SDKs are not
 part of the domain. Local Docker uses PostgreSQL 17 only as a development
 companion; the HTTP surface itself is Python standard library code.
 
+> **Branches**
+> - `main` — the full contract-first foundation (this branch).
+> - `template/ai-saas-template` — a stripped, Vercel-styled fork that keeps only Google OAuth, FAQ, admin, and pricing plan; ship as a starter via `bin/use-as-template.sh`. See that branch's README for details.
+
 ## Toolchain
 
 JavaScript dependencies are managed from the repository root with `pnpm` and
