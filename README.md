@@ -34,6 +34,72 @@ setup, environment-variable flow, policy deployment, and connection check.
 The complete branch, database, Docker, Vercel, EC2, migration, and rollback
 runbook is [docs/sot/operations/deployment-runbook.md](docs/sot/operations/deployment-runbook.md).
 
+## Commands
+
+Every workflow in this repo is a `pnpm` command at the repository root. The
+sections below are the index — for a deeper walk-through of the Drizzle
+release gate see [Drizzle database workflow](#drizzle-database-workflow);
+for the Docker port + URL contract see [ADR-0002](docs/adr/0002-worktree-port-and-database-isolation.md).
+
+### Web app
+
+| Command | What it does |
+|---|---|
+| `pnpm web:dev` | Next.js dev server (Next.js console at <http://localhost:3000>) |
+| `pnpm web:build` | Production build of the web workspace |
+| `pnpm web:test` | Run the web workspace's unit + integration tests |
+| `pnpm web:e2e` | Run the web workspace's Playwright/jest e2e suite |
+| `pnpm web:setup-auth` | One-shot Google OAuth + Better Auth secret setup for `apps/web/.env.local` |
+
+### Docker (local + Neon + env verification)
+
+| Command | What it does |
+|---|---|
+| `pnpm docker:local` | Run the worktree-local Compose stack (Postgres + foundation + web). Web port pinned at 3100. |
+| `pnpm docker:local:down` | Stop the local Compose stack (keeps volumes) |
+| `pnpm docker:local:purge` | Stop the local Compose stack **and delete volumes** (disposable seed data) |
+| `pnpm docker:neon` | Run the Compose stack against a Neon branch (no local Postgres). Web port pinned at 3200. |
+| `pnpm docker:neon:down` | Stop the Neon Compose stack |
+| `pnpm docker:verify` | Show usage for `docker:verify:local\|:neon` |
+| `pnpm docker:verify:local` | Inspect the local compose project containers and table env vars (DB / TOSS / JEV / OPENAI / GOOGLE_OAUTH) |
+| `pnpm docker:verify:neon` | Same as `:local` against the neon compose project |
+
+Web port pins and the slot-allocation block for foundation / postgres are
+managed centrally in [`scripts/lib/ports.sh`](scripts/lib/ports.sh).
+
+### Database — local development
+
+| Command | What it does |
+|---|---|
+| `pnpm db:generate` | Generate a migration from a schema diff in `apps/web/db/schema/` (writes `apps/web/drizzle/<tag>.sql` + journal entry) |
+| `pnpm db:migrate` | Apply every committed-but-unapplied migration to the current `DATABASE_URL_UNPOOLED` |
+| `pnpm db:status` | File-only check: total + recent migrations, orphan `.sql` files (no DB required) |
+| `pnpm db:doctor` | File-level diagnostic + destructive-statement scan; offline (no env, no preflight) |
+
+### Database — staging release (Neon `stage*` branches)
+
+| Command | What it does |
+|---|---|
+| `pnpm db:doctor:stage` | Loads `.env.staging`, runs staging preflight, checks manifest + destructive statements + pooler host |
+| `pnpm db:verify:stage` | Read-only preflight against staging. Exits non-zero on pooler host, missing history, or destructive migrations. |
+| `pnpm db:plan:stage` | No-write plan: list exactly which migrations would apply, with their SQL |
+| `pnpm db:migrate:stage` | Verify → plan → apply → re-verify in one shot. Requires `CONFIRM_STAGING_DB=staging`. |
+| `pnpm db:repair-history:stage` | Recover when `drizzle.__drizzle_migrations` is out of sync but every migration is actually applied |
+| `pnpm db:cleanup:legacy:stage` | Drop a stray `drizzle` schema left behind from an old apply |
+
+### Database — production release (CI-only)
+
+| Command | What it does |
+|---|---|
+| `pnpm db:doctor:prod` | Same as `:stage` but loads `.env.production` |
+| `pnpm db:verify:prod` | Read-only preflight against production |
+| `pnpm db:plan:prod` | No-write plan |
+| `pnpm db:migrate:prod` | Verify → plan → apply → re-verify in one shot. Requires **both** `CONFIRM_PRODUCTION_DB=production` AND `process.env.GITHUB_ACTIONS === "true"`. A developer shell can never apply prod migrations even if the prod env-file is present. |
+
+`db:migrate:prod` will fail-closed if either confirmation gate is missing
+or if the runner is not GitHub Actions. The same gate also rejects
+non-`production` `--target` values.
+
 ## Start locally
 
 The safest quick path is a generated process-only secret that is never written
