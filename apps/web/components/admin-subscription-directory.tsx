@@ -6,7 +6,7 @@ type AdminRow = {
   user: { id: string; name: string; email: string; role: string };
   access: string;
   plan: { name: string } | null;
-  subscription: { status: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string; nextBillingAt: string | null; lastPaymentError: string | null } | null;
+  subscription: { status: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string | null; nextBillingAt: string | null; lastPaymentError: string | null } | null;
   usage: { totalUsed: number; totalLimit: number; totalRemaining: number };
 };
 

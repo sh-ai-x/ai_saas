@@ -204,8 +204,8 @@ function mapSubscription(row: typeof subscriptions.$inferSelect): SubscriptionRe
     externalSubscriptionRef: row.externalSubscriptionRef ?? "",
     status: row.status as SubscriptionStatus,
     providerStatus: row.providerStatus,
-    currentPeriodStart: row.currentPeriodStart ?? new Date(0),
-    currentPeriodEnd: row.currentPeriodEnd ?? new Date(0),
+    currentPeriodStart: row.currentPeriodStart,
+    currentPeriodEnd: row.currentPeriodEnd,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     cancelRequestedAt: row.cancelRequestedAt,
     canceledAt: row.canceledAt,
@@ -329,8 +329,10 @@ export async function getPaymentOrder(orderId: string): Promise<PaymentOrder | n
 export async function getPaymentOrderByCustomerKey(customerKey: string): Promise<PaymentOrder | null> {
   const db = getDb();
   if (!db) return structuredClone(localState.orders.find((order) => order.metadata.customerKey === customerKey) ?? null);
-  const rows = await db.select().from(paymentOrders).where(eq(paymentOrders.provider, "toss"));
-  const row = rows.find((candidate) => (candidate.metadata as Record<string, unknown>).customerKey === customerKey);
+  const [row] = await db.select().from(paymentOrders).where(and(
+    eq(paymentOrders.provider, "toss"),
+    sql`${paymentOrders.metadata}->>'customerKey' = ${customerKey}`,
+  )).orderBy(desc(paymentOrders.createdAt)).limit(1);
   return row ? mapPaymentOrder(row) : null;
 }
 
@@ -417,7 +419,7 @@ export async function recordTossSubscription(input: {
       toStatus: "active",
       eventType: "subscription.started",
       reason: "Toss first recurring charge succeeded",
-      idempotencyKey: `subscription-start-${input.order.id}`,
+      idempotencyKey: transitionKey(values.id, "started", input.order.id),
       occurredAt: periodStart,
       metadata: { provider: "toss", paymentOrderId: input.order.id },
     }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });
@@ -447,7 +449,7 @@ export async function expireEndedSubscriptions(now = new Date()): Promise<number
   if (!db) {
     let count = 0;
     for (const subscription of localState.subscriptions) {
-      if ((subscription.status === "cancel_scheduled" && subscription.currentPeriodEnd <= now)
+      if ((subscription.status === "cancel_scheduled" && Boolean(subscription.currentPeriodEnd && subscription.currentPeriodEnd <= now))
         || (subscription.status === "past_due" && Boolean(subscription.graceUntil && subscription.graceUntil <= now))) {
         const fromStatus = subscription.status;
         subscription.status = "expired";
@@ -467,7 +469,8 @@ export async function expireEndedSubscriptions(now = new Date()): Promise<number
   ));
   for (const row of rows) {
     await db.transaction(async (tx) => {
-      await tx.update(subscriptions).set({ status: "expired", endedAt: now, canceledAt: now, cancelAtPeriodEnd: false, version: row.version + 1, updatedAt: now }).where(and(eq(subscriptions.id, row.id), eq(subscriptions.version, row.version)));
+      const [updated] = await tx.update(subscriptions).set({ status: "expired", endedAt: now, canceledAt: now, cancelAtPeriodEnd: false, version: row.version + 1, updatedAt: now }).where(and(eq(subscriptions.id, row.id), eq(subscriptions.version, row.version))).returning({ id: subscriptions.id });
+      if (!updated) return;
       await tx.insert(subscriptionTransitions).values({
         id: `transition-${crypto.randomUUID()}`,
         subscriptionId: row.id,
@@ -476,7 +479,7 @@ export async function expireEndedSubscriptions(now = new Date()): Promise<number
         toStatus: "expired",
         eventType: "subscription.expired",
         reason: "Current period ended without renewal",
-        idempotencyKey: `expired-${row.id}-${row.version}`,
+        idempotencyKey: transitionKey(row.id, "expired", String(row.version)),
         occurredAt: now,
         metadata: {},
       }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });
@@ -491,7 +494,9 @@ export async function recordTossRenewal(input: {
   paymentRef: string;
 }): Promise<SubscriptionRecord> {
   const offer = await getPricingOffer(input.subscription.pricingOptionId);
-  const start = input.subscription.currentPeriodEnd > new Date() ? input.subscription.currentPeriodEnd : new Date();
+  const periodEnd = input.subscription.currentPeriodEnd;
+  if (!periodEnd) throw new Error("subscription renewal period end is missing");
+  const start = periodEnd > new Date() ? periodEnd : new Date();
   const end = new Date(start);
   if (offer?.option.interval === "year") end.setUTCFullYear(end.getUTCFullYear() + 1);
   else end.setUTCMonth(end.getUTCMonth() + 1);
@@ -510,15 +515,16 @@ export async function recordTossRenewal(input: {
   const db = getDb();
   if (!db) {
     const index = localState.subscriptions.findIndex((subscription) => subscription.id === input.subscription.id);
-    if (index >= 0) {
-      localState.subscriptions[index] = structuredClone(next);
-      if (next.userId) globalUsage.set(next.userId, emptyUsage(offer?.plan ?? null, next.currentPeriodStart, next.currentPeriodEnd));
-    }
+    if (index < 0) throw new Error("subscription renewal target was not found");
+    const current = localState.subscriptions[index];
+    if ((current.version ?? 1) !== (input.subscription.version ?? 1)) throw new Error("subscription renewal version conflict");
+    localState.subscriptions[index] = structuredClone(next);
+    if (next.userId) globalUsage.set(next.userId, emptyUsage(offer?.plan ?? null, start, end));
     pushLocalTransition(next.id, input.subscription.status, "active", "subscription.renewed");
     return structuredClone(next);
   }
   await db.transaction(async (tx) => {
-    await tx.update(subscriptions).set({
+    const [updated] = await tx.update(subscriptions).set({
       status: next.status,
       providerStatus: next.providerStatus,
       currentPeriodStart: next.currentPeriodStart,
@@ -529,20 +535,21 @@ export async function recordTossRenewal(input: {
       graceUntil: null,
       version: next.version,
       updatedAt: new Date(),
-    }).where(and(eq(subscriptions.id, next.id), eq(subscriptions.version, input.subscription.version ?? 1)));
+    }).where(and(eq(subscriptions.id, next.id), eq(subscriptions.version, input.subscription.version ?? 1))).returning({ id: subscriptions.id });
+    if (!updated) throw new Error("subscription renewal version conflict");
     if (next.userId) {
-      const usage = emptyUsage(offer?.plan ?? null, next.currentPeriodStart, next.currentPeriodEnd);
+      const usage = emptyUsage(offer?.plan ?? null, start, end);
       await tx.update(tokenUsagePeriods).set({ status: "closed" }).where(and(
         eq(tokenUsagePeriods.subscriptionId, next.id),
         eq(tokenUsagePeriods.status, "active"),
       ));
       await tx.insert(tokenUsagePeriods).values({
-        id: `usage-period-${next.id}-${next.currentPeriodStart.getTime()}`,
+        id: `usage-period-${next.id}-${start.getTime()}`,
         userId: next.userId,
         subscriptionId: next.id,
         planId: offer?.plan.id ?? "unknown",
-        periodStart: next.currentPeriodStart,
-        periodEnd: next.currentPeriodEnd,
+        periodStart: start,
+        periodEnd: end,
         inputLimit: usage.inputLimit,
         outputLimit: usage.outputLimit,
         totalLimit: usage.totalLimit,
@@ -560,7 +567,7 @@ export async function recordTossRenewal(input: {
       toStatus: "active",
       eventType: "subscription.renewed",
       reason: "Toss recurring charge succeeded",
-      idempotencyKey: `renewal-${input.paymentOrder.id}`,
+      idempotencyKey: transitionKey(next.id, "renewed", input.paymentOrder.id),
       occurredAt: new Date(),
       metadata: { paymentOrderId: input.paymentOrder.id, paymentRef: input.paymentRef },
     }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });
@@ -578,12 +585,16 @@ export async function recordTossRenewalFailure(subscription: SubscriptionRecord,
   const db = getDb();
   if (!db) {
     const index = localState.subscriptions.findIndex((candidate) => candidate.id === subscription.id);
-    if (index >= 0) localState.subscriptions[index] = structuredClone(next);
+    if (index < 0) throw new Error("subscription renewal failure target was not found");
+    const current = localState.subscriptions[index];
+    if ((current.version ?? 1) !== (subscription.version ?? 1)) throw new Error("subscription renewal failure version conflict");
+    localState.subscriptions[index] = structuredClone(next);
     pushLocalTransition(next.id, subscription.status, "past_due", "subscription.renewal_failed");
     return structuredClone(next);
   }
   await db.transaction(async (tx) => {
-    await tx.update(subscriptions).set({ status: "past_due", providerStatus: "FAILED", graceUntil, nextBillingAt: retryAt, lastPaymentError: message, version: next.version, updatedAt: now }).where(and(eq(subscriptions.id, subscription.id), eq(subscriptions.version, subscription.version ?? 1)));
+    const [updated] = await tx.update(subscriptions).set({ status: "past_due", providerStatus: "FAILED", graceUntil, nextBillingAt: retryAt, lastPaymentError: message, version: next.version, updatedAt: now }).where(and(eq(subscriptions.id, subscription.id), eq(subscriptions.version, subscription.version ?? 1))).returning({ id: subscriptions.id });
+    if (!updated) throw new Error("subscription renewal failure version conflict");
     await tx.insert(subscriptionTransitions).values({
       id: `transition-${crypto.randomUUID()}`,
       subscriptionId: subscription.id,
@@ -592,7 +603,7 @@ export async function recordTossRenewalFailure(subscription: SubscriptionRecord,
       toStatus: "past_due",
       eventType: "subscription.renewal_failed",
       reason: message,
-      idempotencyKey: `renewal-failed-${subscription.id}-${subscription.version ?? 1}`,
+      idempotencyKey: transitionKey(subscription.id, "renewal_failed", String(subscription.version ?? 1)),
       occurredAt: new Date(),
       metadata: {},
     }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });
@@ -601,6 +612,10 @@ export async function recordTossRenewalFailure(subscription: SubscriptionRecord,
 }
 
 type LocalTransition = { id: string; fromStatus: string | null; toStatus: string; eventType: string; occurredAt: Date };
+
+function transitionKey(subscriptionId: string, eventType: string, identity: string) {
+  return `subscription:${subscriptionId}:${eventType}:${identity}`;
+}
 
 const globalTransitions = ((globalThis as typeof globalThis & { __aiSaasSubscriptionTransitions?: Map<string, LocalTransition[]> }).__aiSaasSubscriptionTransitions ??= new Map());
 const globalUsage = ((globalThis as typeof globalThis & { __aiSaasTokenUsage?: Map<string, TokenUsageSummary> }).__aiSaasTokenUsage ??= new Map());
@@ -616,6 +631,7 @@ function accessFor(subscription: SubscriptionRecord | null): SubscriptionSummary
   if (!subscription) return "free";
   if (subscription.status === "past_due") return "grace";
   if (subscription.status === "expired" || subscription.status === "canceled") return "expired";
+  if (!subscription.currentPeriodEnd) return "free";
   if (subscription.currentPeriodEnd.getTime() <= Date.now()) return "expired";
   return "paid";
 }
@@ -625,7 +641,7 @@ export async function getSubscriptionSummary(userId: string): Promise<Subscripti
   if (!db) {
     const subscription = localState.subscriptions
       .filter((candidate) => candidate.userId === userId)
-      .sort((a, b) => b.currentPeriodEnd.getTime() - a.currentPeriodEnd.getTime())[0] ?? null;
+      .sort((a, b) => (b.currentPeriodEnd?.getTime() ?? 0) - (a.currentPeriodEnd?.getTime() ?? 0))[0] ?? null;
     const offer = subscription ? await getPricingOffer(subscription.pricingOptionId) : null;
     return {
       subscription,
@@ -687,13 +703,14 @@ export async function cancelSubscriptionAtPeriodEnd(userId: string, idempotencyK
   if (!["pending", "active", "cancel_scheduled", "past_due"].includes(current.status)) return null;
   if (current.cancelAtPeriodEnd) return mapSubscription(current);
   await db.transaction(async (tx) => {
-    await tx.update(subscriptions).set({
+    const [updated] = await tx.update(subscriptions).set({
       status: "cancel_scheduled",
       cancelAtPeriodEnd: true,
       cancelRequestedAt: now,
       version: current.version + 1,
       updatedAt: now,
-    }).where(and(eq(subscriptions.id, current.id), eq(subscriptions.version, current.version)));
+    }).where(and(eq(subscriptions.id, current.id), eq(subscriptions.version, current.version))).returning({ id: subscriptions.id });
+    if (!updated) throw new Error("subscription cancellation version conflict");
     await tx.insert(subscriptionTransitions).values({
       id: `transition-${crypto.randomUUID()}`,
       subscriptionId: current.id,
@@ -702,7 +719,7 @@ export async function cancelSubscriptionAtPeriodEnd(userId: string, idempotencyK
       toStatus: "cancel_scheduled",
       eventType: "subscription.cancel_scheduled",
       reason: "User requested cancellation at period end",
-      idempotencyKey,
+      idempotencyKey: transitionKey(current.id, "cancel_scheduled", idempotencyKey),
       occurredAt: now,
       metadata: { currentPeriodEnd: current.currentPeriodEnd?.toISOString() ?? null },
     }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });
@@ -718,7 +735,7 @@ export async function resumeSubscription(userId: string, idempotencyKey: string)
   if (!db) {
     const subscription = localState.subscriptions.find((candidate) => candidate.userId === userId && candidate.cancelAtPeriodEnd);
     if (!subscription) return null;
-    if (subscription.currentPeriodEnd.getTime() <= now.getTime()) throw new Error("subscription period has ended");
+    if (!subscription.currentPeriodEnd || subscription.currentPeriodEnd.getTime() <= now.getTime()) throw new Error("subscription period has ended");
     subscription.cancelAtPeriodEnd = false;
     subscription.status = "active";
     subscription.cancelRequestedAt = null;
@@ -731,13 +748,14 @@ export async function resumeSubscription(userId: string, idempotencyKey: string)
   if (!current.cancelAtPeriodEnd) return mapSubscription(current);
   if (!current.currentPeriodEnd || current.currentPeriodEnd.getTime() <= now.getTime()) throw new Error("subscription period has ended");
   await db.transaction(async (tx) => {
-    await tx.update(subscriptions).set({
+    const [updated] = await tx.update(subscriptions).set({
       status: "active",
       cancelAtPeriodEnd: false,
       cancelRequestedAt: null,
       version: current.version + 1,
       updatedAt: now,
-    }).where(and(eq(subscriptions.id, current.id), eq(subscriptions.version, current.version)));
+    }).where(and(eq(subscriptions.id, current.id), eq(subscriptions.version, current.version))).returning({ id: subscriptions.id });
+    if (!updated) throw new Error("subscription resume version conflict");
     await tx.insert(subscriptionTransitions).values({
       id: `transition-${crypto.randomUUID()}`,
       subscriptionId: current.id,
@@ -746,7 +764,7 @@ export async function resumeSubscription(userId: string, idempotencyKey: string)
       toStatus: "active",
       eventType: "subscription.cancel_resumed",
       reason: "User resumed automatic renewal",
-      idempotencyKey,
+      idempotencyKey: transitionKey(current.id, "cancel_resumed", idempotencyKey),
       occurredAt: now,
       metadata: {},
     }).onConflictDoNothing({ target: subscriptionTransitions.idempotencyKey });

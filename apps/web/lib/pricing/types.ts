@@ -69,8 +69,8 @@ export type SubscriptionRecord = {
   externalSubscriptionRef: string;
   status: SubscriptionStatus;
   providerStatus?: string | null;
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
   cancelRequestedAt?: Date | null;
   canceledAt?: Date | null;

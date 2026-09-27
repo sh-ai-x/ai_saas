@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 type Subscription = {
   status: string;
   cancelAtPeriodEnd: boolean;
-  currentPeriodEnd: string;
+  currentPeriodEnd: string | null;
   nextBillingAt: string | null;
   cancelRequestedAt: string | null;
   lastPaymentError: string | null;

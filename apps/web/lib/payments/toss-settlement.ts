@@ -104,7 +104,8 @@ export async function renewDueTossSubscriptions(input: { request?: typeof fetch;
       const offer = await getPricingOffer(subscription.pricingOptionId);
       const billingKey = typeof subscription.metadata.billingKey === "string" ? subscription.metadata.billingKey : "";
       if (!offer || !billingKey || !subscription.externalCustomerRef) throw new Error("subscription billing configuration is incomplete");
-      const orderId = `renewal-${subscription.id}-${subscription.nextBillingAt?.getTime() ?? Date.now()}`;
+      if (!subscription.nextBillingAt) throw new Error("subscription next billing date is missing");
+      const orderId = `renewal-${subscription.id}-${subscription.nextBillingAt.getTime()}`;
       order = await createPaymentOrder({
         id: orderId,
         tenantId: subscription.tenantId,

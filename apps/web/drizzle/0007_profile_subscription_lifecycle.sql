@@ -99,6 +99,24 @@ CREATE INDEX IF NOT EXISTS "subscriptions_period_end_idx" ON "subscriptions" USI
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "billing_events_aggregate_idx" ON "billing_events" USING btree ("aggregate_id", "occurred_at");
 --> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payment_orders_toss_customer_key_idx"
+  ON "payment_orders" USING btree (("metadata"->>'customerKey'))
+  WHERE "provider" = 'toss';
+--> statement-breakpoint
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM "subscriptions"
+    WHERE "user_id" IS NOT NULL
+      AND "status" IN ('pending', 'active', 'cancel_scheduled', 'past_due')
+    GROUP BY "tenant_id", "user_id"
+    HAVING COUNT(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'cannot enforce one open subscription per tenant/user while duplicate rows exist';
+  END IF;
+END $$;
+--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "subscriptions_one_open_per_user_idx"
   ON "subscriptions" USING btree ("tenant_id", "user_id")
   WHERE "user_id" IS NOT NULL AND "status" IN ('pending', 'active', 'cancel_scheduled', 'past_due');
