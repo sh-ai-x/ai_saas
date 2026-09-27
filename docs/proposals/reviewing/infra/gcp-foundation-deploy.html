@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GCE e2-micro + Cloudflare Tunnel — foundation smoke-test deploy</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --fg: #1d1d1f;
+  --bg: #fbfbfd;
+  --muted: #5b5b62;
+  --border: #d2d2d7;
+  --card-bg: #ffffff;
+  --th-bg: #f5f5f7;
+  --row-alt: #fafafa;
+  --code-bg: #f5f5f7;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.08);
+  --ok: #1f8a3b;
+  --warn: #a06400;
+  --bad: #b03030;
+  --callout-bg: rgba(10, 132, 255, 0.06);
+  --callout-border: #0a84ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f5f5f7;
+    --bg: #1c1c1e;
+    --muted: #aeaeb2;
+    --border: #38383a;
+    --card-bg: #2c2c2e;
+    --th-bg: #3a3a3c;
+    --row-alt: #232325;
+    --code-bg: #2c2c2e;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.18);
+    --ok: #4cd964;
+    --warn: #ff9f0a;
+    --bad: #ff453a;
+    --callout-bg: rgba(10, 132, 255, 0.14);
+    --callout-border: #0a84ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; margin: 3.5rem 0 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.6rem; }
+p { margin: 0.7rem 0; }
+.meta { color: var(--muted); font-size: 0.92rem; margin: 0 0 2.5rem; }
+.tags { margin: 0 0 1.5rem; }
+.tag {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 0.4rem;
+}
+.tag-ok { background: rgba(31, 138, 59, 0.12); color: var(--ok); }
+.tag-warn { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.tag-bad { background: rgba(176, 48, 48, 0.12); color: var(--bad); }
+.tag-info { background: var(--accent-soft); color: var(--accent); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--th-bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+tr:nth-child(even) td { background: var(--row-alt); }
+td code, th code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.88em; }
+.callout {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  border-radius: 6px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.5rem 0;
+}
+.callout .label { font-weight: 600; margin-bottom: 0.3rem; display: block; }
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.3rem 0; }
+li > strong { color: var(--accent); }
+code { font-family: 'SF Mono', Menlo, Consolas, monospace; background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 8px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+pre code { background: transparent; padding: 0; }
+blockquote {
+  border-left: 3px solid var(--border);
+  margin: 1rem 0;
+  padding: 0.2rem 1rem;
+  color: var(--muted);
+}
+.section-divider { border: 0; border-top: 1px solid var(--border); margin: 3rem 0; }
+.back-link {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.back-link a { color: var(--accent); }
+.back-link a:hover { text-decoration: underline; }
+.toc {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 0 0 3rem;
+  font-size: 0.95rem;
+}
+.toc strong { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.toc ol { margin: 0; padding-left: 1.2rem; }
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* ----- Before / After + Pros / Cons / Limitations ---------------------------
+ * Structured sections emitted when the YAML declares
+ * `before:`, `after:`, `pros:`, `cons:`, `limitations:`. See
+ * `skills/proposal/SKILL.md` §Workflow and `lib/render_proposal_html.py`
+ * `_render_before_after` / `_render_pros_cons_limitations`. Color cues
+ * reuse the existing --ok / --warn / --bad tokens so dark-mode parity
+ * is automatic. */
+.ba-section { margin: 2.5rem 0 1rem; }
+.ba-section h2 { margin-top: 0; }
+.ba-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+@media (min-width: 880px) {
+  .ba-grid { grid-template-columns: 1fr 1fr; }
+}
+.ba-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.ba-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.before-card { border-left: 4px solid var(--muted); }
+.after-card  { border-left: 4px solid var(--accent); }
+.before-card h3 { color: var(--muted); }
+.after-card h3  { color: var(--accent); }
+.evidence-list, .files-list { padding-left: 1.2rem; margin: 0.4rem 0 0.7rem; }
+.evidence-list li { margin: 0.25rem 0; }
+.files-list li { margin: 0.5rem 0; }
+.file-path {
+  display: inline-block;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}
+.pcl-section { margin: 2rem 0 1rem; }
+.pcl-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pros-list, .cons-list, .limitations-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0 0.6rem;
+}
+.pros-list li, .cons-list li, .limitations-list li {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 1.6rem;
+  margin: 0.2rem 0;
+}
+.pros-list li::before {
+  content: "✓"; /* check */
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.cons-list li::before {
+  content: "✗"; /* ballot x */
+  position: absolute; left: 0;
+  color: var(--bad); font-weight: 700;
+}
+.limitations-list li::before {
+  content: "!";      /* warn glyph */
+  position: absolute; left: 0;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--bg);
+  font-weight: 700; font-size: 0.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pcl-pros h3    { color: var(--ok); }
+.pcl-cons h3    { color: var(--bad); }
+.pcl-limit h3   { color: var(--warn); }
+/* ----- Ralph-style structured sections (ambiguity / scope / gate_contract) ---
+ * Emitted when the YAML declares `ambiguity:`, `scope:`,
+ * `gate_contract:`. Color cues reuse the existing tokens so
+ * dark-mode parity is automatic. */
+.amb-section, .scope-section, .gate-section { margin: 2rem 0 1rem; }
+.amb-section h3, .scope-section h3, .gate-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+.amb-list { list-style: none; padding-left: 0; margin: 0.5rem 0; }
+.amb-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin: 0.6rem 0;
+  box-shadow: var(--shadow);
+}
+.amb-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.amb-id {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--code-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+.amb-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.amb-badge-blocking { background: rgba(176, 48, 48, 0.15); color: var(--bad); }
+.amb-badge-default  { background: rgba(91, 91, 98, 0.15); color: var(--muted); }
+.amb-question { margin: 0.3rem 0; }
+.amb-default {
+  margin-top: 0.4rem;
+  font-size: 0.92em;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+  padding-left: 0.7rem;
+}
+.scope-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 720px) {
+  .scope-grid { grid-template-columns: 1fr 1fr; }
+}
+.scope-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+.scope-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.scope-in-card { border-left: 4px solid var(--ok); }
+.scope-out-card { border-left: 4px solid var(--muted); }
+.scope-in-card h4  { color: var(--ok); }
+.scope-out-card h4 { color: var(--muted); }
+.scope-list { list-style: none; padding-left: 0; margin: 0; }
+.scope-list li {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 1.3rem;
+  margin: 0.2rem 0;
+}
+.scope-in-card .scope-list li::before {
+  content: "✓";
+  position: absolute; left: 0;
+  color: var(--ok); font-weight: 700;
+}
+.scope-out-card .scope-list li::before {
+  content: "✗";
+  position: absolute; left: 0;
+  color: var(--muted); font-weight: 700;
+}
+.gate-table { font-size: 0.92em; }
+.gate-table th { background: var(--th-bg); }
+.gate-table td { vertical-align: top; }
+.gate-row-attended td { opacity: 0.7; font-style: italic; }
+.muted { color: var(--muted); }
+/* ----- Timeline chips -------------------------------------------------------
+ * Emitted by `_meta_line` when the proposal YAML declares
+ * `started:` or `shipped:` (both YYYY-MM-DD). Visual cue mirrors the
+ * existing --ok / --warn tokens so dark-mode parity is automatic. */
+.timeline-chip {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.timeline-started { background: rgba(160, 100, 0, 0.12); color: var(--warn); }
+.timeline-shipped { background: rgba(31, 138, 59, 0.12);  color: var(--ok);  }
+</style>
+</head>
+<body>
+
+<h1>GCE e2-micro + Cloudflare Tunnel — foundation smoke-test deploy</h1>
+<p class="meta">2026-09-27 · <span class="tag tag-info">design-discussion</span></p>
+<div class="tags"><span class="tag tag-info">gce</span><span class="tag tag-info">foundation</span><span class="tag tag-info">smoke-test</span><span class="tag tag-info">deployment</span><span class="tag tag-info">cloudflare-tunnel</span><span class="tag tag-info">cost-control</span></div>
+<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">Executive decision</a></li><li><a href="#sec-1">Why now (existing policy + cost numbers)</a></li><li><a href="#sec-2">Architecture</a></li><li><a href="#sec-3">Acceptance gates</a></li><li><a href="#sec-4">Non-goals</a></li><li><a href="#sec-5">Phase plan (steps for the implementation PR)</a></li><li><a href="#sec-6">Open questions</a></li><li><a href="#sec-7">Evidence and risk controls</a></li><li><a href="#sec-8">References</a></li></ol></div>
+<h2 id="sec-0">Executive decision</h2>
+<p>Land a parallel deploy method for the foundation service on Google Compute Engine <code>e2-micro</code>, fronted by a Cloudflare Tunnel, so the staging smoke-test workload runs <strong>always-on at $0/mo</strong> instead of the current Fly.io deploy's $1.94/mo always-on bill or its cold-start latency under <code>auto-stop</code>. The Fly.io artifacts remain on <code>main</code>; this proposal only adds the GCE path, with the Fly method preserved on the <code>archive/flyio-foundation-deploy</code> branch as the rollback target.</p>
+<hr class="section-divider">
+
+<h2 id="sec-1">Why now (existing policy + cost numbers)</h2>
+<p>The foundation service was already documented as a smoke-test, not a prod target: <code>cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags</code>. That commit frames the deploy as cost-sensitive; the deciding number is monthly cost vs always-on availability.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Fly (current)</th>
+<th>GCE e2-micro + CF Tunnel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Monthly cost</td>
+<td>$0 with auto-stop, ~$1.94/mo always-on</td>
+<td>$0 always-free (within egress cap)</td>
+</tr>
+<tr>
+<td>Region</td>
+<td>nrt (Tokyo, ~5ms to KR)</td>
+<td>us-west1 (~150ms to KR)</td>
+</tr>
+<tr>
+<td>Cold deploy</td>
+<td>~30s</td>
+<td>~3 min (image push + SSH restart)</td>
+</tr>
+<tr>
+<td>State persistence</td>
+<td>Fly volume</td>
+<td>30GB pd-standard (always-free)</td>
+</tr>
+<tr>
+<td>TLS</td>
+<td>Built-in (<code>force_https</code>)</td>
+<td>Cloudflare Tunnel (free, off-VM)</td>
+</tr>
+<tr>
+<td>Egress ceiling</td>
+<td>Generous</td>
+<td><strong>1 GB/mo free</strong>, then $0.12/GB</td>
+</tr>
+<tr>
+<td>Always-on availability</td>
+<td>yes (with $) / cold (free)</td>
+<td>yes (free)</td>
+</tr>
+<tr>
+<td>Multi-instance HA</td>
+<td>Possible (paid)</td>
+<td>No — always-free quota = 1 instance</td>
+</tr>
+</tbody>
+</table>
+<p>For a smoke-test workload that needs always-reachable + $0, GCE wins. nrt latency doesn't matter for staging traffic. The 1 GB/mo egress cap is fine for smoke-test usage; prod traffic stays on whatever else runs the prod deploy.</p>
+<hr class="section-divider">
+
+<h2 id="sec-2">Architecture</h2>
+<pre><code>internet ──► Cloudflare edge (TLS termination, public hostname)
+                 │
+                 ▼
+           cloudflared tunnel daemon  ◄── token from GCP Secret Manager
+                 │                       (foundation-cloudflared-token)
+                 │ http://localhost:8080
+                 ▼
+           foundation app container   ◄── image from Artifact Registry
+                 │                       (foundation-image Secret Manager entry)
+                 │ /var/lib/ai-saas (pd-standard 30GB disk, free)
+                 ▼
+            Neon Postgres (existing, external)
+</code></pre>
+<p>Two containers on the VM (<code>infra/gcp/foundation/docker-compose.yaml</code>): the foundation app (Python stdlib HTTP on <code>:8080</code>, loopback-only) and <code>cloudflared</code> (tunnel sidecar). Both pull config from GCP Secret Manager at boot via <code>cloud-init.yaml</code>. The VM has <code>--no-address</code> (no public IP; the always-free quota doesn't cover one), and a <code>deny-8080-ingress</code> firewall rule locks the app port to loopback as defence-in-depth.</p>
+<p>CI (<code>/.github/workflows/foundation-gce-deploy.yml</code>) builds the image with Cloud Build, pushes to Artifact Registry, stamps the <code>foundation-image</code> Secret Manager version, SSHes the compose file onto the VM, restarts the stack, and smoke-tests <code>/healthz</code>.</p>
+<hr class="section-divider">
+
+<h2 id="sec-3">Acceptance gates</h2>
+<p>The implementation lands in PR #49 (branch <code>plan/gcp-foundation-deploy</code>). The proposal is approved when:</p>
+<ul>
+<li>VM boots from a clean image and <code>docker compose ps</code> reports both containers healthy within 3 minutes of first <code>cloud-init</code> completion.</li>
+<li><code>https://foundation.&amp;lt;your-domain&gt;/healthz</code> returns 200 via the Cloudflare Tunnel; <code>curl</code> against the VM's external IP is denied (loopback-only).</li>
+<li><code>/var/lib/ai-saas</code> survives a VM reboot (pd-standard mounted via fstab, not tmpfs).</li>
+<li>State-store secrets (<code>DATABASE_URL</code>, <code>APP_SECRET_KEY</code>) are never written to the VM filesystem unredacted; the env file at <code>/etc/ai-saas/foundation.env</code> is mode 0600 and re-fetched on every boot.</li>
+<li>Re-running <code>./infra/gcp/foundation/create-vm.sh</code> is a no-op (idempotent).</li>
+<li><code>gh workflow run foundation-gce-deploy.yml</code> triggers a fresh build + restart; <code>/healthz</code> returns 200 within 5 minutes.</li>
+<li><strong>Fail-closed</strong>: VM CPU/memory stays within e2-micro's 1GB shared-burst budget (foundation idle RSS ~80-120 MB; cloudflared ~30 MB; ~700 MB headroom for Debian + Docker).</li>
+</ul>
+<hr class="section-divider">
+
+<h2 id="sec-4">Non-goals</h2>
+<ul>
+<li><strong>Production traffic</strong>. The smoke-test cap (1 GB/mo egress) is incompatible with real user load. Prod stays on whatever else runs the prod deploy. Breach response: if a reviewer asks "can this host prod?", redirect to the existing prod path.</li>
+<li><strong>Multi-instance HA</strong>. The e2-micro always-free quota is one instance per project. Higher availability requires paid machine types or migration to Cloud Run. Breach response: don't add a second VM in this proposal; if HA is required, file a follow-up.</li>
+<li><strong>Custom domain DNS automation</strong>. The hostname is operator-configured via a Cloudflare Tunnel; this proposal does not script the <code>cloudflared tunnel create</code> step or DNS record creation. Breach response: keep it manual; automation can come when this stops being a one-time setup.</li>
+<li><strong>Migrating Fly state</strong>. SQLite at <code>/var/lib/ai-saas</code> does NOT migrate from the Fly volume — Fly volumes are managed and not portable. Treat the first GCE deploy as clean-state.</li>
+<li><strong>A new Dockerfile</strong>. The same <code>docker/prod/foundation.Dockerfile</code> runs unchanged on the VM. Any container-level change to that Dockerfile is out of scope.</li>
+</ul>
+<hr class="section-divider">
+
+<h2 id="sec-5">Phase plan (steps for the implementation PR)</h2>
+<p>PR #49 lands all five files in one commit:</p>
+<ol>
+<li><code>infra/gcp/foundation/create-vm.sh</code> — one-time VM provisioning (idempotent; VM + 30GB pd-standard disk + deny-8080-ingress firewall rule, <code>--no-address</code>).</li>
+<li><code>infra/gcp/foundation/cloud-init.yaml</code> — Debian 12 first-boot: apt-install docker, format + mount the data disk, fetch secrets from GCP Secret Manager, <code>docker compose up -d</code>.</li>
+<li><code>infra/gcp/foundation/docker-compose.yaml</code> — app + cloudflared sidecar; app port bound to loopback only.</li>
+<li><code>infra/gcp/foundation/README.md</code> — one-time setup runbook, deploy flow, Fly migration path, deletion steps.</li>
+<li><code>.github/workflows/foundation-gce-deploy.yml</code> — build (Cloud Build) → push to Artifact Registry → stamp <code>foundation-image</code> Secret Manager version → SSH restart the compose stack → smoke-test <code>/healthz</code>.</li>
+</ol>
+<p>Future steps (post-merge, operator-driven):
+- Merge PR #49 with <code>gh pr merge 49 --squash --delete-branch</code>.
+- Operator runs <code>./infra/gcp/foundation/create-vm.sh &amp;lt;PROJECT_ID&gt;</code>.
+- Operator creates the Cloudflare Tunnel + writes the token to Secret Manager.
+- Operator writes the env file (<code>gcp-smoke.env</code>) to Secret Manager.
+- Push to <code>main</code> triggers the workflow.</p>
+<hr class="section-divider">
+
+<h2 id="sec-6">Open questions</h2>
+<ul>
+<li><strong>WIF vs SA-key for GitHub Actions auth.</strong> The proposal writes a JSON service account key as a GitHub secret (<code>GCP_SA_KEY</code>); this is simpler to set up but a worse security posture than Workload Identity Federation. The full guide defaults to the JSON key for setup-time simplicity; a follow-up can swap to WIF without changing the deploy workflow contract (<code>google-github-actions/auth@v2</code> accepts both).</li>
+<li><strong>Egress alarm.</strong> The 1 GB/mo ceiling is invisible until crossed (then $0.12/GB). A Cloud Monitoring alert on <code>egress_bytes</code> for the VM would prevent surprise billing; not implemented in this proposal.</li>
+<li><strong>US-region only.</strong> <code>e2-micro</code> always-free is restricted to <code>us-west1</code>, <code>us-central1</code>, <code>us-east1</code>. Operators in other regions would have to fall back to a paid machine type or a different always-free product.</li>
+</ul>
+<hr class="section-divider">
+
+<h2 id="sec-7">Evidence and risk controls</h2>
+<p>The GCE always-free tier (e2-micro, 30GB pd-standard, 1GB/mo egress to most regions, free external IP for first instance per project) is documented at the GCP free tier page; the static-IP-when-attached caveat is documented at the external IP pricing page. Cloudflare Tunnel's free tier (no ingress bandwidth limit; per-tunnel token authentication; HTTPS termination) is documented at the Cloudflare Zero Trust docs. [src:https://cloud.google.com/free;ts:2026-09-27;type:primary] [src:https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/;ts:2026-09-27;type:primary]</p>
+<p>Risk controls:
+- Loopback-only app port + deny-8080-ingress firewall: even if the tunnel daemon misconfigures, the app is unreachable from the public internet without going through Cloudflare's authenticated tunnel.
+- <code>/etc/ai-saas/foundation.env</code> is mode 0600, fetched at every boot; secrets are not baked into the image.
+- <code>cloudflared</code> token lives only in Secret Manager and <code>/etc/ai-saas/cloudflared.env</code> (also 0600); rotation requires deleting the Secret Manager version and rebooting the VM.
+- VM has <code>--no-address</code>; the only ingress path is the cloudflared tunnel egress (which Cloudflare terminates at the edge).
+- State disk (<code>/var/lib/ai-saas</code>) is auto-delete=no at create time; survives instance recreation.</p>
+<hr class="section-divider">
+
+<h2 id="sec-8">References</h2>
+<ul>
+<li><code>cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags</code> — the existing commit that frames this as cost-sensitive.</li>
+<li><code>cd1bd70 docs(ops): document Fly.io foundation deploy (one-time setup + workflow)</code> — the Fly method this proposal parallels.</li>
+<li><code>f1b8778 fix(fly): resolve maintenance review blockers — 3 criticals + 4 follow-ups</code> — recent Fly deploy fixes that this GCE path should not regress.</li>
+<li><code>archive/flyio-foundation-deploy</code> — the preserved Fly branch (snapshot of <code>main @ 9e71658</code>); rollback target if GCE fails or cost expectations change.</li>
+<li>PR #49 — the implementation branch (<code>plan/gcp-foundation-deploy</code>); lands all five files in one squash-mergeable commit.</li>
+</ul>
+
+<hr class="section-divider">
+
+<footer>Generated 2026-09-27 · render via <code>/dev-kit:proposal</code></footer>
+</body>
+</html>
