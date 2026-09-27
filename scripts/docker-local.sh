@@ -66,10 +66,6 @@ port_is_free() {
   ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
 }
 
-port_block_is_free() {
-  port_is_free "$1" && port_is_free "$2" && port_is_free "$3"
-}
-
 configured_slot="$(env_file_value DOCKER_LOCAL_SLOT)"
 requested_slot="${DOCKER_LOCAL_SLOT:-$configured_slot}"
 if [[ -z "$requested_slot" ]]; then
@@ -81,11 +77,16 @@ if ! [[ "$requested_slot" =~ ^[0-9]+$ ]] || (( requested_slot < 0 || requested_s
   exit 1
 fi
 
-existing_web_port="$(port_from_container "${compose_project}-web-1" 3000 || true)"
+# Web port is pinned (3100) across every worktree so the env-file URLs
+# (BETTER_AUTH_URL, TOSS_SUCCESS_URL, WEB_PUBLIC_URL, …) stay correct
+# regardless of which worktree runs `pnpm docker:local`. Foundation and
+# Postgres external ports stay on the slot-allocation block for collision
+# detection across concurrent worktrees.
+selected_web_port=3100
+
 existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" 8080 || true)"
 existing_postgres_port="$(port_from_container "${compose_project}-postgres-1" 5432 || true)"
-if [[ -n "$existing_web_port" && -n "$existing_foundation_port" && -n "$existing_postgres_port" ]]; then
-  selected_web_port="$existing_web_port"
+if [[ -n "$existing_foundation_port" && -n "$existing_postgres_port" ]]; then
   selected_foundation_port="$existing_foundation_port"
   selected_postgres_port="$existing_postgres_port"
 else
@@ -93,12 +94,10 @@ else
   found_slot=false
   for probe in {0..39}; do
     candidate_slot=$(( (requested_slot + probe) % 40 ))
-    candidate_web_port=$((3100 + candidate_slot * 10))
     candidate_foundation_port=$((8180 + candidate_slot * 10))
     candidate_postgres_port=$((55433 + candidate_slot * 10))
-    if port_block_is_free "$candidate_web_port" "$candidate_foundation_port" "$candidate_postgres_port"; then
+    if port_is_free "$candidate_foundation_port" && port_is_free "$candidate_postgres_port"; then
       selected_slot="$candidate_slot"
-      selected_web_port="$candidate_web_port"
       selected_foundation_port="$candidate_foundation_port"
       selected_postgres_port="$candidate_postgres_port"
       found_slot=true
@@ -219,3 +218,13 @@ if ! "${compose[@]}" up -d --build --force-recreate "$@"; then
 fi
 
 "${compose[@]}" ps
+
+# Self-contained env-injection verifier. Advisory only: a fail here
+# surfaces missing env vars but does NOT roll back the docker run, so
+# the user can still inspect containers that did come up.
+verify_script="$repo_root/scripts/verify-docker-env.sh"
+if [[ -x "$verify_script" ]]; then
+  if ! "$verify_script" "$compose_project" "$env_file"; then
+    echo "verify-docker-env: env-injection check failed (see table above)." >&2
+  fi
+fi

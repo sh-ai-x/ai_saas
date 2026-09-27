@@ -61,19 +61,15 @@ if ! [[ "$configured_slot" =~ ^[0-9]+$ ]] || (( configured_slot < 0 || configure
   exit 1
 fi
 
-existing_web_port="$(port_from_container "${compose_project}-web-1" 3000)"
 existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" 8080)"
-if [[ -n "$existing_web_port" && -n "$existing_foundation_port" ]]; then
-  selected_web_port="$existing_web_port"
+if [[ -n "$existing_foundation_port" ]]; then
   selected_foundation_port="$existing_foundation_port"
 else
   found_slot=false
   for probe in {0..39}; do
     candidate_slot=$(( (configured_slot + probe) % 40 ))
-    candidate_web_port=$((3200 + candidate_slot * 10))
     candidate_foundation_port=$((8280 + candidate_slot * 10))
-    if port_block_is_free "$candidate_web_port" "$candidate_foundation_port"; then
-      selected_web_port="$candidate_web_port"
+    if port_is_free "$candidate_foundation_port"; then
       selected_foundation_port="$candidate_foundation_port"
       found_slot=true
       break
@@ -84,6 +80,13 @@ else
     exit 1
   fi
 fi
+
+# Web port is pinned (3200) across every worktree so the env-file URLs
+# (BETTER_AUTH_URL, TOSS_SUCCESS_URL, WEB_PUBLIC_URL, …) stay correct
+# regardless of which worktree runs `pnpm docker:neon`. Foundation
+# external port stays on slot allocation for collision detection across
+# concurrent worktrees.
+selected_web_port=3200
 
 export WEB_PORT="${WEB_PORT:-$selected_web_port}"
 export FOUNDATION_PORT="${FOUNDATION_PORT:-$selected_foundation_port}"
@@ -105,3 +108,12 @@ fi
 
 "${compose[@]}" up -d --build --force-recreate "$@"
 "${compose[@]}" ps
+
+# Self-contained env-injection verifier. Advisory only: a fail here
+# surfaces missing env vars but does NOT roll back the docker run.
+verify_script="$repo_root/scripts/verify-docker-env.sh"
+if [[ -x "$verify_script" ]]; then
+  if ! "$verify_script" "$compose_project" "$env_file"; then
+    echo "verify-docker-env: env-injection check failed (see table above)." >&2
+  fi
+fi

@@ -111,7 +111,10 @@ class ProductionDockerContractTests(unittest.TestCase):
     def test_docker_local_script_promotes_legacy_defaults_but_keeps_explicit_ports(self) -> None:
         script = (ROOT / "scripts/docker-local.sh").read_text(encoding="utf-8")
         self.assertIn("DOCKER_LOCAL_SLOT", script)
-        self.assertIn("port_block_is_free", script)
+        # Foundation + Postgres stay on slot-allocation collision detection;
+        # web port is now pinned (see test_docker_pinned_ports for the
+        # full pin contract).
+        self.assertIn("port_is_free", script)
         self.assertIn('compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-${worktree_slug}}"', script)
         self.assertIn('export WEB_DATABASE_URL="$local_database_url"', script)
         self.assertIn('export WEB_DATABASE_URL_UNPOOLED="$local_database_url"', script)
@@ -134,8 +137,12 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn("NEON_DOCKER_SLOT", script)
         self.assertIn("docker/neon/compose.yaml", script)
         self.assertIn("DATABASE_URL_UNPOOLED=", env_example)
-        self.assertIn("3200 + candidate_slot * 10", script)
+        # Web port is pinned (3200) across every worktree; foundation stays
+        # on the slot-allocation block so concurrent worktrees do not collide.
+        self.assertIn("selected_web_port=3200", script)
         self.assertIn("8280 + candidate_slot * 10", script)
+        # Old dynamic web-port formula must be gone.
+        self.assertNotIn("3200 + candidate_slot * 10", script)
 
     def test_docker_local_uses_the_lightweight_development_web_target(self) -> None:
         compose = LOCAL_COMPOSE.read_text(encoding="utf-8")
