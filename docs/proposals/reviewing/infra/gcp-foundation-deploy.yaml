@@ -106,6 +106,124 @@ sections:
       - VM has `--no-address`; the only ingress path is the cloudflared tunnel egress (which Cloudflare terminates at the edge).
       - State disk (`/var/lib/ai-saas`) is auto-delete=no at create time; survives instance recreation.
 
+  - title: Setup guide (operator-runbook)
+    body: |
+      Assumes the implementation PR (#49) has been merged into `main`. Estimated time: 30–45 min for a fresh setup.
+
+      **Step 1 — Merge PR #49**
+
+      ```
+      gh pr merge 49 --squash --delete-branch
+      cd /Users/sanghee/dev/ai_saas
+      git pull
+      ```
+
+      **Step 2 — One-shot GCP setup script.** Save this as `infra/gcp/foundation/setup.sh`, `chmod +x`, and run it. Idempotent — re-runs are no-ops where the resources already exist.
+
+      ```bash
+      #!/usr/bin/env bash
+      # infra/gcp/foundation/setup.sh — one-shot GCP setup. Idempotent.
+      set -euo pipefail
+      PROJECT_ID="${1:-ai-template-509103}"
+      SA_NAME="ghae-foundation-deploy"
+      SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+      gcloud config set project $PROJECT_ID
+
+      # APIs
+      gcloud services enable compute.googleapis.com \
+        secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+
+      # Docker auth + Artifact Registry
+      gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
+      gcloud artifacts repositories create foundation \
+        --repository-format=docker --location=us-west1 2>/dev/null || true
+
+      # Service Account + roles
+      gcloud iam service-accounts create $SA_NAME \
+        --display-name="GitHub Actions: foundation GCE deploy" 2>/dev/null || true
+      for ROLE in roles/artifactregistry.writer \
+       roles/secretmanager.secretVersionAdder \
+                  roles/compute.instanceAdmin.v1; do
+        gcloud projects add-iam-policy-binding $PROJECT_ID \
+          --member="serviceAccount:${SA_EMAIL}" --role="$ROLE" --quiet
+      done
+
+      # VM (this is create-vm.sh from the implementation PR)
+      ./infra/gcp/foundation/create-vm.sh $PROJECT_ID
+
+      # Output the SA key (paste contents into GitHub secret GCP_SA_KEY)
+      mkdir -p /tmp/gcp-deploy
+      gcloud iam service-accounts keys create /tmp/gcp-deploy/sa-key.json \
+        --iam-account=$SA_EMAIL
+      echo "SA key at /tmp/gcp-deploy/sa-key.json"
+      ```
+
+      **Step 3 — Cloudflare Tunnel (manual, browser).** Cloudflare Zero Trust → Networks → Tunnels → Create a tunnel. Type: Cloudflared. Name: `foundation`. Public hostname: `foundation.<your-domain>` → service type `HTTP` → URL `localhost:8080`. Copy the tunnel token.
+
+      ```bash
+      echo -n "PASTE_TUNNEL_TOKEN_HERE" \
+        | gcloud secrets create foundation-cloudflared-token --data-file=-
+      ```
+
+      **Step 4 — Env file.** Copy `config/profiles/free-portfolio.example.env` to a working path, then override three values for the GCE smoke-test:
+
+      ```
+      APP_BASE_URL=https://foundation.<your-domain>
+      DATABASE_URL=<your Neon staging URL>
+      APP_SECRET_KEY=<openssl rand -hex 32>
+      AUTH_PROVIDER=local-mock
+      ```
+
+      Other defaults (`CONTRACT_VERSION=v1`, `OTEL_*`, etc.) are fine as-is.
+
+      ```bash
+      gcloud secrets create foundation-env --data-file=/path/to/gcp-smoke.env
+      ```
+
+      **Step 5 — Initial image.**
+
+      ```bash
+      gcloud builds submit --tag us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial
+      echo -n "us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial" \
+        | gcloud secrets create foundation-image --data-file=-
+      ```
+
+      **Step 6 — GitHub repo secrets + variables.** https://github.com/sh-ai-x/ai_saas/settings/secrets/actions
+
+      | Kind | Name | Value |
+      |---|---|---|
+      | Secret | `GCP_SA_KEY` | paste `/tmp/gcp-deploy/sa-key.json` contents |
+      | Variable | `GCP_PROJECT_ID` | `ai-template-509103` (or your project) |
+      | Variable | `GCP_ZONE` | `us-west1-a` |
+      | Variable | `GCP_VM_NAME` | `foundation` |
+      | Variable | `CLOUDFLARE_TUNNEL_HOSTNAME` | `foundation.<your-domain>` |
+
+      **Step 7 — Trigger + verify.**
+
+      ```bash
+      # First deploy — workflow_dispatch
+      gh workflow run foundation-gce-deploy.yml --ref main
+
+      # Watch
+      gh run watch  # pick the foundation-gce-deploy run
+
+      # After the smoke-test step reports /healthz OK
+      curl -fsS https://foundation.<your-domain>/healthz
+      ```
+
+      **Deleting the deployment** (when you're done with staging):
+
+      ```bash
+      gcloud compute instances delete foundation --zone=us-west1-a
+      gcloud compute disks delete foundation-state --zone=us-west1-a
+      gcloud compute firewall-rules delete deny-8080-ingress
+      gcloud secrets delete foundation-env foundation-cloudflared-token foundation-image
+      gcloud artifacts repositories delete foundation --location=us-west1
+      gcloud iam service-accounts delete ghae-foundation-deploy@$PROJECT_ID.iam.gserviceaccount.com
+      # Cloudflare: Zero Trust dashboard → Networks → Tunnels → delete "foundation"
+      ```
+
   - title: References
     body: |
       - `cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags` — the existing commit that frames this as cost-sensitive.
