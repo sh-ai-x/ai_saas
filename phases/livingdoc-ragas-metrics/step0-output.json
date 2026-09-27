@@ -1,0 +1,10 @@
+{
+  "step": 0,
+  "phase": "livingdoc-ragas-metrics",
+  "schema_version": "1.0.0",
+  "exit_code": 0,
+  "duration_seconds": 3,
+  "timestamp": "2026-09-27T18:15:00+09:00",
+  "stdout": "imports ok\nfaithfulness=0.5 passed=False (threshold 0.7)\nanswer_relevance=0.5 passed=False (threshold 0.6)\ncontext_recall=0.5 passed=False (threshold 0.8)",
+  "stderr": ""
+}
