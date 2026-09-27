@@ -1,4 +1,5 @@
 import { AdminOperationsConsole } from "@/components/admin-operations-console";
+import { AdminSubscriptionDirectory } from "@/components/admin-subscription-directory";
 
 export default function AdminPage() {
   return (
@@ -7,7 +8,9 @@ export default function AdminPage() {
       <section className="admin-card-grid">
         <a className="admin-card" href="/admin/pricing"><span className="eyebrow">01 / CATALOG</span><strong>Pricing plans</strong><p>Create plan policy, edit purchase modes, and archive options without touching UI code.</p><span className="card-link">Open catalog →</span></a>
         <a className="admin-card" href="/admin/payments"><span className="eyebrow">02 / PAYMENTS</span><strong>Provider settings</strong><p>Choose mock, Toss, or Lemon Squeezy with one-live-provider enforcement and safe public identifiers.</p><span className="card-link">Open settings →</span></a>
+        <a className="admin-card" href="#subscriptions"><span className="eyebrow">03 / USERS</span><strong>Subscription status</strong><p>Search each user's plan, renewal date, cancellation state, payment issue, and token usage.</p><span className="card-link">Open directory ↓</span></a>
       </section>
+      <div id="subscriptions"><AdminSubscriptionDirectory /></div>
       <AdminOperationsConsole />
       <section className="admin-callout"><p className="eyebrow accent">DATA BOUNDARY</p><h2>Neon is the source of truth.</h2><p>Drizzle owns the relational pricing schema. Local mode uses an explicit seed fallback only when `DATABASE_URL` is absent and `APP_ENV` is not production. Provider secrets stay in runtime environment or a secret manager.</p></section>
     </div>

@@ -39,6 +39,7 @@ services:
       TOSS_SUCCESS_URL: ${TOSS_SUCCESS_URL:-http://localhost:3000/payments/toss/success}
       TOSS_BILLING_SUCCESS_URL: ${TOSS_BILLING_SUCCESS_URL:-http://localhost:3000/payments/toss/billing-success}
       TOSS_FAIL_URL: ${TOSS_FAIL_URL:-http://localhost:3000/payments/toss/fail}
+      BILLING_CRON_SECRET: ${BILLING_CRON_SECRET:-}
       WORKFLOW_PROVIDER: local
       AGENT_PROVIDER_MODE: ${AGENT_PROVIDER_MODE:-fake}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

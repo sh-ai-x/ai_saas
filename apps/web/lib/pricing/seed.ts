@@ -14,7 +14,13 @@ export const seededPricingCatalog: PricingPlan[] = [
     isDefault: true,
     displayOrder: 10,
     features: ["1 workspace", "100 proposal reviews", "Mock or sandbox checkout"],
-    quotas: { monthlyRuns: 100, members: 1 },
+    quotas: {
+      monthlyRuns: 100,
+      members: 1,
+      monthlyInputTokens: 200_000,
+      monthlyOutputTokens: 100_000,
+      monthlyTokens: 300_000,
+    },
     options: [
       { id: "option-starter-monthly", planId: "plan-starter", mode: "subscription", interval: "month", provider: "mock", currency: "KRW", amountMinor: 900, compareAtAmountMinor: null, providerProductRef: null, providerPriceRef: null, active: true },
       { id: "option-starter-yearly", planId: "plan-starter", mode: "subscription", interval: "year", provider: "mock", currency: "KRW", amountMinor: 9000, compareAtAmountMinor: 10800, providerProductRef: null, providerPriceRef: null, active: true },
@@ -31,7 +37,13 @@ export const seededPricingCatalog: PricingPlan[] = [
     isDefault: false,
     displayOrder: 20,
     features: ["5 workspaces", "1,000 proposal reviews", "Usage and audit history"],
-    quotas: { monthlyRuns: 1000, members: 5 },
+    quotas: {
+      monthlyRuns: 1000,
+      members: 5,
+      monthlyInputTokens: 1_000_000,
+      monthlyOutputTokens: 500_000,
+      monthlyTokens: 1_500_000,
+    },
     options: [
       { id: "option-pro-monthly", planId: "plan-pro", mode: "subscription", interval: "month", provider: "mock", currency: "KRW", amountMinor: 2900, compareAtAmountMinor: 3900, providerProductRef: null, providerPriceRef: null, active: true },
       { id: "option-pro-yearly", planId: "plan-pro", mode: "subscription", interval: "year", provider: "mock", currency: "KRW", amountMinor: 29000, compareAtAmountMinor: 34800, providerProductRef: null, providerPriceRef: null, active: true },
@@ -48,7 +60,13 @@ export const seededPricingCatalog: PricingPlan[] = [
     isDefault: false,
     displayOrder: 30,
     features: ["One payment", "No recurring renewal", "Bounded portfolio license"],
-    quotas: { monthlyRuns: 1000, members: 1 },
+    quotas: {
+      monthlyRuns: 1000,
+      members: 1,
+      monthlyInputTokens: 1_000_000,
+      monthlyOutputTokens: 500_000,
+      monthlyTokens: 1_500_000,
+    },
     options: [
       { id: "option-lifetime-onetime", planId: "plan-lifetime", mode: "one_time", interval: "one_time", provider: "mock", currency: "KRW", amountMinor: 7900, compareAtAmountMinor: null, providerProductRef: null, providerPriceRef: null, active: true },
     ],

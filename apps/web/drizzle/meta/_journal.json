@@ -50,6 +50,13 @@
       "when": 1790169000000,
       "tag": "0006_change_impact_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790525456166,
+      "tag": "0007_profile_subscription_lifecycle",
+      "breakpoints": true
     }
   ]
 }

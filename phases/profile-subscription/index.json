@@ -1,0 +1,32 @@
+{
+  "phase": "profile-subscription",
+  "schema_version": "1.0.0",
+  "steps": [
+    {
+      "name": "neon-billing-model",
+      "status": "completed",
+      "step": 0
+    },
+    {
+      "name": "toss-subscription-lifecycle",
+      "status": "completed",
+      "step": 1
+    },
+    {
+      "name": "token-metering-entitlements",
+      "status": "completed",
+      "step": 2
+    },
+    {
+      "name": "profile-subscription-ui",
+      "status": "completed",
+      "step": 3
+    },
+    {
+      "name": "admin-operations-verification",
+      "status": "completed",
+      "step": 4
+    }
+  ],
+  "worktree": "plan/profile-subscription"
+}

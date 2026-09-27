@@ -6,6 +6,12 @@ import {
 import {
   getPaymentOrder,
   getPaymentOrderByCustomerKey,
+  createPaymentOrder,
+  getPricingOffer,
+  listDueTossSubscriptions,
+  expireEndedSubscriptions,
+  recordTossRenewal,
+  recordTossRenewalFailure,
   recordTossSubscription,
   updatePaymentOrder,
 } from "@/lib/pricing/repository";
@@ -82,4 +88,53 @@ export async function settleTossSubscription(input: {
   const updated = await updatePaymentOrder(order.id, settlementPatch);
   if (!updated) throw new Error("Toss subscription order could not be settled");
   return updated;
+}
+
+export async function renewDueTossSubscriptions(input: { request?: typeof fetch; now?: Date } = {}) {
+  await expireEndedSubscriptions(input.now);
+  const due = await listDueTossSubscriptions(input.now);
+  const results: Array<{ subscriptionId: string; status: "renewed" | "failed" | "skipped"; error?: string }> = [];
+  for (const subscription of due) {
+    if (subscription.cancelAtPeriodEnd) {
+      results.push({ subscriptionId: subscription.id, status: "skipped" });
+      continue;
+    }
+    let order: PaymentOrder | null = null;
+    try {
+      const offer = await getPricingOffer(subscription.pricingOptionId);
+      const billingKey = typeof subscription.metadata.billingKey === "string" ? subscription.metadata.billingKey : "";
+      if (!offer || !billingKey || !subscription.externalCustomerRef) throw new Error("subscription billing configuration is incomplete");
+      const orderId = `renewal-${subscription.id}-${subscription.nextBillingAt?.getTime() ?? Date.now()}`;
+      order = await createPaymentOrder({
+        id: orderId,
+        tenantId: subscription.tenantId,
+        userId: subscription.userId,
+        option: { ...offer.option, provider: "toss" },
+        idempotencyKey: `${orderId}-key`,
+        metadata: { renewalFor: subscription.id, customerKey: subscription.externalCustomerRef, billingKey, orderName: `${offer.plan.name} renewal`, interval: offer.option.interval },
+      });
+      if (order.status === "succeeded") {
+        await recordTossRenewal({ subscription, paymentOrder: order, paymentRef: order.externalPaymentRef ?? order.id });
+        results.push({ subscriptionId: subscription.id, status: "renewed" });
+        continue;
+      }
+      const payload = await approveTossBilling({
+        billingKey,
+        customerKey: subscription.externalCustomerRef,
+        orderId: order.id,
+        orderName: `${offer.plan.name} renewal`,
+        amount: order.amountMinor,
+        idempotencyKey: order.idempotencyKey,
+      }, input.request);
+      await updatePaymentOrder(order.id, { status: "succeeded", externalPaymentRef: String(payload.paymentKey ?? payload.transactionKey ?? "") || null });
+      await recordTossRenewal({ subscription, paymentOrder: order, paymentRef: String(payload.paymentKey ?? payload.transactionKey ?? "") });
+      results.push({ subscriptionId: subscription.id, status: "renewed" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Toss renewal failed";
+      if (order) await updatePaymentOrder(order.id, { status: "failed" });
+      await recordTossRenewalFailure(subscription, message);
+      results.push({ subscriptionId: subscription.id, status: "failed", error: message });
+    }
+  }
+  return results;
 }

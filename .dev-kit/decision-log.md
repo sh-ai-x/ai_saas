@@ -89,3 +89,40 @@
 
 - non_goals: removing/deprecating the OpenAI adapter; retuning confidence/answerable thresholds; the widget ranking cap and email-escalation gap (deferred, separate proposals); a provider-factory abstraction module.
 - breach_response: reject scope changes that would remove OpenAI or retune thresholds without real Jev traffic data; defer ranking/escalation and factory-module requests to their own proposals.
+
+# frame — profile-subscription
+
+- goal: Ship an authenticated profile and admin subscription experience that shows the user's plan, subscription state, current and next billing dates, token limit and usage, supports cancellation at the current period end, and keeps Neon entitlements synchronized with Toss Payments lifecycle events.
+- target_user: A paying solo AI SaaS developer who needs to understand access, remaining tokens, and what will happen at the next renewal without contacting support.
+- situation: The application has pricing, payment-order, subscription, billing-event, quota, and admin foundations, but users cannot see their own subscription lifecycle or token consumption and operators cannot reliably inspect every user's renewal/cancellation state.
+
+# handoff consume — profile-subscription
+
+- route: from_sot
+- source: `.dev-kit/hand-off/sot-harness-ai-saas-msa-20260918.md`
+- status: locked
+- note: The existing SOT was explicitly selected because it defines the provider-neutral billing, admin audit, Neon, Toss, and entitlement boundaries for this plan.
+
+# gate-2 cycle 1 — profile-subscription
+
+- evidence: 5 independent user/repository/Neon/provider/SOT signals recorded in `PRD.md` §2.
+- LTV: 240 value units × 25 reachable users = 6,000 / 1,200 estimated cost units = value_score 5.0.
+- ambiguity: 10 → 8 (surface) → 6 (period-end cancellation) → 4 (application scheduler/provider ownership) → 3 (token-period semantics); narrowed_delta=[2,2,2,1].
+- next: implement schema/state invariants before provider, metering, profile, or admin changes.
+
+# gate-3 — profile-subscription
+
+- non_goals: immediate cancellation/refunds; plan switching/proration/payment-method self-service; second provider; authorization redesign/raw billing credentials; overage billing.
+- breach_response: defer each request to a separate scoped billing/security proposal and preserve the cancel-at-period-end, provider-neutral, fixed-quota MVP boundary.
+
+# gate-4 — profile-subscription
+
+- steps: 5 dependency-first layers: Neon billing model → Toss lifecycle → token metering → profile UI → admin/operations verification.
+- worktree: `plan/profile-subscription`
+- status: completed for all five steps; verification evidence is recorded in the build→review hand-off.
+
+# gate-5 — profile-subscription
+
+- status: emitted
+- artifacts: `PRD.md`, `phases/profile-subscription/index.json`, `phases/profile-subscription/step0.md` through `step4.md`, `.dev-kit/hand-off/plan→build.md`
+- proposal: review artifact slug recorded in PRD hand-off; renderer availability is environment-dependent.
