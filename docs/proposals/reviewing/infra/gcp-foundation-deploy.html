@@ -330,7 +330,7 @@ a:hover { text-decoration: underline; }
 <h1>GCE e2-micro + Cloudflare Tunnel — foundation smoke-test deploy</h1>
 <p class="meta">2026-09-27 · <span class="tag tag-info">design-discussion</span></p>
 <div class="tags"><span class="tag tag-info">gce</span><span class="tag tag-info">foundation</span><span class="tag tag-info">smoke-test</span><span class="tag tag-info">deployment</span><span class="tag tag-info">cloudflare-tunnel</span><span class="tag tag-info">cost-control</span></div>
-<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">Executive decision</a></li><li><a href="#sec-1">Why now (existing policy + cost numbers)</a></li><li><a href="#sec-2">Architecture</a></li><li><a href="#sec-3">Acceptance gates</a></li><li><a href="#sec-4">Non-goals</a></li><li><a href="#sec-5">Phase plan (steps for the implementation PR)</a></li><li><a href="#sec-6">Open questions</a></li><li><a href="#sec-7">Evidence and risk controls</a></li><li><a href="#sec-8">References</a></li></ol></div>
+<div class="toc"><strong>Contents</strong><ol><li><a href="#sec-0">Executive decision</a></li><li><a href="#sec-1">Why now (existing policy + cost numbers)</a></li><li><a href="#sec-2">Architecture</a></li><li><a href="#sec-3">Acceptance gates</a></li><li><a href="#sec-4">Non-goals</a></li><li><a href="#sec-5">Phase plan (steps for the implementation PR)</a></li><li><a href="#sec-6">Open questions</a></li><li><a href="#sec-7">Evidence and risk controls</a></li><li><a href="#sec-8">Setup guide (operator-runbook)</a></li><li><a href="#sec-9">References</a></li></ol></div>
 <h2 id="sec-0">Executive decision</h2>
 <p>Land a parallel deploy method for the foundation service on Google Compute Engine <code>e2-micro</code>, fronted by a Cloudflare Tunnel, so the staging smoke-test workload runs <strong>always-on at $0/mo</strong> instead of the current Fly.io deploy's $1.94/mo always-on bill or its cold-start latency under <code>auto-stop</code>. The Fly.io artifacts remain on <code>main</code>; this proposal only adds the GCE path, with the Fly method preserved on the <code>archive/flyio-foundation-deploy</code> branch as the rollback target.</p>
 <hr class="section-divider">
@@ -467,7 +467,128 @@ a:hover { text-decoration: underline; }
 - State disk (<code>/var/lib/ai-saas</code>) is auto-delete=no at create time; survives instance recreation.</p>
 <hr class="section-divider">
 
-<h2 id="sec-8">References</h2>
+<h2 id="sec-8">Setup guide (operator-runbook)</h2>
+<p>Assumes the implementation PR (#49) has been merged into <code>main</code>. Estimated time: 30–45 min for a fresh setup.</p>
+<p><strong>Step 1 — Merge PR #49</strong></p>
+<pre><code>gh pr merge 49 --squash --delete-branch
+cd /Users/sanghee/dev/ai_saas
+git pull
+</code></pre>
+<p><strong>Step 2 — One-shot GCP setup script.</strong> Save this as <code>infra/gcp/foundation/setup.sh</code>, <code>chmod +x</code>, and run it. Idempotent — re-runs are no-ops where the resources already exist.</p>
+<pre><code class="language-bash">#!/usr/bin/env bash
+# infra/gcp/foundation/setup.sh — one-shot GCP setup. Idempotent.
+set -euo pipefail
+PROJECT_ID=&quot;${1:-ai-template-509103}&quot;
+SA_NAME=&quot;ghae-foundation-deploy&quot;
+SA_EMAIL=&quot;${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com&quot;
+
+gcloud config set project $PROJECT_ID
+
+# APIs
+gcloud services enable compute.googleapis.com \
+  secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+
+# Docker auth + Artifact Registry
+gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
+gcloud artifacts repositories create foundation \
+  --repository-format=docker --location=us-west1 2&gt;/dev/null || true
+
+# Service Account + roles
+gcloud iam service-accounts create $SA_NAME \
+  --display-name=&quot;GitHub Actions: foundation GCE deploy&quot; 2&gt;/dev/null || true
+for ROLE in roles/artifactregistry.writer \
+ roles/secretmanager.secretVersionAdder \
+            roles/compute.instanceAdmin.v1; do
+  gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member=&quot;serviceAccount:${SA_EMAIL}&quot; --role=&quot;$ROLE&quot; --quiet
+done
+
+# VM (this is create-vm.sh from the implementation PR)
+./infra/gcp/foundation/create-vm.sh $PROJECT_ID
+
+# Output the SA key (paste contents into GitHub secret GCP_SA_KEY)
+mkdir -p /tmp/gcp-deploy
+gcloud iam service-accounts keys create /tmp/gcp-deploy/sa-key.json \
+  --iam-account=$SA_EMAIL
+echo &quot;SA key at /tmp/gcp-deploy/sa-key.json&quot;
+</code></pre>
+<p><strong>Step 3 — Cloudflare Tunnel (manual, browser).</strong> Cloudflare Zero Trust → Networks → Tunnels → Create a tunnel. Type: Cloudflared. Name: <code>foundation</code>. Public hostname: <code>foundation.&amp;lt;your-domain&gt;</code> → service type <code>HTTP</code> → URL <code>localhost:8080</code>. Copy the tunnel token.</p>
+<pre><code class="language-bash">echo -n &quot;PASTE_TUNNEL_TOKEN_HERE&quot; \
+  | gcloud secrets create foundation-cloudflared-token --data-file=-
+</code></pre>
+<p><strong>Step 4 — Env file.</strong> Copy <code>config/profiles/free-portfolio.example.env</code> to a working path, then override three values for the GCE smoke-test:</p>
+<pre><code>APP_BASE_URL=https://foundation.&lt;your-domain&gt;
+DATABASE_URL=&lt;your Neon staging URL&gt;
+APP_SECRET_KEY=&lt;openssl rand -hex 32&gt;
+AUTH_PROVIDER=local-mock
+</code></pre>
+<p>Other defaults (<code>CONTRACT_VERSION=v1</code>, <code>OTEL_*</code>, etc.) are fine as-is.</p>
+<pre><code class="language-bash">gcloud secrets create foundation-env --data-file=/path/to/gcp-smoke.env
+</code></pre>
+<p><strong>Step 5 — Initial image.</strong></p>
+<pre><code class="language-bash">gcloud builds submit --tag us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial
+echo -n &quot;us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial&quot; \
+  | gcloud secrets create foundation-image --data-file=-
+</code></pre>
+<p><strong>Step 6 — GitHub repo secrets + variables.</strong> https://github.com/sh-ai-x/ai_saas/settings/secrets/actions</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Name</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Secret</td>
+<td><code>GCP_SA_KEY</code></td>
+<td>paste <code>/tmp/gcp-deploy/sa-key.json</code> contents</td>
+</tr>
+<tr>
+<td>Variable</td>
+<td><code>GCP_PROJECT_ID</code></td>
+<td><code>ai-template-509103</code> (or your project)</td>
+</tr>
+<tr>
+<td>Variable</td>
+<td><code>GCP_ZONE</code></td>
+<td><code>us-west1-a</code></td>
+</tr>
+<tr>
+<td>Variable</td>
+<td><code>GCP_VM_NAME</code></td>
+<td><code>foundation</code></td>
+</tr>
+<tr>
+<td>Variable</td>
+<td><code>CLOUDFLARE_TUNNEL_HOSTNAME</code></td>
+<td><code>foundation.&amp;lt;your-domain&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Step 7 — Trigger + verify.</strong></p>
+<pre><code class="language-bash"># First deploy — workflow_dispatch
+gh workflow run foundation-gce-deploy.yml --ref main
+
+# Watch
+gh run watch  # pick the foundation-gce-deploy run
+
+# After the smoke-test step reports /healthz OK
+curl -fsS https://foundation.&lt;your-domain&gt;/healthz
+</code></pre>
+<p><strong>Deleting the deployment</strong> (when you're done with staging):</p>
+<pre><code class="language-bash">gcloud compute instances delete foundation --zone=us-west1-a
+gcloud compute disks delete foundation-state --zone=us-west1-a
+gcloud compute firewall-rules delete deny-8080-ingress
+gcloud secrets delete foundation-env foundation-cloudflared-token foundation-image
+gcloud artifacts repositories delete foundation --location=us-west1
+gcloud iam service-accounts delete ghae-foundation-deploy@$PROJECT_ID.iam.gserviceaccount.com
+# Cloudflare: Zero Trust dashboard → Networks → Tunnels → delete &quot;foundation&quot;
+</code></pre>
+<hr class="section-divider">
+
+<h2 id="sec-9">References</h2>
 <ul>
 <li><code>cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags</code> — the existing commit that frames this as cost-sensitive.</li>
 <li><code>cd1bd70 docs(ops): document Fly.io foundation deploy (one-time setup + workflow)</code> — the Fly method this proposal parallels.</li>
