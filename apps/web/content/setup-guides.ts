@@ -6,7 +6,6 @@ import verificationMarkdown from "./guides/05-verification.md";
 import operationsMarkdown from "./guides/06-operations.md";
 import neonDatabaseMarkdown from "./guides/07-neon-database.md";
 import pricingAdminMarkdown from "./guides/08-pricing-admin.md";
-import aiChangeImpactMarkdown from "./guides/09-ai-change-impact-workbench.md";
 
 export type SetupGuideStep = {
   title: string;
@@ -39,7 +38,6 @@ const markdownSources: MarkdownSource[] = [
   { path: "apps/web/content/guides/06-operations.md", raw: operationsMarkdown },
   { path: "apps/web/content/guides/07-neon-database.md", raw: neonDatabaseMarkdown },
   { path: "apps/web/content/guides/08-pricing-admin.md", raw: pricingAdminMarkdown },
-  { path: "apps/web/content/guides/09-ai-change-impact-workbench.md", raw: aiChangeImpactMarkdown },
 ];
 
 function parseFrontmatter(raw: string) {
