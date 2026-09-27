@@ -85,9 +85,20 @@ class ProductionDockerContractTests(unittest.TestCase):
         foundation = service_block(compose, "foundation", "web-migrate")
         web = service_block(compose, "web")
 
-        self.assertIn('"${POSTGRES_PORT:-55433}:5432"', postgres)
-        self.assertIn('"${FOUNDATION_PORT:-8180}:8080"', foundation)
-        self.assertIn('"${WEB_PORT:-3100}:3000"', web)
+        # Container ports are sourced from scripts/lib/ports.sh so the
+        # registry stays the single source of truth (see ADR-0002).
+        self.assertIn(
+            '"${POSTGRES_PORT:-55433}:${DOCKER_POSTGRES_CONTAINER_PORT:-5432}"',
+            postgres,
+        )
+        self.assertIn(
+            '"${FOUNDATION_PORT:-8180}:${DOCKER_FOUNDATION_CONTAINER_PORT:-8080}"',
+            foundation,
+        )
+        self.assertIn(
+            '"${WEB_PORT:-3100}:${DOCKER_WEB_CONTAINER_PORT:-3000}"',
+            web,
+        )
         self.assertIn("postgresql://foundation@postgres:5432/foundation", compose)
         self.assertIn("APP_BASE_URL: ${FOUNDATION_PUBLIC_URL:-http://localhost:8180}", foundation)
         self.assertIn("FOUNDATION_API_URL: http://foundation:8080", web)
@@ -137,10 +148,10 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn("NEON_DOCKER_SLOT", script)
         self.assertIn("docker/neon/compose.yaml", script)
         self.assertIn("DATABASE_URL_UNPOOLED=", env_example)
-        # Web port is pinned (3200) across every worktree; foundation stays
-        # on the slot-allocation block so concurrent worktrees do not collide.
-        self.assertIn("selected_web_port=3200", script)
-        self.assertIn("8280 + candidate_slot * 10", script)
+        # Web port is sourced from scripts/lib/ports.sh (the registry,
+        # not a literal). Foundation stays on slot allocation.
+        self.assertIn('selected_web_port="$DOCKER_STAGE_WEB_HOST_PORT"', script)
+        self.assertIn("DOCKER_STAGE_FOUNDATION_PORT_BASE", script)
         # Old dynamic web-port formula must be gone.
         self.assertNotIn("3200 + candidate_slot * 10", script)
 

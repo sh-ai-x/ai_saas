@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=lib/ports.sh
+source "$repo_root/scripts/lib/ports.sh"
 env_file="$repo_root/.env.local"
 compose_file="$repo_root/docker/prod/compose.yaml"
 command_mode="up"
@@ -70,32 +72,33 @@ configured_slot="$(env_file_value DOCKER_LOCAL_SLOT)"
 requested_slot="${DOCKER_LOCAL_SLOT:-$configured_slot}"
 if [[ -z "$requested_slot" ]]; then
   hash_hex="$(printf '%s' "$compose_project" | shasum -a 256 | awk '{print substr($1, 1, 8)}')"
-  requested_slot=$((16#$hash_hex % 40))
+  requested_slot=$((16#$hash_hex % DOCKER_SLOT_COUNT))
 fi
-if ! [[ "$requested_slot" =~ ^[0-9]+$ ]] || (( requested_slot < 0 || requested_slot > 39 )); then
-  echo "DOCKER_LOCAL_SLOT must be an integer between 0 and 39." >&2
+if ! [[ "$requested_slot" =~ ^[0-9]+$ ]] || (( requested_slot < 0 || requested_slot > DOCKER_SLOT_COUNT - 1 )); then
+  echo "DOCKER_LOCAL_SLOT must be an integer between 0 and $((DOCKER_SLOT_COUNT - 1))." >&2
   exit 1
 fi
 
-# Web port is pinned (3100) across every worktree so the env-file URLs
+# Web port is pinned across every worktree so the env-file URLs
 # (BETTER_AUTH_URL, TOSS_SUCCESS_URL, WEB_PUBLIC_URL, …) stay correct
 # regardless of which worktree runs `pnpm docker:local`. Foundation and
 # Postgres external ports stay on the slot-allocation block for collision
-# detection across concurrent worktrees.
-selected_web_port=3100
+# detection across concurrent worktrees. All values come from
+# scripts/lib/ports.sh (see ADR-0002).
+selected_web_port="$DOCKER_LOCAL_WEB_HOST_PORT"
 
-existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" 8080 || true)"
-existing_postgres_port="$(port_from_container "${compose_project}-postgres-1" 5432 || true)"
+existing_foundation_port="$(port_from_container "${compose_project}-foundation-1" "$DOCKER_FOUNDATION_CONTAINER_PORT" || true)"
+existing_postgres_port="$(port_from_container "${compose_project}-postgres-1" "$DOCKER_POSTGRES_CONTAINER_PORT" || true)"
 if [[ -n "$existing_foundation_port" && -n "$existing_postgres_port" ]]; then
   selected_foundation_port="$existing_foundation_port"
   selected_postgres_port="$existing_postgres_port"
 else
   selected_slot="$requested_slot"
   found_slot=false
-  for probe in {0..39}; do
-    candidate_slot=$(( (requested_slot + probe) % 40 ))
-    candidate_foundation_port=$((8180 + candidate_slot * 10))
-    candidate_postgres_port=$((55433 + candidate_slot * 10))
+  for probe in $(seq 0 $((DOCKER_SLOT_COUNT - 1))); do
+    candidate_slot=$(( (requested_slot + probe) % DOCKER_SLOT_COUNT ))
+    candidate_foundation_port=$((DOCKER_LOCAL_FOUNDATION_PORT_BASE + candidate_slot * 10))
+    candidate_postgres_port=$((DOCKER_LOCAL_POSTGRES_PORT_BASE + candidate_slot * 10))
     if port_is_free "$candidate_foundation_port" && port_is_free "$candidate_postgres_port"; then
       selected_slot="$candidate_slot"
       selected_foundation_port="$candidate_foundation_port"
@@ -105,7 +108,7 @@ else
     fi
   done
   if [[ "$found_slot" != true ]]; then
-    echo "No free Docker port block found for $compose_project (searched 40 slots)." >&2
+    echo "No free Docker port block found for $compose_project (searched $DOCKER_SLOT_COUNT slots)." >&2
     exit 1
   fi
 fi
