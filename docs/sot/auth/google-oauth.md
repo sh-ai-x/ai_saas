@@ -15,7 +15,7 @@ prerequisites:
   - ../security/safety-boundaries.md
 source_of_truth: contract
 owner: identity-platform
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -34,7 +34,7 @@ session, account, and verification tables are defined in
   server-side identity layer. **(source:
   https://developers.google.com/identity/protocols/oauth2/web-server)**
 - OAuth client secrets never enter browser code, agent context, logs, or
-  Langfuse payloads.
+  LangSmith payloads.
 - Redirect URIs are explicit per environment and exact-match validated.
 - The callback validates `state`, issuer, code, redirect URI, and the returned
   identity before creating or linking a local account.

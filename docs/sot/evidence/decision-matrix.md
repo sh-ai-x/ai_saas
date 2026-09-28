@@ -14,7 +14,7 @@ prerequisites:
   - evidence-ledger.md
 source_of_truth: evidence
 owner: platform-engineering
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -27,7 +27,7 @@ substitute for load, failure, security, or cost tests.
 |---|---|---|---|---|
 | Agent orchestration | Python + FastAPI + LangGraph | Stateful runs, checkpoints, streaming, approvals, explicit graph control. | More runtime concepts than a simple request/response chain. | Scenario, checkpoint-resume, cancellation, and load tests. |
 | Model control | LiteLLM or replaceable gateway | Provider abstraction, routing, fallback, spend/budget controls. | Gateway behavior and provider compatibility can drift. | Routing, outage, budget, and latency comparisons. |
-| AgentOps | Langfuse | LLM-specific trace, prompt, evaluation, dataset, and production feedback loop. | Sensitive payload retention and added operational surface. | Redaction, export failure, trace completeness, evaluation repeatability. |
+| AgentOps | LangSmith | LLM-specific trace, prompt, evaluation, dataset, and production feedback loop. | Sensitive payload retention and added operational surface. | Redaction, export failure, trace completeness, evaluation repeatability. |
 | Product data | Supabase Postgres | Relational source of truth and managed operational features. | Connection limits, vendor dependency, RLS mistakes. | Pooling, backup/restore, RLS, migration, and permission tests. |
 | Vector memory | Postgres + pgvector | Keeps document permissions near relational data. | Index and recall trade-offs at scale. | Recall/latency, RLS, reindex, and corpus growth tests. |
 | Authentication | Google OAuth through Better Auth baseline | Matches `mysaas` user/session/account pattern. | Account-linking, provider outage, and credential handling. | OAuth, session, collision, and protected-route tests. |

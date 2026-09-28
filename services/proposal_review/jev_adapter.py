@@ -41,11 +41,6 @@ class JEVReviewAdapter:
 
         return cls(remote)
 
-    def evaluate(self, report: Mapping[str, Any]) -> dict[str, Any]:
-        """Keep the legacy rubric evaluation seam for direct callers."""
-        result = self._invoke(report)
-        return self._result(result)
-
     def filter_context(self, context: Mapping[str, Any]) -> dict[str, Any]:
         """Use the single JEV call to select evidence before synthesis.
 

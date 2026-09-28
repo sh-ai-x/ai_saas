@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -33,7 +34,7 @@ from .config import ConfigError, merged_environment, validate_profile
 from .local_runtime import DEMO_ACCOUNT_ID, DEMO_TENANT_ID, LocalRuntime
 
 
-MAX_BODY_BYTES = 256 * 1024
+MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_REPOSITORY_IMPORT_BYTES = 25 * 1024 * 1024
 
 
@@ -43,6 +44,11 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], runtime: LocalRuntime) -> None:
         super().__init__(address, FoundationHandler)
         self.runtime = runtime
+        self.review_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="proposal-review")
+
+    def server_close(self) -> None:
+        self.review_executor.shutdown(wait=True, cancel_futures=True)
+        super().server_close()
 
 
 class FoundationHandler(BaseHTTPRequestHandler):
@@ -369,7 +375,13 @@ class FoundationHandler(BaseHTTPRequestHandler):
             return
         if path in {"/v1/change-impact/reviews", "/v1/proposal-review/reviews"}:
             tenant_id = self._request_tenant()
-            self._json(201, self.runtime.proposal_control.proposal_review.start(tenant_id, self._body()))
+            service = self.runtime.proposal_control.proposal_review
+            handle, initial = service.enqueue(tenant_id, self._body())
+            if initial is not None:
+                self.server.review_executor.submit(service.run_background, initial)  # type: ignore[attr-defined]
+                self._json(202, handle)
+            else:
+                self._json(200, handle)
             return
         review_id, review_suffix = self._review_route(path)
         if review_id and review_suffix in {"decision", "resume"}:
@@ -871,6 +883,12 @@ class FoundationHandler(BaseHTTPRequestHandler):
         return {"order_id": order.order_id, "tenant_id": order.tenant_id, "account_id": order.account_id, "plan_id": order.plan_id, "amount_minor": order.amount_minor, "currency": order.currency, "credit_grant": order.credit_grant, "status": order.status, "provider": order.provider, "provider_reference": order.provider_reference}
 
     def _handle_error(self, exc: Exception) -> None:
+        if isinstance(exc, BrokenPipeError):
+            # A browser/proxy may cancel a long-running response after the
+            # request has already been accepted. There is no client left to
+            # receive an error response, so do not turn the disconnect into a
+            # misleading internal_error log/response attempt.
+            return
         if isinstance(exc, (AuthorizationDenied, OAuthCallbackError)):
             status = getattr(exc, "status_code", 403 if isinstance(exc, AuthorizationDenied) else 400)
             self._error(status, "authorization_denied" if status == 403 else "invalid_request", str(exc))

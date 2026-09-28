@@ -140,6 +140,11 @@ For the AI Engineer workflow, use the [AI Change Impact Workbench guide](docs/se
 It compares a proposal with a local Git repository without uploading or
 executing the repository, and documents the bounded LangChain/JEV budget plus
 LangGraph checkpointing and LangSmith tracing.
+Review submission is asynchronous: the API returns a `review_id` and the web
+console polls the persisted result while synthesis and official Ragas
+evaluation run. Faithfulness, Answer Relevance, Context Recall, Context
+Relevance, and deterministic evidence-integrity checks are reported per
+REQ/AC sample; explicit reference answers are preferred for Context Recall.
 
 For a production-style local check, use `pnpm --filter ai-saas-foundation-web build`
 and then `pnpm --filter ai-saas-foundation-web start` from the repository root.

@@ -17,7 +17,7 @@ prerequisites:
   - ../operations/aws-docker-deployment.md
 source_of_truth: contract
 owner: agent-platform
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -83,4 +83,4 @@ loop may consume the remaining budget.
 
 - [LiteLLM gateway](https://docs.litellm.ai/)
 - [AWS ECS capacity and availability](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/capacity-availability-best-practice.html)
-- [Langfuse observability](https://langfuse.com/docs/observability/overview)
+- [LangSmith observability](https://docs.smith.langchain.com/observability)

@@ -157,6 +157,10 @@ class EvaluationRecord:
     passed: bool
     sample_count: int
     insufficient_sample: bool = False
+    supported_count: int | None = None
+    sample_label: str = "items"
+    method: str = "ratio"
+    reason: str | None = None
 
 
 @dataclass(frozen=True)

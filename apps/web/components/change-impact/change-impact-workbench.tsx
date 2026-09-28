@@ -7,29 +7,63 @@ type LocalFile = { file: File; path: string; root: string };
 type AnalysisMode = "implementation" | "impact";
 type RepositoryStatus = "idle" | "picking" | "loading" | "ready" | "analyzing" | "error";
 
-const CODE_EXTENSIONS = new Set([".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".go", ".rs", ".java", ".kt", ".sql", ".md", ".json", ".yaml", ".yml", ".html", ".css"]);
+const CODE_EXTENSIONS = new Set([".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cts", ".mts", ".go", ".rs", ".java", ".kt", ".sql", ".md", ".json", ".json5", ".yaml", ".yml", ".toml", ".ini", ".conf", ".config", ".html", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".prisma", ".graphql", ".gql", ".proto", ".xml", ".sh", ".bash", ".zsh", ".fish", ".rb", ".php", ".swift", ".dart", ".lua", ".pl", ".ex", ".exs", ".clj", ".cljs", ".hs", ".ml", ".fs", ".scala", ".sbt", ".groovy", ".gradle"]);
 const MAX_ANALYSIS_FILES = 600;
 const MAX_ANALYSIS_BYTES = 8 * 1024 * 1024;
-const MAX_EVIDENCE_RANGE_LINES = 3;
+const MAX_EVIDENCE_RANGE_LINES = 20;
 const SECRET_RE = /(^|\/)(\.env(?:\.|$)|.*\.(pem|key|p12|pfx|crt|cer)$|credentials?|secrets?)(\/|$)/i;
 const BUILD_RE = /(^|\/)(\.git|\.worktrees|worktrees|node_modules|\.next|dist|build|coverage|target|\.venv|venv|__pycache__|\.cache|\.turbo)(\/|$)/;
 const AI_SIGNAL_TERMS = ["prompt", "model", "retriev", "graph", "provider", "trace", "safety", "cost"];
+const EVIDENCE_STOP_WORDS = new Set(["about", "after", "again", "also", "already", "and", "any", "are", "because", "being", "between", "both", "but", "can", "does", "each", "for", "from", "have", "how", "into", "must", "not", "only", "one", "should", "some", "such", "than", "that", "their", "there", "these", "they", "this", "through", "the", "using", "was", "were", "when", "where", "which", "with", "without", "will"]);
+const EVIDENCE_METADATA_RE = /(^|\/)(\.claude(?:-plugin)?|\.codex-plugin|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json|composer\.lock)(\/|$)/i;
+// Mirrors services/review_comment_policy.py so the UI and Ragas judge use the
+// same canonical answer fields for each implementation status.
+const COMMENT_KEYS_BY_STATUS: Record<string, string[]> = {
+  implemented: ["implemented_comment"],
+  modified: ["implemented_comment", "changed_comment"],
+  partial: ["implemented_comment", "not_implemented_comment"],
+  missing: ["not_implemented_comment"],
+  unknown: ["not_implemented_comment"],
+  contradicted: ["not_implemented_comment", "changed_comment"],
+};
 
-function implementationStatus(value: unknown): "implemented" | "partial" | "missing" | "unknown" | "contradicted" {
+function commentKeysForStatus(status: string) {
+  return COMMENT_KEYS_BY_STATUS[status] ?? ["implemented_comment", "not_implemented_comment", "changed_comment"];
+}
+
+function implementationStatus(value: unknown): "implemented" | "modified" | "partial" | "missing" | "unknown" | "contradicted" {
   const status = String(value ?? "unknown").toLowerCase().replace(/[ -]/g, "_");
   if (["implemented", "complete", "completed", "covered", "satisfied", "ready"].includes(status)) return "implemented";
+  if (["modified", "diverged", "alternative", "different_approach", "adapted", "equivalent", "equivalent_implementation", "deviates"].includes(status)) return "modified";
   if (["partial", "partial_implement", "partial_implemented", "partially_implemented", "partial_implementation", "partially_covered", "in_progress", "revise"].includes(status)) return "partial";
   if (["missing", "not_implemented", "not_found"].includes(status)) return "missing";
   if (["contradicted", "conflict", "failed"].includes(status)) return "contradicted";
   return "unknown";
 }
 
+function completionPercentOf(item: JsonRecord): number | null {
+  const raw = item.completion_percent;
+  return typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
+}
+
+function effectiveStatus(rawStatus: unknown, completionPercent: number | null): ReturnType<typeof implementationStatus> {
+  // Defense-in-depth: the server already reclassifies partial+100% to
+  // implemented (services/proposal_review/workflow_adapter.py's
+  // reconcile_status_and_completion). Re-apply the same rule here so a
+  // "PARTIAL 100%" contradiction can never render even from a cached or
+  // older-shaped payload.
+  const status = implementationStatus(rawStatus);
+  if (status === "partial" && completionPercent !== null && completionPercent >= 100) return "implemented";
+  return status;
+}
+
 function statusLabel(value: unknown) {
   const status = implementationStatus(value);
   return {
     implemented: "IMPLEMENTED",
+    modified: "MODIFIED",
     partial: "PARTIAL IMPLEMENTATION",
-    missing: "MISSING",
+    missing: "NOT IMPLEMENTED",
     contradicted: "CONTRADICTED",
     unknown: "UNKNOWN",
   }[status];
@@ -88,7 +122,7 @@ function headingsAndRequirements(text: string, source: string) {
   return result.slice(0, 40);
 }
 
-async function parseTextProposal(value: string, name = "proposal.txt", mediaType: "text/markdown" | "text/plain" = "text/plain") {
+async function parseTextProposal(value: string, name = "proposal.txt", mediaType: "text/markdown" | "text/plain" | "text/yaml" = "text/plain") {
   const text = value.trim().slice(0, 120_000);
   if (!text) throw new Error("Enter proposal text.");
   const source = mediaType === "text/markdown" ? "markdown" : "text";
@@ -106,8 +140,9 @@ async function parseProposal(file: File) {
   const isHtml = /\.html?$/i.test(file.name);
   const isMarkdown = /\.(md|markdown)$/i.test(file.name);
   const isText = /\.(txt|text)$/i.test(file.name);
-  if (isMarkdown || isText) {
-    return parseTextProposal(await file.text(), file.name, isMarkdown ? "text/markdown" : "text/plain");
+  const isYaml = /\.(ya?ml)$/i.test(file.name);
+  if (isMarkdown || isText || isYaml) {
+    return parseTextProposal(await file.text(), file.name, isMarkdown ? "text/markdown" : isYaml ? "text/yaml" : "text/plain");
   }
   let text = "";
   let confidence = 1;
@@ -133,15 +168,31 @@ async function parseProposal(file: File) {
   return { name: file.name, media_type: isHtml ? "text/html" : "application/pdf", sha256: await digest(text), extraction_confidence: confidence, sections, requirements: headingsAndRequirements(text, isHtml ? "html" : "pdf:p1") };
 }
 
-function evidenceForRequirement(path: string, lines: string[], requirement: JsonRecord) {
-  const requirementTokens = [...new Set(String(requirement.text ?? "").toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) ?? [])].slice(0, 24);
+function evidenceTokens(value: string) {
+  return [...new Set((value.toLowerCase().match(/[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*/g) ?? [])
+    .flatMap((token) => token.split(/[_-]+/))
+    .filter((token) => token.length >= 4 && !EVIDENCE_STOP_WORDS.has(token)))];
+}
+
+function evidenceTokenMatches(token: string, lineTokens: Set<string>) {
+  if (lineTokens.has(token)) return true;
+  return [...lineTokens].some((lineToken) => lineToken.length >= 6 && (lineToken.startsWith(token) || token.startsWith(lineToken)));
+}
+
+function evidenceForRequirement(path: string, lines: string[], requirement: JsonRecord, contentHash: string) {
+  // Manifests and plugin/settings metadata describe a repository but do not
+  // prove that an implementation exists. Keeping them out prevents a README
+  // or marketplace description from becoming false Faithfulness context.
+  if (EVIDENCE_METADATA_RE.test(path)) return [];
+  const requirementTokens = evidenceTokens(String(requirement.text ?? "")).slice(0, 32);
   if (!requirementTokens.length) return [];
   const hits = lines.flatMap((line, index) => {
-    const lower = line.toLowerCase();
-    const matchedTokens = requirementTokens.filter((token) => lower.includes(token));
-    const matchedSignals = AI_SIGNAL_TERMS.filter((term) => lower.includes(term));
-    const score = matchedTokens.length * 3 + matchedSignals.length;
-    return score ? [{ index, matchedTokens, matchedSignals, score }] : [];
+    const lineTokens = new Set(evidenceTokens(`${path} ${line}`));
+    const matchedTokens = requirementTokens.filter((token) => evidenceTokenMatches(token, lineTokens));
+    const matchedSignals = AI_SIGNAL_TERMS.filter((term) => requirementTokens.some((token) => token.includes(term)) && [...lineTokens].some((token) => token.startsWith(term)));
+    const score = matchedTokens.length * 4 + matchedSignals.length * 2;
+    const hasMeaningfulMatch = matchedTokens.length >= 2 || matchedTokens.some((token) => token.length >= 7);
+    return score > 0 && hasMeaningfulMatch ? [{ index, matchedTokens, matchedSignals, score }] : [];
   });
   const ranges: Array<{ start: number; end: number; hits: typeof hits }> = [];
   for (const hit of hits) {
@@ -161,6 +212,7 @@ function evidenceForRequirement(path: string, lines: string[], requirement: Json
     const endLine = range.end + 1;
     return {
       path,
+      content_hash: contentHash,
       start_line: startLine,
       end_line: endLine,
       excerpt: lines.slice(range.start, range.end + 1).map((line, offset) => `${startLine + offset}: ${line.trim()}`).join("\n").slice(0, 720),
@@ -170,13 +222,42 @@ function evidenceForRequirement(path: string, lines: string[], requirement: Json
   });
 }
 
+function interleaveByRequirement(buckets: JsonRecord[][], maxTotal: number): JsonRecord[] {
+  // Round-robin one item per requirement bucket at a time so a global cap
+  // (maxTotal) never lets one requirement's matches consume the whole
+  // budget and leave later requirements with zero evidence.
+  const queues = buckets.map((bucket) => [...bucket]);
+  const result: JsonRecord[] = [];
+  let took = true;
+  while (took && result.length < maxTotal) {
+    took = false;
+    for (const queue of queues) {
+      if (result.length >= maxTotal) break;
+      const item = queue.shift();
+      if (item) {
+        result.push(item);
+        took = true;
+      }
+    }
+  }
+  return result;
+}
+
 async function buildRepository(files: LocalFile[], requirements: JsonRecord[]) {
   const ignoreFile = files.find(({ path }) => path.endsWith(".gitignore"));
   const patterns = ignoreFile ? (await ignoreFile.file.text()).split(/\r?\n/) : [];
   const excluded: Record<string, number> = {};
   const selected: JsonRecord[] = [];
   let analyzedBytes = 0;
-  const orderedFiles = [...files].sort((left, right) => left.path.localeCompare(right.path));
+  const orderedFiles = [...files].sort((left, right) => {
+    const leftName = left.path.toLowerCase();
+    const rightName = right.path.toLowerCase();
+    const leftMetadata = EVIDENCE_METADATA_RE.test(leftName) ? 1 : 0;
+    const rightMetadata = EVIDENCE_METADATA_RE.test(rightName) ? 1 : 0;
+    const leftSignal = AI_SIGNAL_TERMS.some((term) => leftName.includes(term)) ? 0 : 1;
+    const rightSignal = AI_SIGNAL_TERMS.some((term) => rightName.includes(term)) ? 0 : 1;
+    return leftMetadata - rightMetadata || leftSignal - rightSignal || left.path.localeCompare(right.path);
+  });
   for (const { file, path } of orderedFiles) {
     const reason = ignored(path, patterns);
     if (reason) {
@@ -193,14 +274,18 @@ async function buildRepository(files: LocalFile[], requirements: JsonRecord[]) {
       continue;
     }
     const content = await file.text();
+    const fileSha256 = await digest(content);
     const lines = content.split(/\r?\n/);
-    const evidenceByRequirement = Object.fromEntries(requirements.map((requirement) => [String(requirement.requirement_id), evidenceForRequirement(path, lines, requirement)]));
-    selected.push({ path, size: file.size, sha256: await digest(content), language: language(path), symbols: [...content.matchAll(/(?:function|class|def|interface|type|const)\s+([A-Za-z_$][\w$]*)/g)].slice(0, 12).map((match) => match[1]), evidenceByRequirement });
+    const evidenceByRequirement = Object.fromEntries(requirements.map((requirement) => [String(requirement.requirement_id), evidenceForRequirement(path, lines, requirement, fileSha256)]));
+    selected.push({ path, size: file.size, sha256: fileSha256, language: language(path), symbols: [...content.matchAll(/(?:function|class|def|interface|type|const)\s+([A-Za-z_$][\w$]*)/g)].slice(0, 12).map((match) => match[1]), evidenceByRequirement });
     analyzedBytes += file.size;
   }
   selected.sort((a, b) => String(a.path).localeCompare(String(b.path)));
   const fingerprint = await digest(selected.map((item) => `${item.path}:${item.sha256}`).join("\n"));
-  const evidence = requirements.flatMap((requirement) => selected.flatMap((file) => ((file.evidenceByRequirement as Record<string, JsonRecord[]>)[String(requirement.requirement_id)] ?? []).slice(0, 5).map((item) => ({ ...item, requirement_id: requirement.requirement_id })))).slice(0, 200);
+  const evidenceByRequirementBuckets = requirements.map((requirement) => selected
+    .flatMap((file) => ((file.evidenceByRequirement as Record<string, JsonRecord[]>)[String(requirement.requirement_id)] ?? []).slice(0, 5).map((item) => ({ ...item, requirement_id: requirement.requirement_id })))
+    .sort((left: JsonRecord, right: JsonRecord) => Number(right.score ?? 0) - Number(left.score ?? 0) || String(left.path ?? "").localeCompare(String(right.path ?? ""))));
+  const evidence = interleaveByRequirement(evidenceByRequirementBuckets, 200);
   return { root_name: files[0]?.root ?? "local-repository", branch: null, head: null, fingerprint, files: selected.map(({ evidenceByRequirement: _evidence, ...file }) => file), unknowns: [], excluded, evidence };
 }
 
@@ -306,7 +391,7 @@ export function ChangeImpactWorkbench() {
     }
     const [handle] = await picker({
       multiple: false,
-      types: [{ description: "Proposal document", accept: { "text/html": [".html", ".htm"], "text/markdown": [".md", ".markdown"], "text/plain": [".txt", ".text"], "application/pdf": [".pdf"] } }],
+      types: [{ description: "Proposal document", accept: { "text/html": [".html", ".htm"], "text/markdown": [".md", ".markdown"], "text/plain": [".txt", ".text"], "text/yaml": [".yaml", ".yml"], "application/pdf": [".pdf"] } }],
     });
     const file = await handle.getFile();
     setProposal(file);
@@ -530,8 +615,41 @@ export function ChangeImpactWorkbench() {
       const repository = await buildRepository(repoFiles, document.requirements);
       setRepoContext(repository);
       const { sections: _sections, requirements: _documentRequirements, ...documentSummary } = document;
-      const { files: _files, evidence: _repositoryEvidence, ...repositorySummary } = repository;
-      const result = await api<JsonRecord>("/v1/change-impact/reviews", { method: "POST", body: JSON.stringify({ mode: analysisMode, document: documentSummary, repository: repositorySummary, requirements: document.requirements, evidence: repository.evidence }) });
+      const { files, evidence: _repositoryEvidence, ...repositorySummary } = repository;
+      const evidencePaths = new Set((repository.evidence as JsonRecord[]).map((item) => String(item.path ?? "")).filter(Boolean));
+      const fileManifest = (files as JsonRecord[])
+        .filter((file) => evidencePaths.has(String(file.path ?? "")))
+        .map((file) => ({ path: file.path, sha256: file.sha256, size: file.size }));
+      const reviewBody = {
+        mode: analysisMode,
+        document: documentSummary,
+        repository: { ...repositorySummary, file_manifest: fileManifest },
+        requirements: document.requirements,
+        evidence: (repository.evidence as JsonRecord[]).slice(0, 120),
+      };
+      let result = await api<JsonRecord>("/v1/change-impact/reviews", { method: "POST", body: JSON.stringify(reviewBody) });
+      const reviewId = String(result.review_id ?? ((result.payload as JsonRecord | undefined)?.review_id ?? ""));
+      if (String(result.status ?? "") !== "complete") {
+        if (!reviewId) throw new Error("Review was queued without a review id.");
+        setRepositoryMessage("Review queued · LangChain and evidence checks are running…");
+        let completed = false;
+        for (let attempt = 0; attempt < 600; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          const polled = await api<JsonRecord>(`/v1/change-impact/reviews/${encodeURIComponent(reviewId)}`);
+          const polledStatus = String(polled.status ?? "");
+          if (polledStatus === "complete") {
+            result = polled;
+            completed = true;
+            break;
+          }
+          if (polledStatus === "failed") {
+            const failure = (polled.payload as JsonRecord | undefined)?.error;
+            throw new Error(String(failure ?? "Foundation review failed."));
+          }
+          if (attempt % 4 === 0) setRepositoryMessage(`Review running · waiting for Ragas metrics… (${Math.round((attempt + 1) * 1.5)}s)`);
+        }
+        if (!completed) throw new Error("Review is taking longer than expected. Retry the review to resume the stored checkpoint.");
+      }
       const resultPayload = result.payload as JsonRecord | undefined;
       const resultReport = resultPayload?.report as JsonRecord | undefined;
       setReview(result);
@@ -585,20 +703,49 @@ export function ChangeImpactWorkbench() {
   const assessment = (report?.assessment as JsonRecord | undefined) ?? {};
   const proposalMarkdown = String(report?.proposal_markdown ?? "");
   const proposalChanges = (report?.changes as JsonRecord[] | undefined) ?? [];
-  const visibleEvidence = evidence.filter((item) => Number(item.start_line) >= 1 && Number(item.end_line) > Number(item.start_line) && /[.!?。！？]\s*$/.test(String(item.rationale ?? ""))).slice(0, 12);
+  const filteredEvidence = evidence.filter((item) => Number(item.start_line) >= 1 && Number(item.end_line) > Number(item.start_line) && /[.!?。！？]\s*$/.test(String(item.rationale ?? "")));
+  const visibleEvidence = filteredEvidence;
   const implementationCounts = requirements.reduce((counts, item) => {
-    const status = implementationStatus(item.status);
+    const status = effectiveStatus(item.status, completionPercentOf(item));
     counts[status] += 1;
     return counts;
-  }, { implemented: 0, partial: 0, missing: 0, unknown: 0, contradicted: 0 });
-  const implementationProgress = requirements.length ? Math.round(((implementationCounts.implemented + implementationCounts.partial * 0.5) / requirements.length) * 100) : 0;
+  }, { implemented: 0, modified: 0, partial: 0, missing: 0, unknown: 0, contradicted: 0 });
   const isImplementationMode = analysisMode === "implementation";
   const activeRequirementId = selectedRequirementId || String(requirements[0]?.requirement_id ?? "");
   const activeRequirement = requirements.find((item) => String(item.requirement_id) === activeRequirementId);
-  const activeEvidence = visibleEvidence.filter((item) => String(item.requirement_id) === activeRequirementId);
+  const activeEvidence = visibleEvidence.filter((item) => String(item.requirement_id) === activeRequirementId).slice(0, 12);
   const activeRequirementKind = String(activeRequirement?.kind_code ?? (String(activeRequirement?.requirement_id).startsWith("AC-") ? "AC" : "REQ"));
   const activeRequirementLabel = activeRequirementKind === "AC" ? "Acceptance Criteria" : "Requirement";
   const activeRequirementDescription = String(activeRequirement?.kind_description ?? (activeRequirementKind === "AC" ? "A concrete and verifiable condition for deciding completion" : "A functional, quality, or operational capability the system must provide or preserve"));
+  const renderRequirementRow = (item: JsonRecord, fallbackText: string) => {
+    const rawPercent = completionPercentOf(item);
+    const normalizedStatus = effectiveStatus(item.status, rawPercent);
+    const displayPercent = rawPercent;
+    const itemId = String(item.requirement_id);
+    const itemKind = String(item.kind_code ?? (itemId.startsWith("AC-") ? "AC" : "REQ"));
+    const itemKindLabel = itemKind === "AC" ? "Acceptance Criteria" : "Requirement";
+    const itemEvidenceCount = visibleEvidence.filter((evidenceItem) => String(evidenceItem.requirement_id) === itemId).length;
+    const canonicalComment = commentKeysForStatus(normalizedStatus).map((key) => String(item[key] ?? "").trim()).filter(Boolean).join(" ");
+    const comment = String(item.comment ?? item.impact ?? canonicalComment).trim();
+    const risk = String(item.risk ?? "").trim();
+    const detailFallbacks = normalizedStatus === "partial"
+      ? {
+          implemented_comment: "Evidence confirms part of this requirement.",
+          not_implemented_comment: risk || comment || "The remaining conditions are not proven by the selected evidence.",
+          changed_comment: "",
+        }
+      : normalizedStatus === "modified"
+        ? { implemented_comment: "The capability is present in the current code.", not_implemented_comment: "", changed_comment: comment || "The implementation differs from the proposal approach." }
+        : normalizedStatus === "implemented"
+          ? { implemented_comment: comment || "The available evidence supports this requirement as implemented.", not_implemented_comment: "", changed_comment: "" }
+          : { implemented_comment: "", not_implemented_comment: comment || "The available evidence does not prove implementation.", changed_comment: "" };
+    const details = [
+      { key: "implemented_comment", label: "IMPLEMENTED", className: "requirement-detail-implemented", fallback: detailFallbacks.implemented_comment },
+      { key: "not_implemented_comment", label: "NOT IMPLEMENTED", className: "requirement-detail-not-implemented", fallback: detailFallbacks.not_implemented_comment },
+      { key: "changed_comment", label: "CHANGED", className: "requirement-detail-changed", fallback: detailFallbacks.changed_comment },
+    ];
+    return <button type="button" className={`impact-requirement ${activeRequirementId === itemId ? "is-selected" : ""}`} aria-expanded={activeRequirementId === itemId} key={itemId} onClick={() => setSelectedRequirementId(itemId)}><div><p className="requirement-kind"><span className="requirement-kind-badge">{itemKind}</span>{itemKindLabel}</p><strong>{itemId}</strong><p>{String(item.text ?? item.impact ?? fallbackText)}</p>{comment && <p className="requirement-comment">{comment}</p>}<div className="requirement-details" aria-label="Implementation details">{details.map((detail) => { const text = String(item[detail.key] ?? detail.fallback ?? "").trim(); return <div className={`requirement-detail ${detail.className}`} key={detail.key}><span className="requirement-detail-label">{detail.label}</span><p>{text || "해당 없음"}</p></div>; })}</div>{risk && <small className="requirement-risk">Risk: {risk}</small>}<small className="requirement-impact">{String(item.kind_description ?? (itemKind === "AC" ? "A concrete and verifiable condition for deciding completion" : "A functional, quality, or operational capability the system must provide or preserve"))} · {itemEvidenceCount} evidence item(s)</small></div><span className={`state-badge state-${normalizedStatus}`}>{statusLabel(normalizedStatus)}{displayPercent !== null ? ` ${displayPercent}%` : ""}</span></button>;
+  };
   // editorFileRoot is a single server-configured path (LOCAL_REPOSITORY_HOST_ROOT),
   // correct only for the one repository that server was started against. A
   // different repository analyzed through the browser folder picker has no
@@ -670,7 +817,7 @@ export function ChangeImpactWorkbench() {
         <section className="impact-card">
           <div className="panel-heading"><div><p className="eyebrow">01 / PROPOSAL</p><h3>Prepare a proposal</h3></div><span className="tag">BOUNDED PARSE</span></div>
           <p className="panel-copy">Read an HTML, PDF, Markdown, or text file, an HTTP URL, a repository-external file:// document, or direct text input. Local documents are not uploaded or stored.</p>
-          <label className="file-picker"><input ref={proposalInputRef} type="file" accept=".html,.htm,.md,.markdown,.txt,.text,.pdf" onChange={onProposal} />{proposal ? proposal.name : "Choose an HTML, Markdown, text, or PDF file"}</label>
+          <label className="file-picker"><input ref={proposalInputRef} type="file" accept=".html,.htm,.md,.markdown,.txt,.text,.yaml,.yml,.pdf" onChange={onProposal} />{proposal ? proposal.name : "Choose an HTML, Markdown, YAML, text, or PDF file"}</label>
           <div className="proposal-url-row"><input type="url" value={proposalUrl} placeholder="https://.../proposal.md or file:///Users/.../proposal.html" onChange={(event) => { setProposalUrl(event.target.value); setProposalDocument(null); setLoadedProposalUrl(""); setProposal(null); setProposalText(""); }} /><button type="button" className="button button-quiet" onClick={() => void onProposalUrl()} disabled={busy || !proposalUrl.trim()}>{loadedProposalUrl ? "URL loaded" : "Load document URL"}</button></div>
           <small className="panel-hint">file:// paths inside the shared workspace are read by the server; paths outside it use browser file permission after the button click.</small>
           <textarea className="proposal-text-input" value={proposalText} placeholder="Enter proposal text or Markdown directly." onChange={(event) => onProposalText(event.target.value)} />
@@ -692,23 +839,84 @@ export function ChangeImpactWorkbench() {
       {review && <section className="impact-results">
         <div className="impact-result-header"><div><p className="eyebrow">04 / RESULT</p><h3>{isImplementationMode ? "Implementation status against proposal" : "Evidence-backed code impact review"}</h3></div><span className={`impact-verdict verdict-${String(report?.recommendation ?? "unknown")}`}>{String(report?.recommendation ?? "unknown").toUpperCase()}</span></div>
         {renderAssessment()}
+        {report?.drift_report && (
+          <>
+          <div className="impact-metrics drift-metrics">
+            {(["faithfulness", "answer_relevance", "context_recall", "evidence_relevance", "evidence_integrity"] as const).map((name) => {
+              const metric = report.drift_report?.[name];
+              if (!metric) return null;
+              const sampleCount = Number(metric.sample_count ?? 0);
+              const coveredCount = metric.supported_count === null || metric.supported_count === undefined ? null : Number(metric.supported_count);
+              const valueText = metric.insufficient_sample ? "n/a" : `${Math.round((metric.value ?? 0) * 100)}%`;
+              return (
+                <article key={name}>
+                  <span>{name.replace(/_/g, " ").toUpperCase()}</span>
+                  <strong>{valueText}</strong>
+                  <small>{metric.insufficient_sample ? String(metric.reason ?? "Not measured") : `${sampleCount} ${String(metric.sample_label ?? "samples")} · ${coveredCount === null ? "threshold count unavailable" : `${coveredCount}/${sampleCount} pass ≥ ${Math.round((metric.threshold ?? 0) * 100)}%`}`}</small>
+                  <small className="metric-method">{String(metric.method ?? "RAGAS metric")}</small>
+                </article>
+              );
+            })}
+          </div>
+          <div className="metric-explanations" aria-label="RAGAS metric explanations">
+            <article className="metric-explanation metric-explanation-faithfulness">
+              <p className="eyebrow">FAITHFULNESS</p>
+              <h4>Does the answer stay grounded in the retrieved code evidence?</h4>
+              <p>Measures how many concrete claims in the review answer are supported by the evidence excerpts attached to the same REQ/AC.</p>
+              <small>Ragas: an LLM decomposes the answer into claims and checks each claim against the attached code context. Higher is better; unsupported claims reduce the average.</small>
+            </article>
+            <article className="metric-explanation metric-explanation-relevance">
+              <p className="eyebrow">ANSWER RELEVANCE</p>
+              <h4>Does the explanation answer this REQ/AC?</h4>
+              <p>Measures whether the implementation explanation addresses the requirement instead of returning a generic status or unrelated risk.</p>
+              <small>Ragas: three reverse-generated questions are compared with the original requirement using OpenAI embeddings. Modified implementations are not automatically penalized by status; the canonical explanation content is scored.</small>
+            </article>
+            <article className="metric-explanation metric-explanation-recall">
+              <p className="eyebrow">CONTEXT RECALL</p>
+              <h4>Did retrieval include the information needed for a known reference answer?</h4>
+              <p>Measures how much of the reference claims are covered by the retrieved evidence. An explicit human-authored answer is preferred; otherwise the REQ/AC text is used as a clearly-labelled expected-claims reference.</p>
+              <small>Ragas: reference claims attributed to retrieved contexts ÷ reference claims. Requirement-derived references measure specification coverage, not production ground truth.</small>
+            </article>
+            <article className="metric-explanation metric-explanation-evidence">
+              <p className="eyebrow">EVIDENCE RELEVANCE</p>
+              <h4>Is the selected evidence about this REQ/AC?</h4>
+              <p>Measures whether the evidence pack is semantically relevant to the requirement, independently of the review answer.</p>
+              <small>Ragas Context Relevance uses two LLM judges. A high score means relevant context was selected; it does not prove the source code is factually correct.</small>
+            </article>
+            <article className="metric-explanation metric-explanation-integrity">
+              <p className="eyebrow">EVIDENCE INTEGRITY</p>
+              <h4>Can the evidence be traced and validated structurally?</h4>
+              <p>Checks requirement ID, path, line range, excerpt, rationale, and duplicate-pointer consistency before semantic scoring.</p>
+              <small>This deterministic check catches malformed or ambiguous evidence. Source truth still requires inspecting the referenced file or running tests; it is not inferred from an excerpt alone.</small>
+            </article>
+          </div>
+          {(() => {
+            const ragasMetadata = (report?.ragas_metadata as JsonRecord | undefined) ?? {};
+            const cacheLabel = ragasMetadata.cache_hit === true ? "HIT" : ragasMetadata.cache_enabled === true ? "MISS" : "OFF";
+            const evaluatorLabel = ragasMetadata.evaluator_model ? ` · judge ${String(ragasMetadata.evaluator_model)}` : "";
+            const strictnessLabel = ragasMetadata.answer_relevancy_strictness ? ` · answer strictness ${String(ragasMetadata.answer_relevancy_strictness)}` : "";
+            const callLabel = ragasMetadata.estimated_judge_calls ? ` · estimated judge calls ${String(ragasMetadata.estimated_judge_calls)}` : "";
+            return <p className="metric-footnote">Evaluation engine: {String(report?.drift_method ?? "ragas-unavailable")}{report?.drift_error ? ` · ${String(report.drift_error).slice(0, 180)}` : ""}{evaluatorLabel}{strictnessLabel}{ragasMetadata.cache_enabled !== undefined ? ` · cache ${cacheLabel}` : ""}{callLabel}. Context Recall reference source: {Object.values((report?.ragas_reference_sources as JsonRecord | undefined) ?? {}).some((source) => source === "explicit") ? "explicit and/or requirement-derived" : "requirement-derived expected claims"}.</p>;
+          })()}
+          </>
+        )}
         {isImplementationMode ? <>
           <div className="impact-metrics">
             <article><span>IMPLEMENTED</span><strong>{implementationCounts.implemented}</strong><small>/ {requirements.length} requirements</small></article>
-            <article><span>EVIDENCE-SUPPORTED</span><strong>{implementationProgress}%</strong><small>partial counts as 50%</small></article>
+            <article><span>MODIFIED</span><strong>{implementationCounts.modified}</strong><small>functionally covered, different approach</small></article>
             <article><span>PARTIAL IMPLEMENTATION</span><strong>{implementationCounts.partial}</strong><small>some conditions remain</small></article>
             <article><span>MISSING / UNKNOWN</span><strong>{implementationCounts.missing + implementationCounts.unknown + implementationCounts.contradicted}</strong><small>not proven by code</small></article>
           </div>
           <div className="impact-panel implementation-summary"><div className="panel-heading"><div><p className="eyebrow">IMPLEMENTATION BASIS</p><h3>What this score means</h3></div><span className="tag">EVIDENCE ONLY</span></div><p className="panel-copy">{String(report?.summary ?? "Requirements were classified from bounded evidence found in the current code.")} Tests, builds, and deployments are not executed; a requirement without evidence is not considered implemented.</p></div>
           <div className="impact-result-grid">
-            <div className="impact-panel"><div className="panel-heading"><div><p className="eyebrow">REQUIREMENTS / AC</p><h3>Implementation status</h3></div><span className="tag">CLICK FOR EVIDENCE</span></div><div className="requirement-legend"><span><strong>REQ</strong> Functional, quality, or operational requirement</span><span><strong>AC</strong> Verifiable completion condition</span></div><div className="impact-requirements">{requirements.map((item) => { const normalizedStatus = implementationStatus(item.status); const itemId = String(item.requirement_id); const itemKind = String(item.kind_code ?? (itemId.startsWith("AC-") ? "AC" : "REQ")); const itemKindLabel = itemKind === "AC" ? "Acceptance Criteria" : "Requirement"; const itemEvidenceCount = visibleEvidence.filter((evidenceItem) => String(evidenceItem.requirement_id) === itemId).length; return <button type="button" className={`impact-requirement ${activeRequirementId === itemId ? "is-selected" : ""}`} aria-expanded={activeRequirementId === itemId} key={itemId} onClick={() => setSelectedRequirementId(itemId)}><div><p className="requirement-kind"><span className="requirement-kind-badge">{itemKind}</span>{itemKindLabel}</p><strong>{itemId}</strong><p>{String(item.text ?? item.impact ?? "No requirement detail")}</p><small className="requirement-impact">{String(item.kind_description ?? (itemKind === "AC" ? "A concrete and verifiable condition for deciding completion" : "A functional, quality, or operational capability the system must provide or preserve"))} · {itemEvidenceCount} evidence item(s)</small></div><span className={`state-badge state-${normalizedStatus}`}>{statusLabel(normalizedStatus)}</span></button>; })}</div></div>
+            <div className="impact-panel"><div className="panel-heading"><div><p className="eyebrow">REQUIREMENTS / AC</p><h3>Implementation status</h3></div><span className="tag">CLICK FOR EVIDENCE</span></div><div className="requirement-legend"><span><strong>REQ</strong> Functional, quality, or operational requirement</span><span><strong>AC</strong> Verifiable completion condition</span></div><div className="impact-requirements">{requirements.map((item) => renderRequirementRow(item, "No requirement detail"))}</div></div>
             {renderEvidencePanel("EVIDENCE / SELECTED ITEM", "Evidence for implementation status")}
           </div>
         </> : <>
           <div className="impact-metrics"><article><span>EVIDENCE</span><strong>{String(report?.evidence_count ?? 0)}</strong><small>/ {String(report?.requirement_count ?? 0)} requirements</small></article><article><span>COVERAGE</span><strong>{String(report?.evidence_coverage ?? 0)}</strong><small>deterministic top-k</small></article><article><span>CALLS</span><strong>{String((report?.provider_calls as JsonRecord | undefined)?.langchain ?? 0)} + {String((report?.provider_calls as JsonRecord | undefined)?.jev ?? 0)}</strong><small>LangChain + JEV</small></article><article><span>EXECUTION</span><strong>NONE</strong><small>read-only analysis</small></article></div>
           {renderProposalChanges()}
           <div className="impact-panel impact-proposal"><div className="panel-heading"><div><p className="eyebrow">PROPOSAL / MARKDOWN</p><h3>New implementation proposal</h3></div><button type="button" className="button button-secondary" onClick={() => void copyProposal(proposalMarkdown)} disabled={!proposalMarkdown}>{copied ? "Copied" : "Copy Markdown"}</button></div><pre className="impact-proposal-source">{proposalMarkdown || "No Markdown proposal was generated."}</pre></div>
-          <div className="impact-result-grid"><div className="impact-panel"><div className="panel-heading"><div><p className="eyebrow">REQUIREMENTS / AC</p><h3>Status by requirement</h3></div><span className="tag">CLICK FOR EVIDENCE</span></div><div className="requirement-legend"><span><strong>REQ</strong> Functional, quality, or operational requirement</span><span><strong>AC</strong> Verifiable completion condition</span></div><div className="impact-requirements">{requirements.map((item) => { const normalizedStatus = implementationStatus(item.status); const itemId = String(item.requirement_id); const itemKind = String(item.kind_code ?? (itemId.startsWith("AC-") ? "AC" : "REQ")); const itemKindLabel = itemKind === "AC" ? "Acceptance Criteria" : "Requirement"; const itemEvidenceCount = visibleEvidence.filter((evidenceItem) => String(evidenceItem.requirement_id) === itemId).length; return <button type="button" className={`impact-requirement ${activeRequirementId === itemId ? "is-selected" : ""}`} aria-expanded={activeRequirementId === itemId} key={itemId} onClick={() => setSelectedRequirementId(itemId)}><div><p className="requirement-kind"><span className="requirement-kind-badge">{itemKind}</span>{itemKindLabel}</p><strong>{itemId}</strong><p>{String(item.text ?? item.impact ?? "No impact summary")}</p><small className="requirement-impact">{String(item.kind_description ?? (itemKind === "AC" ? "A concrete and verifiable condition for deciding completion" : "A functional, quality, or operational capability the system must provide or preserve"))} · {itemEvidenceCount} evidence item(s)</small></div><span className={`state-badge state-${normalizedStatus}`}>{statusLabel(normalizedStatus)}</span></button>; })}</div></div>{renderEvidencePanel("EVIDENCE / SELECTED ITEM", "Selected REQ/AC code impact evidence")}</div>
+          <div className="impact-result-grid"><div className="impact-panel"><div className="panel-heading"><div><p className="eyebrow">REQUIREMENTS / AC</p><h3>Status by requirement</h3></div><span className="tag">CLICK FOR EVIDENCE</span></div><div className="requirement-legend"><span><strong>REQ</strong> Functional, quality, or operational requirement</span><span><strong>AC</strong> Verifiable completion condition</span></div><div className="impact-requirements">{requirements.map((item) => renderRequirementRow(item, "No impact summary"))}</div></div>{renderEvidencePanel("EVIDENCE / SELECTED ITEM", "Selected REQ/AC code impact evidence")}</div>
         </>}
       </section>}
     </div>

@@ -16,7 +16,7 @@ prerequisites:
   - ../security/safety-boundaries.md
 source_of_truth: contract
 owner: quality-and-reliability
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -40,7 +40,7 @@ An agent task is not complete until it provides:
    pure business rules.
 3. **Contract:** provider payload mapping, webhook signatures, API schemas,
    tool schemas, and document metadata.
-4. **Integration:** database transactions, checkpoints, queues, Langfuse,
+4. **Integration:** database transactions, checkpoints, queues, LangSmith,
    gateway, and provider sandboxes.
 5. **Scenario/evaluation:** representative agent tasks, safety cases, quality
    datasets, and high-risk human approval paths.
@@ -94,6 +94,6 @@ free-tier cost boundary. Compose configuration can still be validated with
 
 - [Anthropic: Effective Harnesses](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
 - [Anthropic: Harness Design](https://www.anthropic.com/engineering/harness-design-long-running-apps)
-- [Langfuse evaluation concepts](https://langfuse.com/docs/evaluation/core-concepts)
+- [LangSmith evaluation](https://docs.smith.langchain.com/evaluation)
 - [Toss Payments webhooks](https://docs.tosspayments.com/en/webhooks)
 - [Lemon Squeezy webhooks](https://docs.lemonsqueezy.com/help/webhooks)

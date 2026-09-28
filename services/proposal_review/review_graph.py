@@ -87,7 +87,12 @@ class ProposalReviewGraph:
     def _synthesize(self, state: ReviewState) -> ReviewState:
         if state.get("stage") in {"synthesized", "evaluated", "complete"}:
             return state
-        context = {"mode": state.get("mode", "impact"), "document": state.get("document", {}), "repository": state.get("repository", {}), "requirements": state.get("requirements", []), "evidence": state.get("evidence", [])}
+        repository = {
+            key: value
+            for key, value in state.get("repository", {}).items()
+            if key != "file_manifest"
+        }
+        context = {"mode": state.get("mode", "impact"), "document": state.get("document", {}), "repository": repository, "requirements": state.get("requirements", []), "evidence": state.get("evidence", [])}
         synthesis = self.synthesizer.invoke(context)
         provider_calls = {**state.get("provider_calls", {}), "langchain": 1}
         state = {**state, "stage": "synthesized", "synthesis": synthesis, "provider_calls": provider_calls}
@@ -131,6 +136,43 @@ class ProposalReviewGraph:
         evidence_count = len(state.get("evidence", []))
         decisions = {str(item.get("requirement_id")): item for item in synthesis.get("requirements", []) if isinstance(item, Mapping)}
         report_requirements = [{**requirement, **decisions.get(str(requirement.get("requirement_id")), {})} for requirement in requirements]
+        from services.evaluation.ragas_metrics import RAGAS_THRESHOLDS, evaluate_with_ragas
+        drift_records: dict[str, Any] = {}
+        drift_method = "ragas-unavailable"
+        drift_error = None
+        ragas_reference_answers: dict[str, str] = {}
+        ragas_reference_sources: dict[str, str] = {}
+        ragas_metadata: dict[str, Any] = {}
+        ragas_result = evaluate_with_ragas(
+            list(decisions.values()),
+            state.get("evidence", []),
+            requirements,
+            repository=state.get("repository", {}),
+            environment=os.environ,
+        )
+        if ragas_result is not None:
+            drift_records = ragas_result.records
+            drift_method = ragas_result.method
+            drift_error = ragas_result.error
+            ragas_reference_answers = ragas_result.reference_answers
+            ragas_reference_sources = ragas_result.reference_sources
+            ragas_metadata = ragas_result.metadata
+            if drift_error:
+                logger.warning("Ragas evaluation unavailable; metrics are marked n/a: %s", drift_error)
+        drift_report = {
+            name: {
+                "value": record.value,
+                "passed": record.passed,
+                "threshold": RAGAS_THRESHOLDS.get(name, 0.0),
+                "sample_count": record.sample_count,
+                "supported_count": record.supported_count,
+                "sample_label": record.sample_label,
+                "method": record.method,
+                "reason": record.reason,
+                "insufficient_sample": record.insufficient_sample,
+            }
+            for name, record in drift_records.items()
+        }
         report = {
             "mode": state.get("mode", "impact"),
             "recommendation": recommendation,
@@ -143,6 +185,12 @@ class ProposalReviewGraph:
             "evidence_candidates": state.get("evidence_candidates", evidence_count),
             "requirement_count": len(requirements),
             "evidence_coverage": round(min(1.0, evidence_count / max(1, len(requirements) * 3)), 3),
+            "drift_report": drift_report,
+            "drift_method": drift_method,
+            "drift_error": drift_error,
+            "ragas_reference_answers": ragas_reference_answers,
+            "ragas_reference_sources": ragas_reference_sources,
+            "ragas_metadata": ragas_metadata,
             "provider_calls": {"langchain": 0, "jev": 0, **state.get("provider_calls", {})},
             "jev": state.get("jev", {}),
             "unknowns": state.get("repository", {}).get("unknowns", []),
