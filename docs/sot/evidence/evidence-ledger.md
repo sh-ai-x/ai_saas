@@ -15,7 +15,7 @@ prerequisites:
   - ../00-index.md
 source_of_truth: evidence
 owner: platform-engineering
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -51,8 +51,8 @@ revisit_trigger: event that invalidates or ages the claim
 | E-005 | [LangGraph reference](https://langchain-ai.github.io/langgraph/reference/) | LangGraph supports stateful, long-running, persistent, streaming, and human-in-the-loop agent workflows; applies to agent orchestration. | accepted for evaluation |
 | E-006 | [LangGraph persistence](https://langchain-ai.github.io/langgraphjs/how-tos/cross-thread-persistence-functional/) | Checkpoints support thread state while stores support cross-thread application memory; applies to state separation. | accepted |
 | E-007 | [LiteLLM gateway](https://docs.litellm.ai/) | A gateway can unify provider access and expose routing, fallback, spend, and budget controls; applies to model control plane. | accepted as candidate |
-| E-008 | [Langfuse observability](https://langfuse.com/docs/observability/overview) | AI traces capture model, prompt, token, latency, tool, retrieval, and evaluation context; applies to AgentOps. | accepted with redaction |
-| E-009 | [Langfuse evaluation](https://langfuse.com/docs/evaluation/core-concepts) | Offline datasets and experiments complement online evaluation of production traces; applies to verification loop. | accepted |
+| E-008 | [LangSmith observability](https://docs.smith.langchain.com/observability) | AI traces capture model, prompt, token, latency, tool, retrieval, and evaluation context; applies to AgentOps. | accepted with redaction |
+| E-009 | [LangSmith evaluation](https://docs.smith.langchain.com/evaluation) | Offline datasets and experiments complement online evaluation of production traces; applies to verification loop. | accepted |
 | E-010 | [Supabase RAG permissions](https://supabase.com/docs/guides/ai/rag-with-permissions) | pgvector retrieval can be filtered by Postgres RLS; applies to permission-aware RAG, subject to query tests. | accepted with security tests |
 | E-011 | [Google OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server) | Server applications use authorization-code exchange and confidential credentials; applies to Google authentication. | accepted |
 | E-012 | [Lemon Squeezy webhooks](https://docs.lemonsqueezy.com/help/webhooks) | Webhooks use a signing secret and must be validated against the request; applies to payment event ingress. | accepted |

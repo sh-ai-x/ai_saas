@@ -134,6 +134,31 @@ class LocalServerTests(unittest.TestCase):
         self.assertEqual(duplicate_status, 200)
         self.assertFalse(duplicate["applied"])  # type: ignore[index]
 
+    def test_change_impact_review_returns_a_pollable_queued_handle(self) -> None:
+        status, queued = self.request(
+            "POST",
+            "/v1/change-impact/reviews",
+            {
+                "review_id": "local-queued-review",
+                "mode": "implementation",
+                "document": {"name": "proposal.md", "media_type": "text/markdown", "sha256": "doc"},
+                "repository": {"root_name": "repo", "fingerprint": "repo", "unknowns": []},
+                "requirements": [{"requirement_id": "REQ-001", "text": "The system must preserve trace cost.", "source": "markdown"}],
+                "evidence": [],
+            },
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(queued["status"], "queued")  # type: ignore[index]
+        review_id = queued["review_id"]  # type: ignore[index]
+        observed: dict[str, object] | str = queued
+        for _ in range(40):
+            status, observed = self.request("GET", f"/v1/change-impact/reviews/{review_id}")
+            if status == 200 and isinstance(observed, dict) and observed.get("status") == "complete":
+                break
+            threading.Event().wait(0.05)
+        self.assertIsInstance(observed, dict)
+        self.assertEqual(observed.get("status"), "complete")  # type: ignore[union-attr]
+
     def test_run_tenant_isolation_is_enforced_by_http_boundary(self) -> None:
         _, run = self.request(
             "POST",

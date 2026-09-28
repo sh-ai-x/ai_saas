@@ -13,7 +13,7 @@ prerequisites:
   - ../00-index.md
 source_of_truth: map
 owner: platform-engineering
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-28
 change_impact: high
 ---
 
@@ -48,7 +48,7 @@ Browser
 LangGraph checkpoints -> Postgres-backed run state
 Product state        -> Postgres: users, plans, entitlements, credits, events, audit
 Retrieval memory      -> Postgres + pgvector with permission-aware queries
-Agent traces          -> Langfuse with privacy-safe correlation
+Agent traces          -> LangSmith with privacy-safe correlation
 Payments              -> signed provider webhooks -> event ledger -> state transitions
 Operations            -> ECR -> ECS/Fargate -> ALB/CloudWatch -> runbooks
 ```
@@ -63,7 +63,7 @@ Operations            -> ECR -> ECS/Fargate -> ALB/CloudWatch -> runbooks
 | AI gateway | provider credentials, model allowlist, routing, fallback, budgets, provider telemetry | product authorization or user entitlement decisions |
 | Postgres | users, plans, entitlements, credits, events, audit, durable run metadata | unbounded binary/object storage |
 | pgvector | permission-aware retrieval indexes and embeddings | bypassing tenant/document authorization |
-| Langfuse | AI traces, prompt/model/tool/evaluation metadata | the product's transactional source of truth |
+| LangSmith | AI traces, prompt/model/tool/evaluation metadata | the product's transactional source of truth |
 | Payment adapters | checkout/provider API calls, signature verification, provider mapping | directly trusting client redirects |
 | ECS/Fargate | isolated service tasks, scaling, health, deployment runtime | business-level retry or payment state decisions |
 
@@ -76,7 +76,7 @@ Operations            -> ECR -> ECS/Fargate -> ALB/CloudWatch -> runbooks
 3. The run is created with a durable `run_id` and idempotency key.
 4. LangGraph executes bounded nodes and tools, persisting checkpoints.
 5. AI gateway applies model policy, budget, timeout, retry, and fallback.
-6. Langfuse receives correlated trace data with sensitive payload controls.
+6. LangSmith receives correlated trace data with sensitive payload controls.
 7. The result is streamed or retrieved asynchronously; cancellation is durable.
 
 ### Payment-to-entitlement flow
@@ -98,7 +98,7 @@ Operations            -> ECR -> ECS/Fargate -> ALB/CloudWatch -> runbooks
 - A duplicate webhook must be a no-op after event deduplication.
 - Supabase/Postgres degradation must fail closed for privileged mutations and
   avoid granting new entitlements without durable confirmation.
-- Langfuse degradation must not block user responses, but must emit a local
+- LangSmith degradation must not block user responses, but must emit a local
   telemetry-loss signal.
 - ECS deployment failure must stop promotion and preserve the last healthy
   revision for rollback.
@@ -132,7 +132,7 @@ not silently move cost or authorization responsibility to another service.
 
 - [AWS ECS best practices](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-best-practices.html)
 - [LangGraph reference](https://langchain-ai.github.io/langgraph/reference/)
-- [Langfuse observability](https://langfuse.com/docs/observability/overview)
+- [LangSmith observability](https://docs.smith.langchain.com/observability)
 - [Supabase database and pgvector](https://supabase.com/docs/guides/database/overview)
 - Baseline: `../mysaas/my-saas/docker/prod/Dockerfile:1-59`,
   `src/auth.ts:24-35`, `src/app/api/webhooks/stripe/route.ts:429-499`.

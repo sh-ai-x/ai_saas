@@ -8,6 +8,7 @@ dependencies = [
     "langgraph>=0.2,<1.0",
     "langsmith>=0.2,<1.0",
     "pypdf>=5,<7",
+    "ragas>=0.4.3,<0.5",
 ]
 
 [dependency-groups]

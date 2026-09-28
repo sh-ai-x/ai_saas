@@ -1,0 +1,71 @@
+title: Test proposal — classification coverage (implemented / modified / partial / missing / contradicted / unknown)
+status: test-fixture
+date: 2026-09-27
+tags:
+  - test
+  - classification
+  - workbench-fixture
+
+sections:
+  - title: Purpose
+    body: |
+      Drop this into the change-impact workbench (file picker) and run a review
+      against any local repository. Each line is a requirement or acceptance
+      criterion that exercises a different classification path so the new
+      `modified` status (and the existing implemented / partial / missing /
+      contradicted / unknown) all surface at least once.
+
+  - title: Requirements
+    body: |
+      # === Likely IMPLEMENTED (any repo with package.json + Next.js or similar) ===
+      REQ-001: must install dependencies via pnpm install --frozen-lockfile
+      REQ-002: must expose a /login route returning HTTP 200 on GET
+      AC-001: must build the web app via next build
+      AC-002: must format source files with prettier
+
+      # === Likely MODIFIED (similar capability, different mechanism) ===
+      REQ-003: must implement session management using cookies
+      # implementation may use JWT or DB-backed sessions; either way,
+      # the requirement is functionally met by an equivalent approach
+      AC-003: must persist user preferences in a database
+      # implementation may use localStorage, IndexedDB, or server-side storage
+
+      # === Likely PARTIAL (some conditions met, others not) ===
+      REQ-004: must support OAuth 2.0 AND email/password AND SAML login
+      # most repos implement only one or two; the rest stay pending
+      AC-004: must cover all branches with tests at ≥90% line coverage
+      # line coverage alone is not full branch coverage
+
+      # === Likely MISSING (no current code path for this) ===
+      REQ-005: must implement WebSocket-based real-time collaboration
+      AC-005: must support internationalization in 12 languages
+      AC-006: must integrate with SAP ERP for inventory sync
+
+      # === Likely CONTRADICTED (current code actively violates this) ===
+      REQ-006: must not log any PII to stdout
+      # many repos print request bodies, user emails, or tokens in dev logs
+      AC-007: must never use the == operator for string comparison in TypeScript
+      # existing code may use == in non-strict comparisons
+
+      # === Likely UNKNOWN (cannot be assessed from code alone) ===
+      REQ-007: must ship within Q4 2026
+      AC-008: must achieve a Lighthouse performance score ≥95
+      AC-009: must comply with ISO 27001 access-control requirements
+      AC-010: must pass a third-party security audit before public launch
+
+  - title: Expected coverage matrix
+    body: |
+      | requirement        | expected status when reviewed against most codebases |
+      | REQ-001            | implemented                                            |
+      | REQ-002            | implemented                                            |
+      | REQ-003            | modified (any session scheme counts)                   |
+      | REQ-004            | partial                                                |
+      | REQ-005            | missing                                                |
+      | REQ-006            | contradicted if dev logs print PII, else implemented   |
+      | REQ-007            | unknown (no code signal)                               |
+      | AC-001 / AC-002     | implemented                                            |
+      | AC-003             | modified                                               |
+      | AC-004             | partial (line vs branch)                               |
+      | AC-005 / AC-006     | missing                                                |
+      | AC-007             | contradicted if `==` exists in .ts files               |
+      | AC-008 / AC-009 / AC-010 | unknown                                          |

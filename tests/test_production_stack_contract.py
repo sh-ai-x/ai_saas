@@ -62,6 +62,9 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertNotIn("postgres:", compose)
         self.assertIn("DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL", compose)
         self.assertIn("DATABASE_URL: ${DATABASE_URL_UNPOOLED:?set DATABASE_URL_UNPOOLED", compose)
+        self.assertIn("LANGSMITH_TRACING: ${LANGSMITH_TRACING:-}", compose)
+        self.assertIn("LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}", compose)
+        self.assertIn("LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-proposal-to-verified-change}", compose)
         self.assertIn("service_completed_successfully", compose)
 
     def test_auth_contract_passes_only_runtime_values_to_web(self) -> None:
@@ -136,6 +139,14 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn("DATABASE_URL_UNPOOLED=", env_example)
         self.assertIn("3200 + candidate_slot * 10", script)
         self.assertIn("8280 + candidate_slot * 10", script)
+
+    def test_neon_docker_script_reads_staging_defaults_and_generates_secret(self) -> None:
+        script = (ROOT / "scripts/docker-neon.sh").read_text(encoding="utf-8")
+
+        self.assertIn("env_file_value()", script)
+        self.assertIn('configured_slot="$(env_file_value NEON_DOCKER_SLOT)"', script)
+        self.assertIn('generated_app_secret="$(openssl rand -hex 32)"', script)
+        self.assertIn('echo "APP_SECRET_KEY was empty; generated an ephemeral value for this run."', script)
 
     def test_docker_local_uses_the_lightweight_development_web_target(self) -> None:
         compose = LOCAL_COMPOSE.read_text(encoding="utf-8")

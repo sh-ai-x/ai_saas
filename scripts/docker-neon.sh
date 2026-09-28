@@ -21,6 +21,31 @@ if [[ ! -f "$env_file" ]]; then
   exit 1
 fi
 
+env_file_value() {
+  local key="$1"
+  local source_file="${2:-$env_file}"
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^"|"$/, "", value)
+      print value
+      exit
+    }
+  ' "$source_file"
+}
+
+# Git worktrees do not share ignored environment files. Reuse only the
+# canonical repository's staging OpenAI key when this worktree's value is
+# empty, so `pnpm docker:neon` remains sufficient without copying secrets.
+shared_env_file=""
+common_git_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ -n "$common_git_dir" ]]; then
+  candidate_shared_env_file="$(dirname "$common_git_dir")/.env.staging"
+  if [[ -f "$candidate_shared_env_file" && "$candidate_shared_env_file" != "$env_file" ]]; then
+    shared_env_file="$candidate_shared_env_file"
+  fi
+fi
+
 sanitize_slug() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
@@ -51,7 +76,8 @@ port_block_is_free() {
   port_is_free "$1" && port_is_free "$2"
 }
 
-configured_slot="${NEON_DOCKER_SLOT:-}"
+configured_slot="$(env_file_value NEON_DOCKER_SLOT)"
+configured_slot="${NEON_DOCKER_SLOT:-$configured_slot}"
 if [[ -z "$configured_slot" ]]; then
   hash_hex="$(printf '%s' "$compose_project" | shasum -a 256 | awk '{print substr($1, 1, 8)}')"
   configured_slot=$((16#$hash_hex % 40))
@@ -90,6 +116,23 @@ export FOUNDATION_PORT="${FOUNDATION_PORT:-$selected_foundation_port}"
 export FOUNDATION_PUBLIC_URL="${FOUNDATION_PUBLIC_URL:-http://localhost:${FOUNDATION_PORT}}"
 export WEB_PUBLIC_URL="${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT}}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL:-http://localhost:${WEB_PORT}}"
+
+if [[ -z "${APP_SECRET_KEY:-}" && -z "$(env_file_value APP_SECRET_KEY)" ]]; then
+  generated_app_secret="$(openssl rand -hex 32)"
+  export APP_SECRET_KEY="$generated_app_secret"
+  echo "APP_SECRET_KEY was empty; generated an ephemeral value for this run."
+fi
+
+if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+  openai_key="$(env_file_value OPENAI_API_KEY)"
+  if [[ -z "$openai_key" && -n "$shared_env_file" ]]; then
+    openai_key="$(env_file_value OPENAI_API_KEY "$shared_env_file")"
+    if [[ -n "$openai_key" ]]; then
+      export OPENAI_API_KEY="$openai_key"
+      echo "OPENAI_API_KEY loaded from the canonical repository staging environment."
+    fi
+  fi
+fi
 
 compose=(docker compose --project-name "$compose_project" --env-file "$env_file" -f "$repo_root/docker/neon/compose.yaml")
 cd "$repo_root"
