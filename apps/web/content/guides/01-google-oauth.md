@@ -48,7 +48,7 @@ still **Branding**, **Audience**, **Data Access**, and **Clients**.
 1. Open [Google Cloud Console](https://console.cloud.google.com/).
 2. In the top project selector, click **New project** or select the existing
    project dedicated to this environment.
-3. Give the project a recognizable name such as `ai-saas-staging` and click
+3. Give the project a recognizable name such as `live-docs-staging` and click
    **Create**. Keep staging and production in separate projects when possible.
 4. In the left menu, open **Google Auth Platform**. If the console still shows
    the legacy layout, open **APIs & Services → OAuth consent screen** instead.
@@ -113,7 +113,7 @@ justification, privacy policy, security review, and verification plan.
 2. Click **Create client**.
 3. Set **Application type** to **Web application**.
 4. Set the client name to something explicit, such as
-   `ai-saas-staging-localhost-3000`.
+   `live-docs-staging-localhost-3000`.
 5. Add the exact JavaScript origin and redirect URI from the next section.
 6. Click **Create**.
 7. Copy the **Client ID** immediately. Copy the **Client secret** immediately

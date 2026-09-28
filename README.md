@@ -175,16 +175,16 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
 | Surface | URL / address | Where it runs |
 |---|---|---|
 | Foundation API (process mode) | `http://127.0.0.1:8080` | `uv run --locked python -m foundation.server` |
-| Web console (process mode) | `http://localhost:3000` | `pnpm --filter ai-saas-foundation-web dev` |
+| Web console (process mode) | `http://localhost:3000` | `pnpm --filter live-docs-web dev` |
 | Postgres (process mode) | `localhost:5432` | host-side `psql` or any local client |
 | Web console (`pnpm docker:local`) | `http://localhost:3100` | `docker/prod/compose.yaml` (yes, prod compose — the local profile reuses it) |
 | Foundation API (`pnpm docker:local`) | `http://localhost:8180` | same compose; container-internal `foundation:8080` |
 | Postgres (`pnpm docker:local`) | `localhost:55433` → `postgres:5432` | same compose |
 | Web console (`pnpm docker:neon`) | `http://localhost:3200` | `docker/neon/compose.yaml`; connects to selected Neon branch |
 | Foundation API (`pnpm docker:neon`) | `http://localhost:8280` | same compose |
-| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://ai-saas-foundation.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `ai-saas-foundation` app, both `APP_ENV=staging` |
+| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://live-docs.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `live-docs` app, both `APP_ENV=staging` |
 | Vercel preview | `https://aisaas-git-<branch>-sh-ai-x.vercel.app` | auto per PR |
-| Fly.io public | `https://ai-saas-foundation.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
+| Fly.io public | `https://live-docs.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
 | Neon cluster | project `ai_saas` (`lucky-boat-01406333`), `aws-ap-southeast-1` | branches `staging` (live) + `production` (dormant) |
 
 Host-port assignments are pinned by the `<SERVICE>_PORT` env vars in
