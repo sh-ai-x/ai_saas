@@ -246,9 +246,19 @@ def _records_from_result(result: Any, *, context_recall_available: bool = True) 
     return records
 
 
-def _unavailable_records(reason: str) -> dict[str, EvaluationRecord]:
-    """Fail closed when configured Ragas cannot produce an evaluation."""
-    return {
+def _unavailable_records(
+    reason: str,
+    *,
+    evidence: list[Mapping[str, Any]] | None = None,
+    requirements: list[Mapping[str, Any]] | None = None,
+    repository: Mapping[str, Any] | None = None,
+) -> dict[str, EvaluationRecord]:
+    """Fail closed when configured Ragas cannot produce an evaluation.
+
+    Optional evidence arguments keep the deterministic provenance check on the
+    same unavailable path without maintaining a second record builder.
+    """
+    records = {
         name: EvaluationRecord(
             name,
             None,
@@ -266,17 +276,8 @@ def _unavailable_records(reason: str) -> dict[str, EvaluationRecord]:
         )
         for name in _METRIC_NAMES
     }
-
-
-def _unavailable_with_integrity(
-    reason: str,
-    evidence: list[Mapping[str, Any]],
-    requirements: list[Mapping[str, Any]],
-    repository: Mapping[str, Any] | None,
-) -> dict[str, EvaluationRecord]:
-    """Keep the deterministic evidence check available without an LLM key."""
-    records = _unavailable_records(reason)
-    records["evidence_integrity"] = _evidence_integrity_record(evidence, requirements, repository)
+    if evidence is not None and requirements is not None:
+        records["evidence_integrity"] = _evidence_integrity_record(evidence, requirements, repository)
     return records
 
 
@@ -540,7 +541,12 @@ def evaluate_with_ragas(
     if not api_key:
         reason = "OPENAI_API_KEY is required for official Ragas evaluation."
         return RagasEvaluation(
-            _unavailable_with_integrity(reason, evidence, requirements, repository),
+            _unavailable_records(
+                reason,
+                evidence=evidence,
+                requirements=requirements,
+                repository=repository,
+            ),
             "ragas-unavailable",
             reason,
         )
@@ -548,7 +554,12 @@ def evaluate_with_ragas(
     if not rows:
         reason = "No REQ/AC samples were available for Ragas evaluation."
         return RagasEvaluation(
-            _unavailable_with_integrity(reason, evidence, requirements, repository),
+            _unavailable_records(
+                reason,
+                evidence=evidence,
+                requirements=requirements,
+                repository=repository,
+            ),
             "ragas-unavailable",
             reason,
         )
@@ -580,7 +591,12 @@ def evaluate_with_ragas(
         except Exception as exc:  # evaluator failure must not discard the review artifact
             error = f"{type(exc).__name__}: {str(exc)[:240]}"
             return RagasEvaluation(
-                _unavailable_with_integrity(f"Ragas evaluation failed: {error}", evidence, requirements, repository),
+                _unavailable_records(
+                    f"Ragas evaluation failed: {error}",
+                    evidence=evidence,
+                    requirements=requirements,
+                    repository=repository,
+                ),
                 "ragas-unavailable",
                 error,
             )
@@ -591,7 +607,12 @@ def evaluate_with_ragas(
         if errors:
             reason += " " + errors[0]
         return RagasEvaluation(
-            _unavailable_with_integrity(reason, evidence, requirements, repository),
+            _unavailable_records(
+                reason,
+                evidence=evidence,
+                requirements=requirements,
+                repository=repository,
+            ),
             "ragas-unavailable",
             reason,
         )

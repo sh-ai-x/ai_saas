@@ -92,6 +92,19 @@ workbench scores.
 - Evidence ranges are intentionally bounded to at most 20 source lines so the
   judge receives traceable context without turning a large file match into an
   unbounded prompt.
+- The browser workbench applies a separate round-robin interleave only to make
+  its preview fair across requirements. The server-side
+  `ProposalReviewService._select_relevant_evidence` result is authoritative for
+  the submitted review and for Ragas scoring.
+
+The evaluator boundary intentionally exposes seven small Ragas runtime
+controls plus the required key, so a Neon/production deployment can tune cost
+and reliability without changing code: `RAGAS_EVALUATOR_MODEL`,
+`RAGAS_EMBEDDING_MODEL`,
+`RAGAS_ANSWER_RELEVANCY_STRICTNESS`, `RAGAS_CACHE_ENABLED`,
+`RAGAS_BATCH_SIZE`, `RAGAS_MAX_RETRIES`, and `RAGAS_BATCH_DELAY_SECONDS`, plus
+the required `OPENAI_API_KEY`. The first four affect scoring semantics; the
+batch/retry/delay controls affect throughput and transient-failure handling.
 
 Scores are averaged over successful REQ/AC samples and show sample counts and
 threshold pass counts. Failed Ragas samples do not become zeroes. Exact
