@@ -20,6 +20,7 @@ from statistics import fmean
 from typing import Any, Mapping
 
 from agent_platform.contracts import EvaluationRecord
+from services.proposal_review.evidence_policy import is_valid_evidence_range
 from services.review_comment_policy import comment_keys_for_status
 
 _METRIC_NAMES = ("faithfulness", "answer_relevance", "context_recall", "evidence_relevance")
@@ -331,9 +332,7 @@ def _evidence_integrity_record(
             and bool(path)
             and bool(excerpt)
             and bool(rationale)
-            and start_line >= 1
-            and end_line >= start_line
-            and end_line - start_line + 1 <= 20
+            and is_valid_evidence_range(start_line, end_line)
             and pointer not in seen
             and source_matches_manifest
         )
