@@ -51,7 +51,7 @@ services:
     volumes:
       - foundation_state:/var/lib/ai-saas
     ports:
-      - "${FOUNDATION_PORT:-8280}:8080"
+      - "${FOUNDATION_PORT:-8280}:${DOCKER_FOUNDATION_CONTAINER_PORT:-8080}"
 
   web-migrate:
     build:
@@ -92,7 +92,7 @@ services:
       web-migrate:
         condition: service_completed_successfully
     ports:
-      - "${WEB_PORT:-3200}:3000"
+      - "${WEB_PORT:-3200}:${DOCKER_WEB_CONTAINER_PORT:-3000}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(() => process.exit(0)).catch(() => process.exit(1))"]
       interval: 10s

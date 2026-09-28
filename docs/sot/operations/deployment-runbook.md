@@ -98,7 +98,7 @@ web console on host port `3200` and the API on `8280`.
 source of truth. Use this sequence for a schema change:
 
 ```bash
-pnpm run web:db:generate
+pnpm db:generate
 git diff -- apps/web/drizzle
 ```
 

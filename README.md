@@ -1,7 +1,6 @@
 # AI SaaS foundation
 
-This is the smallest runnable, contract-first foundation extracted from the
-`mysaas` baseline. It keeps the first deployment as a modular monolith while
+It keeps the first deployment as a modular monolith while
 recording logical ownership and versioned REST, SSE, event, and provider
 boundaries for service extraction.
 
@@ -33,6 +32,72 @@ See [docs/setup-guides/07-neon-database.md](docs/setup-guides/07-neon-database.m
 setup, environment-variable flow, policy deployment, and connection check.
 The complete branch, database, Docker, Vercel, EC2, migration, and rollback
 runbook is [docs/sot/operations/deployment-runbook.md](docs/sot/operations/deployment-runbook.md).
+
+## Commands
+
+Every workflow in this repo is a `pnpm` command at the repository root. The
+sections below are the index — for a deeper walk-through of the Drizzle
+release gate see [Drizzle database workflow](#drizzle-database-workflow);
+for the Docker port + URL contract see [ADR-0002](docs/adr/0002-worktree-port-and-database-isolation.md).
+
+### Web app
+
+| Command | What it does |
+|---|---|
+| `pnpm web:dev` | Next.js dev server (Next.js console at <http://localhost:3000>) |
+| `pnpm web:build` | Production build of the web workspace |
+| `pnpm web:test` | Run the web workspace's unit + integration tests |
+| `pnpm web:e2e` | Run the web workspace's Playwright/jest e2e suite |
+| `pnpm web:setup-auth` | One-shot Google OAuth + Better Auth secret setup for `apps/web/.env.local` |
+
+### Docker (local + Neon + env verification)
+
+| Command | What it does |
+|---|---|
+| `pnpm docker:local` | Run the worktree-local Compose stack (Postgres + foundation + web). Web port pinned at 3100. |
+| `pnpm docker:local:down` | Stop the local Compose stack (keeps volumes) |
+| `pnpm docker:local:purge` | Stop the local Compose stack **and delete volumes** (disposable seed data) |
+| `pnpm docker:neon` | Run the Compose stack against a Neon branch (no local Postgres). Web port pinned at 3200. |
+| `pnpm docker:neon:down` | Stop the Neon Compose stack |
+| `pnpm docker:verify` | Show usage for `docker:verify:local\|:neon` |
+| `pnpm docker:verify:local` | Inspect the local compose project containers and table env vars (DB / TOSS / JEV / OPENAI / GOOGLE_OAUTH) |
+| `pnpm docker:verify:neon` | Same as `:local` against the neon compose project |
+
+Web port pins and the slot-allocation block for foundation / postgres are
+managed centrally in [`scripts/lib/ports.sh`](scripts/lib/ports.sh).
+
+### Database — local development
+
+| Command | What it does |
+|---|---|
+| `pnpm db:generate` | Generate a migration from a schema diff in `apps/web/db/schema/` (writes `apps/web/drizzle/<tag>.sql` + journal entry) |
+| `pnpm db:migrate` | Apply every committed-but-unapplied migration to the current `DATABASE_URL_UNPOOLED` |
+| `pnpm db:status` | File-only check: total + recent migrations, orphan `.sql` files (no DB required) |
+| `pnpm db:doctor` | File-level diagnostic + destructive-statement scan; offline (no env, no preflight) |
+
+### Database — staging release (Neon `stage*` branches)
+
+| Command | What it does |
+|---|---|
+| `pnpm db:doctor:stage` | Loads `.env.staging`, runs staging preflight, checks manifest + destructive statements + pooler host |
+| `pnpm db:verify:stage` | Read-only preflight against staging. Exits non-zero on pooler host, missing history, or destructive migrations. |
+| `pnpm db:plan:stage` | No-write plan: list exactly which migrations would apply, with their SQL |
+| `pnpm db:migrate:stage` | Verify → plan → apply → re-verify in one shot. Requires `CONFIRM_STAGING_DB=staging`. |
+| `pnpm db:repair-history:stage` | Recover when `drizzle.__drizzle_migrations` is out of sync but every migration is actually applied |
+| `pnpm db:cleanup:legacy:stage` | Drop a stray `drizzle` schema left behind from an old apply |
+
+### Database — production release (CI-only)
+
+| Command | What it does |
+|---|---|
+| `pnpm db:doctor:prod` | Same as `:stage` but loads `.env.production` |
+| `pnpm db:verify:prod` | Read-only preflight against production |
+| `pnpm db:plan:prod` | No-write plan |
+| `pnpm db:migrate:prod` | Verify → plan → apply → re-verify in one shot. Requires **both** `CONFIRM_PRODUCTION_DB=production` AND `process.env.GITHUB_ACTIONS === "true"`. A developer shell can never apply prod migrations even if the prod env-file is present. |
+
+`db:migrate:prod` will fail-closed if either confirmation gate is missing
+or if the runner is not GitHub Actions. The same gate also rejects
+non-`production` `--target` values.
 
 ## Start locally
 
@@ -105,6 +170,29 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
   -d '{"target_user_id":"demo-user","amount":3,"reason":"local demo"}'
 ```
 
+### Endpoints at a glance
+
+| Surface | URL / address | Where it runs |
+|---|---|---|
+| Foundation API (process mode) | `http://127.0.0.1:8080` | `uv run --locked python -m foundation.server` |
+| Web console (process mode) | `http://localhost:3000` | `pnpm --filter ai-saas-foundation-web dev` |
+| Postgres (process mode) | `localhost:5432` | host-side `psql` or any local client |
+| Web console (`pnpm docker:local`) | `http://localhost:3100` | `docker/prod/compose.yaml` (yes, prod compose — the local profile reuses it) |
+| Foundation API (`pnpm docker:local`) | `http://localhost:8180` | same compose; container-internal `foundation:8080` |
+| Postgres (`pnpm docker:local`) | `localhost:55433` → `postgres:5432` | same compose |
+| Web console (`pnpm docker:neon`) | `http://localhost:3200` | `docker/neon/compose.yaml`; connects to selected Neon branch |
+| Foundation API (`pnpm docker:neon`) | `http://localhost:8280` | same compose |
+| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://ai-saas-foundation.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `ai-saas-foundation` app, both `APP_ENV=staging` |
+| Vercel preview | `https://aisaas-git-<branch>-sh-ai-x.vercel.app` | auto per PR |
+| Fly.io public | `https://ai-saas-foundation.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
+| Neon cluster | project `ai_saas` (`lucky-boat-01406333`), `aws-ap-southeast-1` | branches `staging` (live) + `production` (dormant) |
+
+Host-port assignments are pinned by the `<SERVICE>_PORT` env vars in
+`.env.local.example` (`POSTGRES_PORT=55433`, `FOUNDATION_PORT=8180`,
+`WEB_PORT=3100`). Override at start time with `pnpm docker:local --port 3019`
+to publish the same container on a different host port; the script aligns
+`BETTER_AUTH_URL` and the Google OAuth callback to whatever you pick.
+
 ## Real integration setup guides
 
 The provider-ready path is documented in [docs/setup-guides/README.md](docs/setup-guides/README.md)
@@ -154,10 +242,16 @@ Register this exact callback in Google Cloud:
 a trailing slash, or expose `GOOGLE_CLIENT_SECRET` through a `NEXT_PUBLIC_*`
 variable.
 
+The live Vercel production deployment also needs its callback registered:
+`https://aisaas-git-main-sh-ai-x.vercel.app/api/auth/callback/google` (no
+trailing slash). Vercel preview URLs follow
+`https://aisaas-git-<branch>-sh-ai-x.vercel.app` and require their own
+Google Cloud OAuth client entries when you want preview-deploy logins.
+
 #### 3. Link Neon, configure Better Auth, and migrate Drizzle tables
 
 ```bash
-pnpm web:setup-auth -- --link-neon --neon-branch stage2 --app-env staging
+pnpm web:setup-auth -- --link-neon --neon-branch staging --app-env staging
 ```
 
 The command performs the remaining setup in order:
@@ -223,28 +317,52 @@ Drizzle is the schema and migration source of truth for the web database:
 - configuration: `apps/web/drizzle.config.ts`
 - migration history: `neondb.drizzle.__drizzle_migrations`
 
-After changing a schema file, generate and review a migration before applying
-it:
+Every workflow below is a `pnpm` command at the repo root. The same Drizzle
+config is reused for both local Docker (worktree-local Postgres) and the
+Neon-hosted staging / production branches. The web process uses the pooled
+`DATABASE_URL`; migrations always use the direct `DATABASE_URL_UNPOOLED`.
+
+#### Command surface
+
+| Stage | Command | Purpose |
+|---|---|---|
+| Local | `pnpm db:generate` | Generate a migration from a schema diff (creates `apps/web/drizzle/<tag>.sql` + journal entry) |
+| Local | `pnpm db:migrate` | Apply every committed-but-unapplied migration to the current `DATABASE_URL_UNPOOLED` (also runs inside `pnpm docker:local`'s `web-migrate`) |
+| Local | `pnpm db:status` | File-only check: total migrations, recent 5, orphan SQL files (no DB required) |
+| Local | `pnpm db:doctor` | Combined diagnostic: manifest consistency + destructive-statement scan + pooler-host check + best-effort preflight |
+| Staging | `pnpm db:verify:stage` | Read-only preflight against staging; rejects with reason on pooler-host, missing history, or destructive migrations |
+| Staging | `pnpm db:plan:stage` | No-write plan: list exactly which migrations would apply, with their SQL |
+| Staging | `pnpm db:migrate:stage` | Verify → plan → apply → re-verify in one shot (requires `CONFIRM_STAGING_DB=staging`) |
+| Staging | `pnpm db:doctor:stage` | Same as `db:doctor` but loads `.env.staging` and runs the staging preflight |
+| Staging | `pnpm db:repair-history:stage` | Recover when `__drizzle_migrations` is corrupted but every migration in the journal is actually applied |
+| Staging | `pnpm db:cleanup-legacy:stage` | Drop a stray `drizzle` schema left behind from an old apply |
+| Production | `pnpm db:verify:prod` | Read-only preflight against production |
+| Production | `pnpm db:plan:prod` | No-write plan |
+| Production | `pnpm db:migrate:prod` | CI-only. Requires `CONFIRM_PRODUCTION_DB=production` AND a GitHub Actions runner (`process.env.GITHUB_ACTIONS === "true"`). A developer shell cannot apply prod migrations. |
+
+Stage and prod are **separate commands on purpose** — `db:migrate:prod` will
+never run from a developer worktree even if the prod env-file is present.
+The confirmation variables are gate checks, not hints.
+
+#### Typical local-to-cloud flow
 
 ```bash
-pnpm web:db:generate
-git diff -- apps/web/drizzle
+# 1. Edit schema in apps/web/db/schema/
+pnpm db:generate
+git diff -- apps/web/drizzle                # review the SQL
+git add apps/web/drizzle && git commit
+
+# 2. Stage: dry-run, then apply.
+NEON_BRANCH=staging pnpm db:doctor:stage   # show any pre-existing problems
+pnpm db:verify:stage -- --from-file "$PWD/.env.staging"
+CONFIRM_STAGING_DB=staging pnpm db:migrate:stage -- --from-file "$PWD/.env.staging"
+
+# 3. Promotion to production runs in CI only.
+#    .github/workflows/release.yml reads the prod env-file from secrets,
+#    sets CONFIRM_PRODUCTION_DB=production, and runs pnpm db:migrate:prod.
 ```
 
-Apply committed migrations through the environment-specific release gate. The
-web process uses pooled `DATABASE_URL`; Drizzle migrations use direct
-`DATABASE_URL_UNPOOLED`. Drizzle never selects a Neon branch implicitly:
-
-```bash
-# local Docker: web-migrate runs this automatically during docker:local
-pnpm docker:local
-
-# an explicitly selected Neon staging branch: preflight, plan, then apply
-NEON_BRANCH=stage2 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
-NEON_BRANCH=stage2 pnpm run db:plan:stage -- --from-file "$PWD/.env.staging"
-CONFIRM_STAGING_DB=staging NEON_BRANCH=stage2 \
-  pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
-```
+#### Conflict / drift scenarios
 
 For a Neon preview branch, create or select the branch with Neon MCP/CLI first,
 then load its ignored connection variables before running the migration. Never
@@ -252,6 +370,15 @@ use the production connection string from a developer worktree. The normal
 cloud sequence is: create branch from `staging` → run Drizzle migration → run
 verification checks → delete the preview branch when the worktree or PR is
 retired.
+
+| Symptom | Likely cause | First command to run |
+|---|---|---|
+| `migration-history: incompatible` | A migration was edited after being applied; the SHA no longer matches the row in `__drizzle_migrations` | `pnpm db:doctor:stage` then `pnpm db:repair-history:stage` |
+| `schema already exists` / `relation already exists` notices | Database was already initialized; Drizzle emits these as PostgreSQL NOTICEs — confirm `migration release: APPLY PASS — staging history is current` | (no action; informational) |
+| `drizzle-doctor` reports `direct-url: FAIL` with `pooler` in the URL | `.env.staging` is pointing `DATABASE_URL_UNPOOLED` at the pooler host | Copy the direct URL from Neon and re-set `DATABASE_URL_UNPOOLED=` |
+| `orphan-sql: FAIL` | Someone dropped a `*.sql` file in `apps/web/drizzle/` without running `db:generate`, or edited the journal by hand | Either `git restore` the file or re-run `pnpm db:generate` after fixing the schema |
+| `destructive-migration:<tag>: WARN` | The migration contains `DROP TABLE` / `DROP COLUMN` / `TRUNCATE` | Confirm the change is intentional; otherwise rewrite the schema change before re-generating |
+| Doctor prints `preflight: WARN … did not return JSON` | Network issue or wrong env-file path | Verify `DATABASE_URL` / `DATABASE_URL_UNPOOLED` connectivity manually, then re-run |
 
 `pnpm docker:local` intentionally forces the web migration and application to
 the worktree-local PostgreSQL database, even if `.env` contains a Neon URL.
@@ -271,11 +398,11 @@ traffic. The staging release wrapper performs a read-only preflight, applies
 only committed Drizzle migrations, and verifies the final history afterward:
 
 ```bash
-NEON_BRANCH=stage2 \
+NEON_BRANCH=staging \
 pnpm run db:verify:stage -- --from-file "$PWD/.env.staging"
 
 CONFIRM_STAGING_DB=staging \
-NEON_BRANCH=stage2 \
+NEON_BRANCH=staging \
 pnpm run db:migrate:stage -- --from-file "$PWD/.env.staging"
 ```
 
@@ -297,10 +424,18 @@ open a reviewed database-repair change. Do not edit or delete
 
 | Git ref | Vercel behavior | Database target | Migration authority |
 |---|---|---|---|
-| `feat/*`, `fix/*`, `docs/*` | Preview deployment | local Docker or disposable Neon preview | developer plan only |
-| `main` | Production deployment after PR checks | protected Neon `production` | CI release job only |
-| staging release | Preview/alias for user feedback | shared Neon `stage2` branch | preflight → plan → apply → verify |
-| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same production gate |
+| `feat/*`, `fix/*`, `docs/*` | Preview deployment (`aisaas-git-<branch>-sh-ai-x.vercel.app`) | local Docker or disposable Neon preview branch | developer plan only |
+| `main` | Production deployment (`aisaas-git-main-sh-ai-x.vercel.app`, `APP_ENV=staging`) | shared Neon `staging` branch | preflight → plan → apply → verify |
+| Neon `production` branch | not currently wired to any deploy target; reserved | protected Neon `production` | CI release job only (when promoted) |
+| `hotfix/*` | Preview first, then expedited production PR | staging first, production only after CI | same staging → production gate |
+
+The Neon cluster has both a `staging` branch (the live deploy target) and a
+`production` branch (currently dormant, reserved for the CI-only release gate).
+`pnpm web:setup-auth` defaults `--neon-branch=production` and `--app-env=staging`
+so the staging env file (`apps/web/.env.staging`) and Vercel `production`
+alias point at the `staging` branch by design. Promote by switching
+`APP_ENV=production` plus the matching Neon branch — never by editing
+`DATABASE_URL` directly.
 
 Vercel build/deploy must not run database migrations. Deployments are
 immutable application artifacts; migrations run once as a serialized release

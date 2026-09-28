@@ -1,5 +1,19 @@
 {
   "env": {
     "DEV_KIT_MODE": "lite"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/hooks/post-worktree-add.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
