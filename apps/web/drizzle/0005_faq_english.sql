@@ -7,7 +7,7 @@ SET "locale" = 'en', "category" = 'authentication', "question" = 'How do I sign 
 WHERE "id" = 'faq-google-login';
 --> statement-breakpoint
 UPDATE "faq_entries"
-SET "locale" = 'en', "category" = 'development', "question" = 'How do I run the project locally?', "answer" = 'From the repository root, run pnpm install. Use pnpm docker:local for Docker or pnpm --filter ai-saas-foundation-web dev to run the web workbench.', "aliases" = '["local setup", "development environment", "getting started"]'::jsonb, "updated_at" = now()
+SET "locale" = 'en', "category" = 'development', "question" = 'How do I run the project locally?', "answer" = 'From the repository root, run pnpm install. Use pnpm docker:local for Docker or pnpm --filter live-docs-web dev to run the web workbench.', "aliases" = '["local setup", "development environment", "getting started"]'::jsonb, "updated_at" = now()
 WHERE "id" = 'faq-local-development';
 --> statement-breakpoint
 DELETE FROM "faq_entries" WHERE "id" = 'faq-agent-run';
