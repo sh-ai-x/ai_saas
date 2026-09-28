@@ -16,6 +16,20 @@ const BUILD_RE = /(^|\/)(\.git|\.worktrees|worktrees|node_modules|\.next|dist|bu
 const AI_SIGNAL_TERMS = ["prompt", "model", "retriev", "graph", "provider", "trace", "safety", "cost"];
 const EVIDENCE_STOP_WORDS = new Set(["about", "after", "again", "also", "already", "and", "any", "are", "because", "being", "between", "both", "but", "can", "does", "each", "for", "from", "have", "how", "into", "must", "not", "only", "one", "should", "some", "such", "than", "that", "their", "there", "these", "they", "this", "through", "the", "using", "was", "were", "when", "where", "which", "with", "without", "will"]);
 const EVIDENCE_METADATA_RE = /(^|\/)(\.claude(?:-plugin)?|\.codex-plugin|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json|composer\.lock)(\/|$)/i;
+// Mirrors services/review_comment_policy.py so the UI and Ragas judge use the
+// same canonical answer fields for each implementation status.
+const COMMENT_KEYS_BY_STATUS: Record<string, string[]> = {
+  implemented: ["implemented_comment"],
+  modified: ["implemented_comment", "changed_comment"],
+  partial: ["implemented_comment", "not_implemented_comment"],
+  missing: ["not_implemented_comment"],
+  unknown: ["not_implemented_comment"],
+  contradicted: ["not_implemented_comment", "changed_comment"],
+};
+
+function commentKeysForStatus(status: string) {
+  return COMMENT_KEYS_BY_STATUS[status] ?? ["implemented_comment", "not_implemented_comment", "changed_comment"];
+}
 
 function implementationStatus(value: unknown): "implemented" | "modified" | "partial" | "missing" | "unknown" | "contradicted" {
   const status = String(value ?? "unknown").toLowerCase().replace(/[ -]/g, "_");
@@ -711,7 +725,8 @@ export function ChangeImpactWorkbench() {
     const itemKind = String(item.kind_code ?? (itemId.startsWith("AC-") ? "AC" : "REQ"));
     const itemKindLabel = itemKind === "AC" ? "Acceptance Criteria" : "Requirement";
     const itemEvidenceCount = visibleEvidence.filter((evidenceItem) => String(evidenceItem.requirement_id) === itemId).length;
-    const comment = String(item.comment ?? item.impact ?? "").trim();
+    const canonicalComment = commentKeysForStatus(normalizedStatus).map((key) => String(item[key] ?? "").trim()).filter(Boolean).join(" ");
+    const comment = String(item.comment ?? item.impact ?? canonicalComment).trim();
     const risk = String(item.risk ?? "").trim();
     const detailFallbacks = normalizedStatus === "partial"
       ? {

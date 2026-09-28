@@ -8,6 +8,8 @@ import re
 from contextvars import ContextVar
 from typing import Any, Mapping
 
+from services.review_comment_policy import comment_keys_for_status
+
 
 class SynthesisBudgetError(RuntimeError):
     pass
@@ -148,14 +150,7 @@ def _canonical_requirement_comment(decision: Mapping[str, Any], status: str) -> 
     direct = _normalize_requirement_comment(decision.get("comment")) or _normalize_requirement_comment(decision.get("impact"))
     if direct:
         return direct
-    keys = {
-        "implemented": ("implemented_comment",),
-        "modified": ("implemented_comment", "changed_comment"),
-        "partial": ("implemented_comment", "not_implemented_comment"),
-        "missing": ("not_implemented_comment",),
-        "unknown": ("not_implemented_comment",),
-        "contradicted": ("not_implemented_comment", "changed_comment"),
-    }.get(status, ("implemented_comment", "not_implemented_comment", "changed_comment"))
+    keys = comment_keys_for_status(status)
     return " ".join(
         dict.fromkeys(
             text

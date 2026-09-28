@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from services.evaluation.ragas_metrics import _cache_key, _cached_scores, _records_from_result, _store_cached_scores, _unavailable_records, build_ragas_rows, evaluate_with_ragas
+from services.review_comment_policy import comment_keys_for_status
+
+
+def test_comment_field_policy_is_shared_by_review_and_ragas() -> None:
+    assert comment_keys_for_status("partial") == ("implemented_comment", "not_implemented_comment")
+    assert comment_keys_for_status("modified") == ("implemented_comment", "changed_comment")
+    assert comment_keys_for_status("unexpected") == ("implemented_comment", "not_implemented_comment", "changed_comment")
 
 
 def test_ragas_dataset_derives_requirement_reference_and_keeps_evidence_scoped() -> None:

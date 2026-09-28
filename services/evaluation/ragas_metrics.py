@@ -20,6 +20,7 @@ from statistics import fmean
 from typing import Any, Mapping
 
 from agent_platform.contracts import EvaluationRecord
+from services.review_comment_policy import comment_keys_for_status
 
 _METRIC_NAMES = ("faithfulness", "answer_relevance", "context_recall", "evidence_relevance")
 _RAGAS_RESULT_NAMES = {
@@ -149,14 +150,7 @@ def build_ragas_rows(
         response = _usable_response(decision.get("comment")) or _usable_response(decision.get("impact"))
         if not response:
             status = str(decision.get("status", "unknown")).strip().lower()
-            status_parts = {
-                "implemented": ("implemented_comment",),
-                "modified": ("implemented_comment", "changed_comment"),
-                "partial": ("implemented_comment", "not_implemented_comment"),
-                "missing": ("not_implemented_comment",),
-                "unknown": ("not_implemented_comment",),
-                "contradicted": ("not_implemented_comment", "changed_comment"),
-            }.get(status, ("implemented_comment", "not_implemented_comment", "changed_comment"))
+            status_parts = comment_keys_for_status(status)
             response = " ".join(
                 dict.fromkeys(
                     part
