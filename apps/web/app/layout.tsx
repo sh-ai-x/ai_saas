@@ -4,8 +4,8 @@ import { FaqWidget } from "@/components/faq-widget";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: "Live Docs",
-  description: "Evidence-backed documentation and change-impact workbench",
+  title: "Live Docs Console",
+  description: "Live Docs console",
 };
 
 // Inline before paint so [data-theme="dark"] rules apply on first frame.

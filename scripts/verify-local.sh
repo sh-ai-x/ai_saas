@@ -9,9 +9,9 @@ uv sync --locked
 uv run --locked python -m compileall -q foundation services lib evaluators tests
 uv run --locked python -m foundation.contract_check
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre live-docs
 
-evidence_path="${TMPDIR:-/tmp}/ai-saas-foundation-evidence.json"
+evidence_path="${TMPDIR:-/tmp}/live-docs-evidence.json"
 uv run --locked python -m evaluators.capture --output "$evidence_path"
 uv run --locked python - "$evidence_path" <<'PY'
 import json

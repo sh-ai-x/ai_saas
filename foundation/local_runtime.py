@@ -85,7 +85,7 @@ class LocalRuntime:
     """Own local stores and use cases for the HTTP composition root."""
 
     def __init__(self, config: FoundationConfig, values: Mapping[str, str]) -> None:
-        state_path = values.get("LOCAL_STATE_DB", "/tmp/ai-saas-foundation.sqlite3").strip()
+        state_path = values.get("LOCAL_STATE_DB", "/tmp/live-docs.sqlite3").strip()
         if state_path != ":memory:":
             Path(state_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         self.state_path = state_path

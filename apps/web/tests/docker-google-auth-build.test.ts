@@ -20,7 +20,7 @@ describe("passes the Google auth flag into the Docker client build", () => {
       /^ENV NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=\$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED$/m,
     );
     expect(builderStage).toMatch(
-      /^RUN pnpm --filter ai-saas-foundation-web build$/m,
+      /^RUN pnpm --filter live-docs-web build$/m,
     );
   });
 

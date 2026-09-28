@@ -16,7 +16,7 @@ runs before provider dispatch or credit reservation.
 
 The Python foundation service (`foundation/`) is hosted on Fly.io and
 proxied from Vercel via `FOUNDATION_API_URL`. The current
-`ai-saas-foundation` app is a **staging smoke-test** instance: it boots
+`live-docs` app is a **staging smoke-test** instance: it boots
 with `APP_ENV=staging`, `AUTH_PROVIDER=local-mock`, and a fake agent
 provider so the Next.js `/app` route can be exercised end-to-end
 without a real payment or AI provider integration. Production rollout
@@ -26,8 +26,8 @@ OpenAI key, separate Fly app + secrets).
 **One-time setup** (operator shell, after `fly auth login`):
 
 ```bash
-fly apps create ai-saas-foundation --org personal
-fly volumes create foundation_state --size 1 --region nrt --app ai-saas-foundation --yes
+fly apps create live-docs --org personal
+fly volumes create foundation_state --size 1 --region nrt --app live-docs --yes
 fly secrets set \
   DATABASE_URL='<neon pooled url>' \
   APP_SECRET_KEY='<openssl rand -base64 32>' \
@@ -45,7 +45,7 @@ fly secrets set \
   RUN_QUOTA_MAX_RUNS='10' \
   RUN_QUOTA_MAX_UNITS='100' \
   RUN_QUOTA_PERIOD_SECONDS='86400' \
-  --app ai-saas-foundation
+  --app live-docs
 ```
 
 Note: `APP_BASE_URL` is owned by `fly.toml [env]` (not `fly secrets`)
@@ -78,21 +78,21 @@ of the paths above trigger `.github/workflows/foundation-fly-deploy.yml`.
 The workflow builds remotely via `flyctl deploy --remote-only`;
 `foundation.contract_check` runs once at build time inside the
 Dockerfile (no `release_command`). The smoke-test loop polls
-`https://ai-saas-foundation.fly.dev/healthz` for up to 100s (10
+`https://live-docs.fly.dev/healthz` for up to 100s (10
 attempts × `(5s curl + 5s sleep)`) before failing.
 
 **Smoke-test manually:**
 
 ```bash
-curl -fsS https://ai-saas-foundation.fly.dev/healthz
+curl -fsS https://live-docs.fly.dev/healthz
 # {"contract_version":"v1","deployment_profile":"free-portfolio","status":"ok"}
 ```
 
-**Roll back** a bad release with `fly releases rollback --app ai-saas-foundation`
+**Roll back** a bad release with `fly releases rollback --app live-docs`
 (the machine is replaced, persistent volume at `/var/lib/ai-saas` is
 untouched). For a hard rollback, pick a prior machine image from
-`fly releases --app ai-saas-foundation` and run
-`fly deploy --app ai-saas-foundation --image <registry-image>`.
+`fly releases --app live-docs` and run
+`fly deploy --app live-docs --image <registry-image>`.
 
 ## Production migration history repair
 

@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -fsS --max-time 5 "https://ai-saas-foundation.fly.dev/healthz" >/dev/null; then
+            if curl -fsS --max-time 5 "https://live-docs.fly.dev/healthz" >/dev/null; then
               echo "/healthz OK after ${i} attempt(s)"
               exit 0
             fi

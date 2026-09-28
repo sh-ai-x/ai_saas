@@ -81,7 +81,7 @@ function assertApplyConfirmation(target, explicitEnvironment) {
 
 function applyMigration() {
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-  const result = spawnSync(pnpm, ["--filter", "ai-saas-foundation-web", "db:migrate"], {
+  const result = spawnSync(pnpm, ["--filter", "live-docs-web", "db:migrate"], {
     cwd: REPO_ROOT,
     env: process.env,
     stdio: ["inherit", "pipe", "pipe"],

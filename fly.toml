@@ -5,9 +5,9 @@
 # persistent volume for the SQLite state store at /var/lib/ai-saas.
 #
 # Runbook (after `brew install flyctl && fly auth login`):
-#   fly apps create ai-saas-foundation
+#   fly apps create live-docs
 #   fly volumes create foundation_state --size 1 --region nrt
-#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://ai-saas-foundation.fly.dev ...
+#   fly secrets set DATABASE_URL=... APP_SECRET_KEY=... APP_BASE_URL=https://live-docs.fly.dev ...
 #   fly deploy
 #
 # Auto-deploys from main via .github/workflows/foundation-fly-deploy.yml.
@@ -27,14 +27,14 @@
 #   re-running it as a release hook would hold prod hostage to a
 #   check that already passed.
 
-app = "ai-saas-foundation"
+app = "live-docs"
 primary_region = "nrt"
 
 [build]
   dockerfile = "docker/prod/foundation.Dockerfile"
 
 [env]
-  APP_BASE_URL = "https://ai-saas-foundation.fly.dev"
+  APP_BASE_URL = "https://live-docs.fly.dev"
   CONTRACT_VERSION = "v1"
   WORKFLOW_PROVIDER = "local"
   OTEL_ENABLED = "true"

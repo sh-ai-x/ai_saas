@@ -48,7 +48,7 @@ still **Branding**, **Audience**, **Data Access**, and **Clients**.
 1. Open [Google Cloud Console](https://console.cloud.google.com/).
 2. In the top project selector, click **New project** or select the existing
    project dedicated to this environment.
-3. Give the project a recognizable name such as `live-docs-staging` and click
+3. Give the project a recognizable name such as `ai-saas-staging` and click
    **Create**. Keep staging and production in separate projects when possible.
 4. In the left menu, open **Google Auth Platform**. If the console still shows
    the legacy layout, open **APIs & Services → OAuth consent screen** instead.
@@ -64,7 +64,7 @@ production:
 
 | Console field | Local/staging value |
 |---|---|
-| App name | The product name shown on the Google consent screen, for example `Live Docs` |
+| App name | The product name shown on the Google consent screen, for example `Live Docs Foundation` |
 | User support email | An inbox the test user can use to contact the operator |
 | App logo | Optional for local testing; use a product logo that matches the web app in production |
 | App homepage | `http://localhost:3000` for this workspace, or the deployed HTTPS homepage |
@@ -227,7 +227,7 @@ Expected tables: `account`, `app_user`, `session`, `verification`.
 Keep the process running in the web app directory:
 
 ```bash
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 ```
 
 Open [http://localhost:3000/login](http://localhost:3000/login). With live
