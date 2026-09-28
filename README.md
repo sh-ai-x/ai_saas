@@ -182,9 +182,9 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
 | Postgres (`pnpm docker:local`) | `localhost:55433` → `postgres:5432` | same compose |
 | Web console (`pnpm docker:neon`) | `http://localhost:3200` | `docker/neon/compose.yaml`; connects to selected Neon branch |
 | Foundation API (`pnpm docker:neon`) | `http://localhost:8280` | same compose |
-| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://live-docs.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `live-docs` app, both `APP_ENV=staging` |
+| Vercel production | `https://aisaas-git-main-sh-ai-x.vercel.app` (web) → `https://ai-saas-foundation.fly.dev` (API) | Vercel `ai_saas` project + Fly.io `ai-saas-foundation` app, both `APP_ENV=staging` |
 | Vercel preview | `https://aisaas-git-<branch>-sh-ai-x.vercel.app` | auto per PR |
-| Fly.io public | `https://live-docs.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
+| Fly.io public | `https://ai-saas-foundation.fly.dev` (`80`/`443` → internal `8080`) | `fly.toml` `nrt` region |
 | Neon cluster | project `ai_saas` (`lucky-boat-01406333`), `aws-ap-southeast-1` | branches `staging` (live) + `production` (dormant) |
 
 Host-port assignments are pinned by the `<SERVICE>_PORT` env vars in

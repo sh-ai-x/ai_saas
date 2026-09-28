@@ -78,13 +78,13 @@ of the paths above trigger `.github/workflows/foundation-fly-deploy.yml`.
 The workflow builds remotely via `flyctl deploy --remote-only`;
 `foundation.contract_check` runs once at build time inside the
 Dockerfile (no `release_command`). The smoke-test loop polls
-`https://live-docs.fly.dev/healthz` for up to 100s (10
+`https://ai-saas-foundation.fly.dev/healthz` for up to 100s (10
 attempts × `(5s curl + 5s sleep)`) before failing.
 
 **Smoke-test manually:**
 
 ```bash
-curl -fsS https://live-docs.fly.dev/healthz
+curl -fsS https://ai-saas-foundation.fly.dev/healthz
 # {"contract_version":"v1","deployment_profile":"free-portfolio","status":"ok"}
 ```
 
