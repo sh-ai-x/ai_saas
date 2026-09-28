@@ -1,4 +1,4 @@
-name: ai-saas-foundation-neon
+name: live-docs-neon
 
 services:
   foundation:
@@ -60,7 +60,7 @@ services:
     environment:
       # Never use the pooled URL for Drizzle migrations.
       DATABASE_URL: ${DATABASE_URL_UNPOOLED:?set DATABASE_URL_UNPOOLED to the Neon direct URL}
-    command: ["pnpm", "--filter", "ai-saas-foundation-web", "db:migrate"]
+    command: ["pnpm", "--filter", "live-docs-web", "db:migrate"]
     restart: "no"
 
   web:

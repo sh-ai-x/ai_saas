@@ -47,4 +47,4 @@ def test_container_entrypoints_use_the_locked_toolchains() -> None:
         assert '"uv", "run"' in content
 
     compose = (ROOT / "docker/prod/compose.yaml").read_text(encoding="utf-8")
-    assert '"pnpm", "--filter", "ai-saas-foundation-web", "db:migrate"' in compose
+    assert '"pnpm", "--filter", "live-docs-web", "db:migrate"' in compose

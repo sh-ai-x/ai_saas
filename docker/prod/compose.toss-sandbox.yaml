@@ -8,7 +8,7 @@
 #     -f docker/prod/compose.yaml \
 #     -f docker/prod/compose.toss-sandbox.yaml up --build
 
-name: ai-saas-foundation-toss-sandbox
+name: live-docs-toss-sandbox
 
 services:
   postgres:

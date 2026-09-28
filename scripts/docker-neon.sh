@@ -125,6 +125,12 @@ if [[ -z "${APP_SECRET_KEY:-}" && -z "$(env_file_value APP_SECRET_KEY)" ]]; then
   echo "APP_SECRET_KEY was empty; generated an ephemeral value for this run."
 fi
 
+if [[ -z "${BETTER_AUTH_SECRET:-}" && -z "$(env_file_value BETTER_AUTH_SECRET)" ]]; then
+  generated_auth_secret="$(openssl rand -hex 32)"
+  export BETTER_AUTH_SECRET="$generated_auth_secret"
+  echo "BETTER_AUTH_SECRET was empty; generated an ephemeral value for this run."
+fi
+
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   openai_key="$(env_file_value OPENAI_API_KEY)"
   if [[ -z "$openai_key" && -n "$shared_env_file" ]]; then

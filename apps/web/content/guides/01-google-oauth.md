@@ -64,7 +64,7 @@ production:
 
 | Console field | Local/staging value |
 |---|---|
-| App name | The product name shown on the Google consent screen, for example `Live Docs` |
+| App name | The product name shown on the Google consent screen, for example `Live Docs Foundation` |
 | User support email | An inbox the test user can use to contact the operator |
 | App logo | Optional for local testing; use a product logo that matches the web app in production |
 | App homepage | `http://localhost:3000` for this workspace, or the deployed HTTPS homepage |
@@ -113,7 +113,7 @@ justification, privacy policy, security review, and verification plan.
 2. Click **Create client**.
 3. Set **Application type** to **Web application**.
 4. Set the client name to something explicit, such as
-   `ai-saas-staging-localhost-3000`.
+   `live-docs-staging-localhost-3000`.
 5. Add the exact JavaScript origin and redirect URI from the next section.
 6. Click **Create**.
 7. Copy the **Client ID** immediately. Copy the **Client secret** immediately
@@ -227,7 +227,7 @@ Expected tables: `account`, `app_user`, `session`, `verification`.
 Keep the process running in the web app directory:
 
 ```bash
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 ```
 
 Open [http://localhost:3000/login](http://localhost:3000/login). With live

@@ -73,7 +73,7 @@ The stable internal ports are web `3000`, Foundation `8080`, and PostgreSQL
 
 | Profile | Web | Foundation | PostgreSQL |
 |---|---:|---:|---:|
-| `pnpm --filter ai-saas-foundation-web dev` (process-only) | `3000` | `8080` | `5432` |
+| `pnpm --filter live-docs-web dev` (process-only) | `3000` | `8080` | `5432` |
 | `pnpm docker:local` | `3100` | `8180` | `55433` |
 | `pnpm docker:neon` | `3200` | `8280` | — |
 

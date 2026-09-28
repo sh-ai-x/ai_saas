@@ -32,7 +32,7 @@ let output = "";
 function startServer() {
   const child = spawn(
     "pnpm",
-    ["--filter", "ai-saas-foundation-web", "exec", "next", "dev", "--hostname", "localhost", "--port", port],
+    ["--filter", "live-docs-web", "exec", "next", "dev", "--hostname", "localhost", "--port", port],
     { cwd: root, env: serverEnv, stdio: ["ignore", "pipe", "pipe"] },
   );
   server = child;
@@ -138,7 +138,7 @@ describe("web HTTP E2E contracts", () => {
   it("covers the local auth, pricing, payment, and outage flows", async () => {
     const landing = await request("/");
     assertPage(landing, "/");
-    expect(landing.text).toMatch(/Public landing|Live Docs/);
+    expect(landing.text).toMatch(/Public landing|Live Docs Foundation/);
 
     const login = await request("/login");
     assertPage(login, "/login");

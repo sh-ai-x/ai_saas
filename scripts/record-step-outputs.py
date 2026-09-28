@@ -20,9 +20,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = ROOT / "phases" / "ai-saas-foundation"
+OUTPUT_DIR = ROOT / "phases" / "live-docs"
 UV_RUN = ("uv", "run", "--locked")
-WEB_RUN = ("pnpm", "--filter", "ai-saas-foundation-web")
+WEB_RUN = ("pnpm", "--filter", "live-docs-web")
 
 COMMANDS: dict[int, tuple[tuple[str, ...], ...]] = {
     0: (UV_RUN + ("python", "-m", "foundation.contract_check"),),
@@ -84,7 +84,7 @@ def record(step: int) -> int:
     stderr = "\n".join(str(item["stderr"]) for item in command_results)
     document: dict[str, object] = {
         "schema_version": "1.0.0",
-        "phase": "ai-saas-foundation",
+        "phase": "live-docs",
         "step": step,
         "exit_code": exit_code,
         "duration_seconds": round(time.monotonic() - started, 3),

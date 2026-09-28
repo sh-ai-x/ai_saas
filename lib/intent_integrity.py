@@ -12,7 +12,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a phase intent integrity pre-check")
     parser.add_argument("--pre", required=True)
     args = parser.parse_args(argv)
-    if args.pre != "ai-saas-foundation":
+    if args.pre != "live-docs":
         print(f"unsupported phase: {args.pre}", file=sys.stderr)
         return 2
     try:
@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # keep the gate's failure output concise and deterministic
         print(f"FAIL intent integrity: {exc}", file=sys.stderr)
         return 1
-    print("PASS intent integrity: ai-saas-foundation")
+    print("PASS intent integrity: live-docs")
     return 0
 
 

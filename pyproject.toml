@@ -1,7 +1,7 @@
 [project]
-name = "ai-saas-foundation"
+name = "live-docs"
 version = "0.1.0"
-description = "Contract-first AI SaaS foundation runtime"
+description = "Live Docs runtime"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "langchain-openai>=0.2,<1.0",

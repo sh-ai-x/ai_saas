@@ -18,7 +18,7 @@ companion; the HTTP surface itself is Python standard library code.
 
 JavaScript dependencies are managed from the repository root with `pnpm` and
 the committed `pnpm-lock.yaml`; do not use `npm install`, `npm ci`, or `npx`.
-The web workspace is selected with `pnpm --filter ai-saas-foundation-web ...`.
+The web workspace is selected with `pnpm --filter live-docs-web ...`.
 Python dependencies and commands run through the committed `uv.lock`; use
 `uv sync --locked` and `uv run --locked ...` rather than mutating the host
 Python installation with `pip`.
@@ -109,7 +109,7 @@ export APP_SECRET_KEY="$(uv run --locked python -c 'import secrets; print(secret
 uv run --locked python -m foundation.config \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
-uv run --locked python -m lib.intent_integrity --pre ai-saas-foundation
+uv run --locked python -m lib.intent_integrity --pre live-docs
 uv run --locked python -m foundation.server \
   --env-file config/profiles/free-portfolio.example.env \
   --profile free-portfolio
@@ -126,7 +126,7 @@ a same-origin Next.js proxy. Start the API first, then run:
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 ```
 
 Open `http://localhost:3000` for the product landing and operator console. The
@@ -146,8 +146,8 @@ evaluation run. Faithfulness, Answer Relevance, Context Recall, Context
 Relevance, and deterministic evidence-integrity checks are reported per
 REQ/AC sample; explicit reference answers are preferred for Context Recall.
 
-For a production-style local check, use `pnpm --filter ai-saas-foundation-web build`
-and then `pnpm --filter ai-saas-foundation-web start` from the repository root.
+For a production-style local check, use `pnpm --filter live-docs-web build`
+and then `pnpm --filter live-docs-web start` from the repository root.
 
 The local server includes deterministic health, authentication, proposal-review,
 payment, and administration contracts:
@@ -175,7 +175,7 @@ curl -X POST http://127.0.0.1:8080/v1/admin/credits \
 | Surface | URL / address | Where it runs |
 |---|---|---|
 | Foundation API (process mode) | `http://127.0.0.1:8080` | `uv run --locked python -m foundation.server` |
-| Web console (process mode) | `http://localhost:3000` | `pnpm --filter ai-saas-foundation-web dev` |
+| Web console (process mode) | `http://localhost:3000` | `pnpm --filter live-docs-web dev` |
 | Postgres (process mode) | `localhost:5432` | host-side `psql` or any local client |
 | Web console (`pnpm docker:local`) | `http://localhost:3100` | `docker/prod/compose.yaml` (yes, prod compose — the local profile reuses it) |
 | Foundation API (`pnpm docker:local`) | `http://localhost:8180` | same compose; container-internal `foundation:8080` |
@@ -612,7 +612,7 @@ Step evidence is compact, valid JSON rather than a raw agent transcript:
 uv run --locked python scripts/record-step-outputs.py --all
 ```
 
-This writes `phases/ai-saas-foundation/step0-output.json` through
+This writes `phases/live-docs/step0-output.json` through
 `step12-output.json` with the real command exit code, stdout, stderr, and
 duration. Docker availability and browser-console verification are preserved
 as explicit environment notes.

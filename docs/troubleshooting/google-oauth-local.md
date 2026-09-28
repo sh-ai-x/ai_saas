@@ -94,7 +94,7 @@ container if it is the intended owner of port 3000. Then confirm that the web
 container is healthy:
 
 ```bash
-docker ps --filter name=ai-saas-foundation-web-1
+docker ps --filter name=live-docs-web-1
 ```
 
 The expected state includes `0.0.0.0:3000->3000/tcp` and `healthy`.
@@ -175,5 +175,5 @@ the web image is insufficient for a `NEXT_PUBLIC_*` client variable.
 - Run the web contract tests before opening a PR:
 
 ```bash
-pnpm --filter ai-saas-foundation-web test:all
+pnpm --filter live-docs-web test:all
 ```

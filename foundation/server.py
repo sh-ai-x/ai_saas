@@ -52,7 +52,7 @@ class LocalServer(ThreadingHTTPServer):
 
 
 class FoundationHandler(BaseHTTPRequestHandler):
-    server_version = "ai-saas-foundation/0.2"
+    server_version = "live-docs/0.2"
 
     @property
     def runtime(self) -> LocalRuntime:
