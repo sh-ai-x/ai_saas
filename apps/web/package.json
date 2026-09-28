@@ -9,6 +9,7 @@
     "start": "next start --hostname localhost --port 3000",
     "lint": "tsc --noEmit",
     "test": "jest --config jest.config.mjs --runInBand",
+    "db:test": "node scripts/profile-subscription-db-test.mjs",
     "test:watch": "jest --config jest.config.mjs --watch",
     "test:all": "pnpm lint && pnpm test && pnpm build",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
