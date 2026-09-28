@@ -57,7 +57,7 @@ export function PricingCatalog({ plans, source, billingMode }: { plans: PricingP
             ...common,
             amount: { value: Number(amount?.value), currency: String(amount?.currency ?? "KRW") },
             orderId: String(context.order_id ?? body.checkoutUrl ?? ""),
-            orderName: String(context.order_name ?? "AI SaaS payment"),
+            orderName: String(context.order_name ?? "Live Docs payment"),
             ...(sdkSandbox ? { sandbox: sdkSandbox } : {}),
           });
         }

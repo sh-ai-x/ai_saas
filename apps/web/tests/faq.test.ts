@@ -19,7 +19,7 @@ describe('FAQ policy and OpenAI boundary', () => {
   it('uses a provider timeout compatible with container network latency', () => {
     expect(DEFAULT_OPENAI_TIMEOUT_MS).toBe(5_000);
   });
-  it.each(['What is AI Change Impact Workbench?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
+  it.each(['What is Live Docs?', 'service overview', '  service overview?!  '])('matches %s without calling provider', async question => {
     const select = jest.fn();
     const result = await answerFaq(question, repository, { select });
     expect(result).toMatchObject({ outcome: 'answer', answer: seedFaqs[0].answer });
@@ -225,7 +225,10 @@ describe('FAQ repository and bounded wire validation', () => {
     }
   });
   it('keeps migration seed equal to local seed', () => {
-    const sql = readFileSync(resolve(__dirname, '../drizzle/0005_faq_english.sql'), 'utf8');
+    const sql = [
+      readFileSync(resolve(__dirname, '../drizzle/0005_faq_english.sql'), 'utf8'),
+      readFileSync(resolve(__dirname, '../drizzle/0007_live_docs_branding.sql'), 'utf8'),
+    ].join('\n');
     expect(sql).toContain('UPDATE "faq_entries"');
     for (const row of seedFaqs) for (const value of [row.id, row.category, row.question, ...row.aliases, row.answer]) expect(sql).toContain(value);
   });

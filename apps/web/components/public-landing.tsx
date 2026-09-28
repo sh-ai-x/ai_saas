@@ -5,7 +5,7 @@ export function PublicLanding({ plans, source, billingMode, sessionControl }: { 
   return (
     <main className="landing-page">
       <nav className="landing-nav">
-        <a className="brand landing-brand" href="/"><span className="brand-mark">AI</span><span><small>FOUNDATION</small><strong>Substrate</strong></span></a>
+        <a className="brand landing-brand" href="/"><span className="brand-mark">LD</span><span><small>LIVE DOCS</small><strong>Workbench</strong></span></a>
         <div className="landing-links"><a href="/guides">Setup guides</a><a href="/app">Open workspace</a>{sessionControl ?? <a className="button button-primary" href="/login">Sign in</a>}</div>
       </nav>
       <section className="landing-hero">
@@ -14,7 +14,7 @@ export function PublicLanding({ plans, source, billingMode, sessionControl }: { 
       </section>
       <PricingCatalog plans={plans} source={source} billingMode={billingMode} />
       <section className="landing-strip"><span>PUBLIC LANDING</span><strong>→</strong><span>USER WORKSPACE</span><strong>→</strong><span>ADMIN POLICY</span><strong>→</strong><span>PROVIDER CHECKOUT</span></section>
-      <footer className="landing-footer"><span>AI SaaS Foundation</span><span>Neon · Drizzle · adapter pattern · sandbox first</span></footer>
+      <footer className="landing-footer"><span>Live Docs</span><span>Neon · Drizzle · adapter pattern · sandbox first</span></footer>
     </main>
   );
 }
