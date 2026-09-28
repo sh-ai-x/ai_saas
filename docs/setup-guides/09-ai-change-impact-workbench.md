@@ -89,9 +89,9 @@ workbench scores.
   path, line range, excerpt, rationale, duplicate pointers, and source hash.
   It validates provenance and freshness; it does not claim that an excerpt is
   the absolute truth of the source file.
-- Evidence ranges are intentionally bounded to at most 20 source lines so the
-  judge receives traceable context without turning a large file match into an
-  unbounded prompt.
+- Evidence ranges are intentionally bounded to one to three source lines so
+  the deployment contract, UI, and judge all receive the same traceable
+  context without turning a large file match into an unbounded prompt.
 - The browser workbench applies a separate round-robin interleave only to make
   its preview fair across requirements. The server-side
   `ProposalReviewService._select_relevant_evidence` result is authoritative for

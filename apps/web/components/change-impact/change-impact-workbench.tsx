@@ -10,7 +10,7 @@ type RepositoryStatus = "idle" | "picking" | "loading" | "ready" | "analyzing" |
 const CODE_EXTENSIONS = new Set([".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cts", ".mts", ".go", ".rs", ".java", ".kt", ".sql", ".md", ".json", ".json5", ".yaml", ".yml", ".toml", ".ini", ".conf", ".config", ".html", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".prisma", ".graphql", ".gql", ".proto", ".xml", ".sh", ".bash", ".zsh", ".fish", ".rb", ".php", ".swift", ".dart", ".lua", ".pl", ".ex", ".exs", ".clj", ".cljs", ".hs", ".ml", ".fs", ".scala", ".sbt", ".groovy", ".gradle"]);
 const MAX_ANALYSIS_FILES = 600;
 const MAX_ANALYSIS_BYTES = 8 * 1024 * 1024;
-const MAX_EVIDENCE_RANGE_LINES = 20;
+const MAX_EVIDENCE_RANGE_LINES = 3;
 const SECRET_RE = /(^|\/)(\.env(?:\.|$)|.*\.(pem|key|p12|pfx|crt|cer)$|credentials?|secrets?)(\/|$)/i;
 const BUILD_RE = /(^|\/)(\.git|\.worktrees|worktrees|node_modules|\.next|dist|build|coverage|target|\.venv|venv|__pycache__|\.cache|\.turbo)(\/|$)/;
 const AI_SIGNAL_TERMS = ["prompt", "model", "retriev", "graph", "provider", "trace", "safety", "cost"];
@@ -703,7 +703,7 @@ export function ChangeImpactWorkbench() {
   const assessment = (report?.assessment as JsonRecord | undefined) ?? {};
   const proposalMarkdown = String(report?.proposal_markdown ?? "");
   const proposalChanges = (report?.changes as JsonRecord[] | undefined) ?? [];
-  const filteredEvidence = evidence.filter((item) => Number(item.start_line) >= 1 && Number(item.end_line) > Number(item.start_line) && /[.!?。！？]\s*$/.test(String(item.rationale ?? "")));
+  const filteredEvidence = evidence.filter((item) => Number(item.start_line) >= 1 && Number(item.end_line) >= Number(item.start_line) && Number(item.end_line) - Number(item.start_line) + 1 <= MAX_EVIDENCE_RANGE_LINES && /[.!?。！？]\s*$/.test(String(item.rationale ?? "")));
   const visibleEvidence = filteredEvidence;
   const implementationCounts = requirements.reduce((counts, item) => {
     const status = effectiveStatus(item.status, completionPercentOf(item));
@@ -764,7 +764,7 @@ export function ChangeImpactWorkbench() {
     <div className="impact-panel impact-evidence-panel">
       <div className="panel-heading"><div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3></div><span className="tag">{activeRequirementId || "SELECT ITEM"}</span></div>
       {activeRequirement ? <div className="selected-requirement-context"><p><span className="requirement-kind-badge">{activeRequirementKind}</span> {activeRequirementLabel}</p><strong>{String(activeRequirement.text ?? activeRequirement.impact ?? "No requirement description")}</strong><small>{activeRequirementDescription}</small></div> : <p className="impact-empty">Select a REQ or AC to view its evidence.</p>}
-      <div className="impact-evidence">{activeEvidence.length ? activeEvidence.map((item, index) => { const href = editorHref(item); return <div key={`${String(item.path)}-${String(item.start_line)}-${String(item.end_line)}-${index}`}><div className="impact-evidence-meta"><code>{String(item.path)}:{String(item.start_line)}–{String(item.end_line)}</code>{href && <a className="source-link" href={href} title="Open this file in VS Code">Open in VS Code ↗</a>}</div><p className="impact-rationale">{String(item.rationale)}</p><pre>{String(item.excerpt)}</pre></div>; }) : <p className="impact-empty">There is no justified 2–3 line evidence for this {activeRequirementKind || "REQ"}. Without evidence, the requirement is not considered implemented.</p>}</div>
+      <div className="impact-evidence">{activeEvidence.length ? activeEvidence.map((item, index) => { const href = editorHref(item); return <div key={`${String(item.path)}-${String(item.start_line)}-${String(item.end_line)}-${index}`}><div className="impact-evidence-meta"><code>{String(item.path)}:{String(item.start_line)}–{String(item.end_line)}</code>{href && <a className="source-link" href={href} title="Open this file in VS Code">Open in VS Code ↗</a>}</div><p className="impact-rationale">{String(item.rationale)}</p><pre>{String(item.excerpt)}</pre></div>; }) : <p className="impact-empty">There is no justified 1–3 line evidence for this {activeRequirementKind || "REQ"}. Without evidence, the requirement is not considered implemented.</p>}</div>
     </div>
   );
   const renderAssessment = () => {

@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from .artifact_store import ReviewArtifactStore
 from .document_parser import fetch_html_document, fetch_local_html_document
+from .evidence_policy import is_valid_evidence_range
 from .requirements import extract_requirements
 from .review_graph import ProposalReviewGraph
 
@@ -274,10 +275,10 @@ class ProposalReviewService:
             end_line = int(value.get("end_line", start_line))
         except (TypeError, ValueError) as exc:
             raise ReviewRequestError("invalid evidence line range") from exc
-        if start_line < 1 or end_line < start_line or end_line - start_line + 1 > 20:
-            raise ReviewRequestError("evidence line range must contain one to twenty lines")
+        if not is_valid_evidence_range(start_line, end_line):
+            raise ReviewRequestError("evidence line range must contain one to three lines")
         rationale = str(value.get("rationale", "")).strip()
-        if end_line == start_line or not re.search(r"[.!?。！？]\s*$", rationale):
+        if not re.search(r"[.!?。！？]\s*$", rationale):
             return None
         content_hash = str(value.get("content_hash", "")).strip()
         normalized = {"requirement_id": value["requirement_id"][:64], "path": value["path"][:300], "start_line": start_line, "end_line": end_line, "excerpt": str(value.get("excerpt", ""))[:720], "score": int(value.get("score", 0)), "rationale": rationale[:600]}

@@ -1,6 +1,6 @@
-# AI SaaS foundation
+# Live Docs
 
-It keeps the first deployment as a modular monolith while
+Live Docs keeps the first deployment as a modular monolith while
 recording logical ownership and versioned REST, SSE, event, and provider
 boundaries for service extraction.
 

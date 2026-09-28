@@ -8,6 +8,7 @@ import re
 from contextvars import ContextVar
 from typing import Any, Mapping
 
+from services.proposal_review.evidence_policy import is_valid_evidence_range
 from services.review_comment_policy import comment_keys_for_status
 
 
@@ -218,7 +219,7 @@ def _derive_assessment(value: Mapping[str, Any], decisions: list[Mapping[str, An
     if mode == "implementation":
         pros = [
             f"The review compares {requirement_count} proposal requirement(s) against the selected repository snapshot.",
-            f"It links {evidence_count} bounded multi-line evidence range(s) to the review instead of relying on single-line matches.",
+            f"It links {evidence_count} bounded one-to-three-line evidence range(s) to the review.",
         ]
         if implemented:
             pros.append(f"{implemented} requirement(s) are classified as implemented from visible code evidence.")
@@ -244,7 +245,7 @@ def _derive_assessment(value: Mapping[str, Any], decisions: list[Mapping[str, An
         if unproven:
             cons.append(f"{unproven} requirement(s) have insufficient or conflicting evidence, which limits impact confidence.")
         if not evidence_count:
-            cons.append("No justified multi-line evidence was available, so the impact view is directional rather than code-specific.")
+            cons.append("No justified one-to-three-line evidence was available, so the impact view is directional rather than code-specific.")
         if not cons:
             cons.append("The impact view identifies likely boundaries but does not decide whether the change should be implemented.")
 
@@ -263,14 +264,14 @@ def _strong_evidence(value: Mapping[str, Any]) -> bool:
     except (TypeError, ValueError):
         return False
     rationale = str(value.get("rationale", "")).strip()
-    return start_line >= 1 and end_line > start_line and end_line - start_line + 1 <= 3 and bool(re.search(r"[.!?。！？]\s*$", rationale))
+    return is_valid_evidence_range(start_line, end_line) and bool(re.search(r"[.!?。！？]\s*$", rationale))
 
 
 def _evidence_markdown(evidence: list[Mapping[str, Any]]) -> str:
-    lines = ["## Evidence map", "", "The proposal uses only the following multi-line code ranges with an explicit selection rationale.", ""]
+    lines = ["## Evidence map", "", "The proposal uses only the following one-to-three-line code ranges with an explicit selection rationale.", ""]
     strong = [item for item in evidence if _strong_evidence(item)]
     if not strong:
-        lines.append("No code pointer was included because the available matches did not provide a justified multi-line range.")
+        lines.append("No code pointer was included because the available matches did not provide a justified one-to-three-line range.")
         return "\n".join(lines)
     for item in strong[:40]:
         lines.extend(
@@ -396,7 +397,7 @@ class LangChainReviewAdapter:
 The context includes mode=implementation or mode=impact. In implementation mode, assess how much of each proposal requirement is already represented by the current code and use statuses implemented, modified, partial, missing, unknown, or contradicted. Use partial when some meaningful part of the requirement is present but at least one material condition, edge case, integration, or acceptance criterion is not evidenced. Do not use implemented when the evidence only covers a subset. Use modified when the requirement is functionally met but via a substantially different approach, library, or mechanism than the proposal describes (for example, the plan specifies OAuth but the code uses JWT; the plan names library X but the code uses library Y; or the API shape diverges). When the requirement's intent is satisfied by an equivalent capability, prefer modified over partial. In impact mode, describe the affected implementation boundaries and risks without claiming that a change was made.
 For every requirement, return three separate evidence-grounded comments: implemented_comment, not_implemented_comment, and changed_comment. Each comment should be concise (about 2–3 UI lines, one or two sentences, no more than 240 characters); return an empty string when that category does not apply. For partial, explain the concrete portion evidenced and the concrete gap separately. For modified, explain what capability is present and how the implementation differs. Only return completion_percent when you can estimate it from the evidence; otherwise return null. Never invent a fixed fallback percentage. If you return 100, use status implemented or modified; partial must be strictly below 100.
 Also return changes when the review requires a proposal adjustment. Each change must have type changed, added, or deleted, plus before, after, and a concrete reason. Do not invent a change when the bounded evidence does not support it. Return an assessment object with concise evidence-grounded pros, cons, and limitations for this mode. Limitations must mention the read-only, bounded nature of the review when applicable.
-Return only the requested structured review. Do not invent implementation details that are not present in the evidence. Mark a requirement as missing or unknown when the evidence is insufficient. The application will generate the final Markdown proposal from your requirement decisions and validated multi-line evidence ranges, so do not create new code pointers or claims. Do not claim that code, tests, or deployment were executed."""),
+Return only the requested structured review. Do not invent implementation details that are not present in the evidence. Mark a requirement as missing or unknown when the evidence is insufficient. The application will generate the final Markdown proposal from your requirement decisions and validated one-to-three-line evidence ranges, so do not create new code pointers or claims. Do not claim that code, tests, or deployment were executed."""),
                 ("human", "Review this bounded JSON context:\n{context}"),
             ]
         )

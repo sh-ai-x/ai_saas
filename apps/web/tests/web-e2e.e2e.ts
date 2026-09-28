@@ -138,7 +138,7 @@ describe("web HTTP E2E contracts", () => {
   it("covers the local auth, pricing, payment, and outage flows", async () => {
     const landing = await request("/");
     assertPage(landing, "/");
-    expect(landing.text).toMatch(/Public landing|AI SaaS Foundation/);
+    expect(landing.text).toMatch(/Public landing|Live Docs/);
 
     const login = await request("/login");
     assertPage(login, "/login");

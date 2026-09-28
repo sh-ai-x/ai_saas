@@ -308,7 +308,7 @@ def test_proposal_is_markdown_and_only_cites_justified_ranges() -> None:
     assert "explicit selection rationale" in proposal
 
 
-def test_service_drops_single_line_or_unreasoned_evidence() -> None:
+def test_service_accepts_one_to_three_line_evidence_with_rationale() -> None:
     assert ProposalReviewService._evidence(
         {
             "requirement_id": "REQ-001",
@@ -327,7 +327,38 @@ def test_service_drops_single_line_or_unreasoned_evidence() -> None:
         "score": 0,
         "rationale": "This range shows the model flow connected to the requirement.",
     }
-    assert ProposalReviewService._evidence({"requirement_id": "REQ-001", "path": "src/model.py", "line": 2, "reason": "match"}) is None
+    assert ProposalReviewService._evidence(
+        {
+            "requirement_id": "REQ-001",
+            "path": "src/model.py",
+            "start_line": 2,
+            "end_line": 2,
+            "excerpt": "return model",
+            "rationale": "This line returns the model required by the acceptance criterion.",
+        }
+    ) == {
+        "requirement_id": "REQ-001",
+        "path": "src/model.py",
+        "start_line": 2,
+        "end_line": 2,
+        "excerpt": "return model",
+        "score": 0,
+        "rationale": "This line returns the model required by the acceptance criterion.",
+    }
+    assert ProposalReviewService._evidence(
+        {"requirement_id": "REQ-001", "path": "src/model.py", "line": 2, "reason": "match"}
+    ) is None
+    with pytest.raises(ReviewRequestError, match="one to three lines"):
+        ProposalReviewService._evidence(
+            {
+                "requirement_id": "REQ-001",
+                "path": "src/model.py",
+                "start_line": 1,
+                "end_line": 4,
+                "excerpt": "too wide",
+                "rationale": "This range is wider than the deployment evidence contract.",
+            }
+        )
 
 
 def test_large_evidence_is_compacted_before_review_context_gate() -> None:

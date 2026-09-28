@@ -1,6 +1,6 @@
 # web-console
 
-This is the local Next.js 15 App Router console for the AI SaaS foundation.
+This is the local Next.js 15 App Router console for Live Docs.
 Browser requests go through the same-origin `/api/foundation/*` Route Handler
 proxy to the local Python composition root. Google OAuth is the only
 user-facing sign-up/sign-in path: the first Google authorization creates a
