@@ -19,6 +19,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <a href="/admin">Overview<span>ADMIN HOME</span></a>
           <a href="/admin/pricing">Pricing catalog<span>PLANS + OPTIONS</span></a>
           <a href="/admin/payments">Payment settings<span>ADAPTERS</span></a>
+          <a href="/admin#subscriptions">Subscriptions<span>USERS + USAGE</span></a>
         </nav>
         <div className="sidebar-note"><span className="status-dot" /> Server role guard<br /><small>{session.user.role} access · {session.user.email}</small><SessionControl /></div>
       </aside>

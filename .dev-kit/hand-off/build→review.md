@@ -18,3 +18,15 @@
 - Compose: `docker compose ... config --quiet` exit 0; `git diff --check` exit 0.
 - Runtime note: local HTTP E2E and direct `localhost:3000` route probes were blocked by slow Next first-route compilation/timeouts before assertions; no Toss API request was made. Start the app with the setup guide's generated secret and test keys for manual browser verification.
 - Next action: run `/dev-kit:review` and `/dev-kit:security` before release.
+
+## Profile subscription lifecycle build
+
+- Phase: `profile-subscription`
+- Branch/worktree: `plan/profile-subscription` / `.worktrees/profile-subscription`
+- Result: completed in the isolated worktree after the delegated runner was unavailable; implementation and verification were completed manually with the planned step boundaries preserved.
+- Web: `pnpm --dir apps/web lint`, `pnpm --dir apps/web test`, and `pnpm --dir apps/web build` pass. The focused profile test covers period-end cancellation/resume and usage idempotency.
+- Python: focused billing, payment sandbox, and integration contract tests pass.
+- Migration gate: staging static preflight passes with 8 migrations, TLS/direct-connection checks, and no destructive SQL; no database connection or production write was performed.
+- Scope: Neon/Drizzle lifecycle migration, Toss renewal scheduler with grace/expiry, server-owned token usage projection, authenticated profile cancellation/resume UI, and admin subscription directory.
+- Operational note: Toss recurring billing is merchant-scheduled; the renewal route is protected by `BILLING_CRON_SECRET`. No production migration or live charge was run.
+- Next action: run `/dev-kit:review` and `/dev-kit:security`, then rehearse migration and scheduler behavior in staging.

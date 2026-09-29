@@ -57,6 +57,13 @@
       "when": 1790562717000,
       "tag": "0007_live_docs_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790562800000,
+      "tag": "0008_profile_subscription_lifecycle",
+      "breakpoints": true
     }
   ]
 }

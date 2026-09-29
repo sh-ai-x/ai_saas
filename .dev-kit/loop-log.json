@@ -50,5 +50,18 @@
     "user_interrupt": false,
     "safety_valve": 8,
     "phase": "ai-change-impact-review"
+  },
+  {
+    "cycle": 5,
+    "stage": "plan",
+    "status": "converged",
+    "evidence_count": 5,
+    "value_score": 5.0,
+    "ambiguity_score": 3,
+    "narrowed_delta": [2, 2, 2, 1],
+    "dedup_metric": "no-identical-ambiguity-cycle",
+    "user_interrupt": false,
+    "safety_valve": 8,
+    "phase": "profile-subscription"
   }
 ]

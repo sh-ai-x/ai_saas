@@ -22,6 +22,7 @@
     "db:doctor": "node scripts/drizzle-doctor.mjs",
     "db:doctor:stage": "node scripts/drizzle-doctor.mjs staging",
     "db:doctor:prod": "node scripts/drizzle-doctor.mjs production",
+    "db:test": "pnpm --filter live-docs-web db:test",
     "db:verify:stage": "node scripts/migration-preflight.mjs --target staging",
     "db:verify:prod": "node scripts/migration-preflight.mjs --target production",
     "db:plan:stage": "node scripts/migration-release.mjs --target staging --plan",

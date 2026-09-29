@@ -8,7 +8,9 @@ import { localSessionCookie, localSessionForId, type SafeAuthSession } from "./l
 export async function getSafeSession(request?: NextRequest): Promise<SafeAuthSession | null> {
   if (!isGoogleAuthConfigured()) {
     if (authRuntimeProfile() === "test") {
-      const cookie = request?.cookies.get(localSessionCookie)?.value ?? (await cookies()).get(localSessionCookie)?.value;
+      const cookie = request
+        ? request.cookies.get(localSessionCookie)?.value
+        : (await cookies()).get(localSessionCookie)?.value;
       return localSessionForId(cookie);
     }
     if (authRuntimeProfile() === "local") {

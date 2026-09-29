@@ -57,6 +57,8 @@ export type PaymentOrder = {
   metadata: Record<string, unknown>;
 };
 
+export type SubscriptionStatus = "pending" | "active" | "cancel_scheduled" | "past_due" | "expired" | "canceled";
+
 export type SubscriptionRecord = {
   id: string;
   tenantId: string;
@@ -65,11 +67,52 @@ export type SubscriptionRecord = {
   provider: "toss";
   externalCustomerRef: string;
   externalSubscriptionRef: string;
-  status: "active" | "cancelled" | "past_due";
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
+  status: SubscriptionStatus;
+  providerStatus?: string | null;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  cancelRequestedAt?: Date | null;
+  canceledAt?: Date | null;
+  endedAt?: Date | null;
+  nextBillingAt?: Date | null;
+  graceUntil?: Date | null;
+  lastPaymentAt?: Date | null;
+  lastPaymentError?: string | null;
+  version?: number;
   metadata: Record<string, unknown>;
+};
+
+export type TokenUsageSummary = {
+  inputLimit: number;
+  outputLimit: number;
+  totalLimit: number;
+  inputUsed: number;
+  outputUsed: number;
+  totalUsed: number;
+  inputRemaining: number;
+  outputRemaining: number;
+  totalRemaining: number;
+  periodStart: Date;
+  periodEnd: Date;
+};
+
+export type SubscriptionSummary = {
+  subscription: SubscriptionRecord | null;
+  plan: PricingPlan | null;
+  usage: TokenUsageSummary;
+  access: "free" | "paid" | "grace" | "expired";
+  transitions: Array<{
+    id: string;
+    fromStatus: string | null;
+    toStatus: string;
+    eventType: string;
+    occurredAt: Date;
+  }>;
+};
+
+export type AdminSubscriptionRow = SubscriptionSummary & {
+  user: { id: string; name: string; email: string; role: string };
 };
 
 export type PricingPolicy = {
