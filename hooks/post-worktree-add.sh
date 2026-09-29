@@ -4,7 +4,7 @@
 # Self-contained: does NOT depend on the dev-kit plugin. Wired via
 # `.claude/settings.json` so it survives dev-kit upgrades.
 #
-# When `git worktree add …` succeeds, copy `.env.local` and `.env.stage`
+# When `git worktree add …` succeeds, copy `.env.local` and `.env.staging`
 # from the main checkout into the new worktree so a fresh branch is
 # immediately runnable for `pnpm docker:local` / `pnpm docker:neon`.
 # Both files are gitignored (`.gitignore:10` blanket `.env.*`), so the
@@ -77,7 +77,7 @@ if [[ ! -d "$WORKTREE_PATH" ]]; then
 fi
 
 copied=0
-for name in .env.local .env.stage; do
+for name in .env.local .env.staging; do
   src="$SOURCE_DIR/$name"
   dst="$WORKTREE_PATH/$name"
   if [[ ! -f "$src" ]]; then
