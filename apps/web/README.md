@@ -1,6 +1,6 @@
 # web-console
 
-This is the local Next.js 15 App Router console for the AI SaaS foundation.
+This is the local Next.js 15 App Router console for the Live Docs foundation.
 Browser requests go through the same-origin `/api/foundation/*` Route Handler
 proxy to the local Python composition root. Google OAuth is the only
 user-facing sign-up/sign-in path: the first Google authorization creates a
@@ -24,7 +24,7 @@ Then, from the repository root, install and start the web console:
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 ```
 
 Open http://localhost:3000 for the public landing page. The user workspace is
@@ -33,7 +33,7 @@ at `/app`, the separate admin console is at `/admin`, and setup guides are at
 `http://localhost:8080`.
 
 ```bash
-FOUNDATION_API_URL=http://localhost:8080 pnpm --filter ai-saas-foundation-web dev
+FOUNDATION_API_URL=http://localhost:8080 pnpm --filter live-docs-web dev
 ```
 
 ## Run the web console as a Docker image
@@ -63,16 +63,16 @@ The production build is local-only and does not require Vercel, Neon, Stripe,
 Toss, Lemon Squeezy, or a running Docker daemon:
 
 ```bash
-pnpm --filter ai-saas-foundation-web build
-pnpm --filter ai-saas-foundation-web start
+pnpm --filter live-docs-web build
+pnpm --filter live-docs-web start
 ```
 
 Run the Jest contract and adapter test suite without provider credentials:
 
 ```bash
-pnpm --filter ai-saas-foundation-web test
-pnpm --filter ai-saas-foundation-web test:watch
-pnpm --filter ai-saas-foundation-web test:all
+pnpm --filter live-docs-web test
+pnpm --filter live-docs-web test:watch
+pnpm --filter live-docs-web test:all
 pnpm web:e2e
 ```
 

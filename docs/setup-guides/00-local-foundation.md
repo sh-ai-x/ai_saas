@@ -25,7 +25,7 @@ In another terminal, start the Next.js console:
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 # open http://localhost:3000
 ```
 

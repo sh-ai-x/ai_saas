@@ -62,6 +62,9 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertNotIn("postgres:", compose)
         self.assertIn("DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL", compose)
         self.assertIn("DATABASE_URL: ${DATABASE_URL_UNPOOLED:?set DATABASE_URL_UNPOOLED", compose)
+        self.assertIn("LANGSMITH_TRACING: ${LANGSMITH_TRACING:-}", compose)
+        self.assertIn("LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}", compose)
+        self.assertIn("LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-proposal-to-verified-change}", compose)
         self.assertIn("service_completed_successfully", compose)
 
     def test_auth_contract_passes_only_runtime_values_to_web(self) -> None:
@@ -85,9 +88,20 @@ class ProductionDockerContractTests(unittest.TestCase):
         foundation = service_block(compose, "foundation", "web-migrate")
         web = service_block(compose, "web")
 
-        self.assertIn('"${POSTGRES_PORT:-55433}:5432"', postgres)
-        self.assertIn('"${FOUNDATION_PORT:-8180}:8080"', foundation)
-        self.assertIn('"${WEB_PORT:-3100}:3000"', web)
+        # Container ports are sourced from scripts/lib/ports.sh so the
+        # registry stays the single source of truth (see ADR-0002).
+        self.assertIn(
+            '"${POSTGRES_PORT:-55433}:${DOCKER_POSTGRES_CONTAINER_PORT:-5432}"',
+            postgres,
+        )
+        self.assertIn(
+            '"${FOUNDATION_PORT:-8180}:${DOCKER_FOUNDATION_CONTAINER_PORT:-8080}"',
+            foundation,
+        )
+        self.assertIn(
+            '"${WEB_PORT:-3100}:${DOCKER_WEB_CONTAINER_PORT:-3000}"',
+            web,
+        )
         self.assertIn("postgresql://foundation@postgres:5432/foundation", compose)
         self.assertIn("APP_BASE_URL: ${FOUNDATION_PUBLIC_URL:-http://localhost:8180}", foundation)
         self.assertIn("FOUNDATION_API_URL: http://foundation:8080", web)
@@ -111,7 +125,10 @@ class ProductionDockerContractTests(unittest.TestCase):
     def test_docker_local_script_promotes_legacy_defaults_but_keeps_explicit_ports(self) -> None:
         script = (ROOT / "scripts/docker-local.sh").read_text(encoding="utf-8")
         self.assertIn("DOCKER_LOCAL_SLOT", script)
-        self.assertIn("port_block_is_free", script)
+        # Foundation + Postgres stay on slot-allocation collision detection;
+        # web port is now pinned (see test_docker_pinned_ports for the
+        # full pin contract).
+        self.assertIn("port_is_free", script)
         self.assertIn('compose_project="${COMPOSE_PROJECT_NAME:-ai-saas-${worktree_slug}}"', script)
         self.assertIn('export WEB_DATABASE_URL="$local_database_url"', script)
         self.assertIn('export WEB_DATABASE_URL_UNPOOLED="$local_database_url"', script)
@@ -134,8 +151,20 @@ class ProductionDockerContractTests(unittest.TestCase):
         self.assertIn("NEON_DOCKER_SLOT", script)
         self.assertIn("docker/neon/compose.yaml", script)
         self.assertIn("DATABASE_URL_UNPOOLED=", env_example)
-        self.assertIn("3200 + candidate_slot * 10", script)
-        self.assertIn("8280 + candidate_slot * 10", script)
+        # Web port is sourced from scripts/lib/ports.sh (the registry,
+        # not a literal). Foundation stays on slot allocation.
+        self.assertIn('selected_web_port="$DOCKER_STAGE_WEB_HOST_PORT"', script)
+        self.assertIn("DOCKER_STAGE_FOUNDATION_PORT_BASE", script)
+        # Old dynamic web-port formula must be gone.
+        self.assertNotIn("3200 + candidate_slot * 10", script)
+
+    def test_neon_docker_script_reads_staging_defaults_and_generates_secret(self) -> None:
+        script = (ROOT / "scripts/docker-neon.sh").read_text(encoding="utf-8")
+
+        self.assertIn("env_file_value()", script)
+        self.assertIn('configured_slot="$(env_file_value NEON_DOCKER_SLOT)"', script)
+        self.assertIn('generated_app_secret="$(openssl rand -hex 32)"', script)
+        self.assertIn('echo "APP_SECRET_KEY was empty; generated an ephemeral value for this run."', script)
 
     def test_docker_local_uses_the_lightweight_development_web_target(self) -> None:
         compose = LOCAL_COMPOSE.read_text(encoding="utf-8")

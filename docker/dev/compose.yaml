@@ -1,4 +1,4 @@
-name: ai-saas-foundation-dev
+name: live-docs-dev
 
 services:
   postgres:

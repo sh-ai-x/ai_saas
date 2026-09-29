@@ -24,7 +24,7 @@ change_impact: high
 
 **Status:** approved implementation baseline
 **Scope:** public catalog, user checkout intent, admin pricing operations, and
-provider configuration for the AI SaaS foundation
+provider configuration for the Live Docs foundation
 **Reference:** `../mysaas/my-saas`
 
 ## 1. Purpose

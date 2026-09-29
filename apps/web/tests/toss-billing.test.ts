@@ -40,7 +40,7 @@ describe("Toss server billing adapter", () => {
       billingKey: "billing/1",
       customerKey: "customer-1",
       orderId: "order-1",
-      orderName: "AI SaaS subscription",
+      orderName: "Live Docs subscription",
       amount: 29000,
       idempotencyKey: "order-1-key",
     }, request)).resolves.toEqual(expect.objectContaining({ orderId: "order-1", status: "DONE" }));

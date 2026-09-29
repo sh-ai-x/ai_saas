@@ -48,7 +48,7 @@ class ControlApiConfig:
     repository_scope_database: str | None = None
     token_secret: str | None = None
     allow_insecure_local: bool = True
-    max_body_bytes: int = 1_048_576
+    max_body_bytes: int = 2_097_152
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,11 @@ def build_runtime(config: ControlApiConfig | None = None, *, environment: Mappin
         environment=values,
     )
     provider_mode = values.get("AGENT_PROVIDER_MODE", "fake").strip().lower()
-    if provider_mode in {"langchain", "openai"}:
+    # LangSmith tracing is independent from the model provider. Keep the
+    # local stack bootable when tracing is configured but an optional OpenAI
+    # key is not present; provider-backed generation can be enabled later by
+    # supplying OPENAI_API_KEY.
+    if provider_mode in {"langchain", "openai"} and values.get("OPENAI_API_KEY"):
         model = build_openai_proposal_adapter(
             model_name=values.get("OPENAI_MODEL") or None,
             api_key=values.get("OPENAI_API_KEY") or None,
@@ -145,7 +149,7 @@ def config_from_env() -> ControlApiConfig:
         repository_roots=parse_repository_roots(os.getenv("LOCAL_REPOSITORY_ROOTS", "")),
         token_secret=secret,
         allow_insecure_local=profile == "local-lite" and not bool(secret),
-        max_body_bytes=int(os.getenv("CONTROL_API_MAX_BODY_BYTES", "1048576")),
+        max_body_bytes=int(os.getenv("CONTROL_API_MAX_BODY_BYTES", "2097152")),
     )
 
 

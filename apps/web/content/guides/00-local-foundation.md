@@ -27,7 +27,7 @@ The Next.js app proxies same-origin requests to the API.
 
 ```bash
 pnpm install
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 # open http://localhost:3000
 ```
 

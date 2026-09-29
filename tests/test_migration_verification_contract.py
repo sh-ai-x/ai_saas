@@ -130,7 +130,7 @@ class MigrationVerificationContractTests(unittest.TestCase):
     def test_in_app_guides_use_the_release_gate(self):
         for name in ("01-google-oauth.md", "07-neon-database.md", "08-pricing-admin.md"):
             content = (ROOT / "apps/web/content/guides" / name).read_text(encoding="utf-8")
-            self.assertNotIn("pnpm --filter ai-saas-foundation-web db:migrate", content)
+            self.assertNotIn("pnpm --filter live-docs-web db:migrate", content)
             self.assertNotIn("--migrate", content)
             self.assertIn("db:verify:stage", content)
 

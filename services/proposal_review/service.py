@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from .artifact_store import ReviewArtifactStore
 from .document_parser import fetch_html_document, fetch_local_html_document
+from .evidence_policy import is_valid_evidence_range
 from .requirements import extract_requirements
 from .review_graph import ProposalReviewGraph
 
@@ -69,6 +70,69 @@ class ProposalReviewService:
         return catalog
 
     def start(self, tenant_id: str, body: Mapping[str, Any]) -> dict[str, Any]:
+        initial = self._build_initial(tenant_id, body)
+        review_id = str(initial["review_id"])
+        try:
+            return self.store.get(review_id, tenant_id)
+        except KeyError:
+            pass
+        result = self.graph.run(initial)
+        return self.store.get(review_id, tenant_id) | {"graph": {"stage": result.get("stage")}}
+
+    def enqueue(self, tenant_id: str, body: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Persist a queued review and return its state plus the worker input.
+
+        The foundation HTTP surface uses this split-phase API so the browser
+        does not hold a proxy connection open while Ragas evaluates every
+        REQ/AC sample. ``start`` remains synchronous for library callers and
+        existing local workflows.
+        """
+        initial = self._build_initial(tenant_id, body)
+        review_id = str(initial["review_id"])
+        try:
+            return self.store.get(review_id, tenant_id), None
+        except KeyError:
+            pass
+        payload = {key: value for key, value in initial.items() if key != "tenant_id"}
+        self.store.put(
+            review_id,
+            tenant_id,
+            payload,
+            status="queued",
+            checkpoint={"stage": "queued", "state": initial},
+        )
+        return (
+            {
+                "review_id": review_id,
+                "tenant_id": tenant_id,
+                "status": "queued",
+                "payload": payload,
+                "graph": {"stage": "queued"},
+            },
+            initial,
+        )
+
+    def run_background(self, initial: Mapping[str, Any]) -> dict[str, Any]:
+        """Run a previously queued review and persist failures for polling."""
+        review_id = str(initial.get("review_id", ""))
+        tenant_id = str(initial.get("tenant_id", ""))
+        try:
+            result = self.graph.run(dict(initial))
+            return self.store.get(review_id, tenant_id) | {"graph": {"stage": result.get("stage")}}
+        except Exception as exc:
+            message = f"{type(exc).__name__}: {str(exc)[:240]}"
+            payload = {key: value for key, value in initial.items() if key != "tenant_id"}
+            payload["error"] = message
+            self.store.put(
+                review_id,
+                tenant_id,
+                payload,
+                status="failed",
+                checkpoint={"stage": "failed", "state": payload},
+            )
+            return self.store.get(review_id, tenant_id)
+
+    def _build_initial(self, tenant_id: str, body: Mapping[str, Any]) -> dict[str, Any]:
         document = body.get("document")
         repository = body.get("repository")
         requirements = body.get("requirements", [])
@@ -88,12 +152,9 @@ class ProposalReviewService:
         if raw_size > self.MAX_CONTEXT_BYTES and set(body).difference(known_fields):
             raise ReviewRequestError("review context is too large")
         review_id = str(body.get("review_id") or f"review-{uuid4().hex}")
-        try:
-            return self.store.get(review_id, tenant_id)
-        except KeyError:
-            pass
         sanitized_requirements = [self._requirement(item) for item in requirements[:40]]
         sanitized_evidence = [item for item in (self._evidence(value) for value in evidence[:200]) if item is not None]
+        sanitized_evidence = self._select_relevant_evidence(sanitized_requirements, sanitized_evidence)
         sanitized_evidence = self._bound_evidence(sanitized_evidence)
         initial = {
             "review_id": review_id,
@@ -101,15 +162,21 @@ class ProposalReviewService:
             "mode": mode,
             "stage": "created",
             "document": {key: document.get(key) for key in ("name", "media_type", "sha256", "extraction_confidence")},
-            "repository": {key: repository.get(key) for key in ("root_name", "branch", "head", "fingerprint", "unknowns")},
+            "repository": {
+                **{key: repository.get(key) for key in ("root_name", "branch", "head", "fingerprint", "unknowns")},
+                "file_manifest": [
+                    item
+                    for item in repository.get("file_manifest", [])[:600]
+                    if isinstance(item, Mapping) and isinstance(item.get("path"), str) and isinstance(item.get("sha256"), str)
+                ],
+            },
             "requirements": sanitized_requirements,
             "evidence": sanitized_evidence,
         }
         encoded = json.dumps(initial, sort_keys=True, default=str).encode("utf-8")
         if len(encoded) > self.MAX_CONTEXT_BYTES:
             raise ReviewRequestError("review context is too large after bounded evidence extraction")
-        result = self.graph.run(initial)
-        return self.store.get(review_id, tenant_id) | {"graph": {"stage": result.get("stage")}}
+        return initial
 
     def fetch_document(self, url: str) -> dict[str, Any]:
         document = (
@@ -139,7 +206,47 @@ class ProposalReviewService:
         if not isinstance(value, Mapping) or not isinstance(value.get("requirement_id"), str) or not isinstance(value.get("text"), str):
             raise ReviewRequestError("invalid requirement context")
         kind, kind_code, kind_description = _requirement_kind_info(value)
-        return {"requirement_id": value["requirement_id"][:64], "text": value["text"][:500], "source": str(value.get("source", "unknown"))[:128], "kind": kind, "kind_code": kind_code, "kind_label": "Acceptance Criteria" if kind_code == "AC" else "Requirement", "kind_description": kind_description}
+        sanitized = {"requirement_id": value["requirement_id"][:64], "text": value["text"][:500], "source": str(value.get("source", "unknown"))[:128], "kind": kind, "kind_code": kind_code, "kind_label": "Acceptance Criteria" if kind_code == "AC" else "Requirement", "kind_description": kind_description}
+        # Context Recall is only valid when the caller supplies an annotated
+        # ground-truth answer. Preserve those optional fields through the
+        # request boundary; never promote the requirement text itself to a
+        # reference answer.
+        for key in ("reference_answer", "reference", "ground_truth"):
+            reference = str(value.get(key, "")).strip()
+            if reference:
+                sanitized[key] = reference[:2_000]
+        return sanitized
+
+    @staticmethod
+    def _select_relevant_evidence(requirements: list[dict[str, Any]], evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Interleave evidence round-robin by requirement_id, preserving each
+        requirement's original (client-provided) order within its own bucket.
+
+        Without this, evidence arrives grouped by requirement in document
+        order; the flat positional cap in `_bound_evidence` (MAX_EVIDENCE_ITEMS)
+        would then let one requirement's matches consume the whole budget and
+        starve every requirement after it to zero evidence — the LLM sees
+        nothing for those and reports them "missing" regardless of the actual
+        code. Round-robin guarantees every requirement keeps a fair share of
+        the budget, without reordering or re-scoring the underlying matches.
+        """
+        if not evidence:
+            return evidence
+        buckets: dict[str, list[dict[str, Any]]] = {}
+        for item in evidence:
+            buckets.setdefault(str(item.get("requirement_id", "")), []).append(item)
+        order = [str(item.get("requirement_id", "")) for item in requirements]
+        # A requirement_id present in evidence but absent from `requirements`
+        # (shouldn't normally happen) still gets its fair turn, appended after
+        # the known requirement order.
+        order += [rid for rid in buckets if rid not in order]
+        result: list[dict[str, Any]] = []
+        while any(buckets.get(rid) for rid in order):
+            for rid in order:
+                bucket = buckets.get(rid)
+                if bucket:
+                    result.append(bucket.pop(0))
+        return result
 
     @classmethod
     def _bound_evidence(cls, values: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -149,7 +256,7 @@ class ProposalReviewService:
             compact = {
                 **value,
                 "evidence_id": f"E-{index:03d}",
-                "excerpt": str(value.get("excerpt", ""))[:480],
+                "excerpt": str(value.get("excerpt", ""))[:2000],
                 "rationale": str(value.get("rationale", ""))[:420],
             }
             size = len(json.dumps(compact, sort_keys=True, ensure_ascii=False).encode("utf-8"))
@@ -168,9 +275,13 @@ class ProposalReviewService:
             end_line = int(value.get("end_line", start_line))
         except (TypeError, ValueError) as exc:
             raise ReviewRequestError("invalid evidence line range") from exc
-        if start_line < 1 or end_line < start_line or end_line - start_line + 1 > 3:
+        if not is_valid_evidence_range(start_line, end_line):
             raise ReviewRequestError("evidence line range must contain one to three lines")
         rationale = str(value.get("rationale", "")).strip()
-        if end_line == start_line or not re.search(r"[.!?。！？]\s*$", rationale):
+        if not re.search(r"[.!?。！？]\s*$", rationale):
             return None
-        return {"requirement_id": value["requirement_id"][:64], "path": value["path"][:300], "start_line": start_line, "end_line": end_line, "excerpt": str(value.get("excerpt", ""))[:720], "score": int(value.get("score", 0)), "rationale": rationale[:600]}
+        content_hash = str(value.get("content_hash", "")).strip()
+        normalized = {"requirement_id": value["requirement_id"][:64], "path": value["path"][:300], "start_line": start_line, "end_line": end_line, "excerpt": str(value.get("excerpt", ""))[:720], "score": int(value.get("score", 0)), "rationale": rationale[:600]}
+        if content_hash:
+            normalized["content_hash"] = content_hash[:128]
+        return normalized

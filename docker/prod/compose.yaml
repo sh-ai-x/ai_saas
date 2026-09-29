@@ -1,4 +1,4 @@
-name: ai-saas-foundation
+name: live-docs
 
 services:
   postgres:
@@ -12,7 +12,7 @@ services:
       - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
-      - "${POSTGRES_PORT:-55433}:5432"
+      - "${POSTGRES_PORT:-55433}:${DOCKER_POSTGRES_CONTAINER_PORT:-5432}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U foundation -d foundation"]
       interval: 5s
@@ -44,16 +44,23 @@ services:
       AGENT_PROVIDER_MODE: ${AGENT_PROVIDER_MODE:-fake}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      RAGAS_EVALUATOR_MODEL: ${RAGAS_EVALUATOR_MODEL:-gpt-4o-mini}
+      RAGAS_EMBEDDING_MODEL: ${RAGAS_EMBEDDING_MODEL:-text-embedding-3-small}
+      RAGAS_ANSWER_RELEVANCY_STRICTNESS: ${RAGAS_ANSWER_RELEVANCY_STRICTNESS:-3}
+      RAGAS_CACHE_ENABLED: ${RAGAS_CACHE_ENABLED:-true}
+      RAGAS_BATCH_SIZE: ${RAGAS_BATCH_SIZE:-2}
+      RAGAS_MAX_RETRIES: ${RAGAS_MAX_RETRIES:-4}
+      RAGAS_BATCH_DELAY_SECONDS: ${RAGAS_BATCH_DELAY_SECONDS:-1}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-proposal-to-verified-change}
       LANGSMITH_CONSOLE_URL: ${LANGSMITH_CONSOLE_URL:-https://smith.langchain.com}
       LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
-      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-}
-      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
-      LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
-      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-${LANGSMITH_TRACING:-}}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-${LANGSMITH_API_KEY:-}}
+      LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT:-${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-${LANGSMITH_PROJECT:-proposal-to-verified-change}}
       LOCAL_REPOSITORY_ROOTS: ${LOCAL_REPOSITORY_ROOTS:-/local-repositories}
       LOCAL_REPOSITORY_HOST_ROOT: ${LOCAL_REPOSITORY_HOST_ROOT:-}
       LOCAL_REPOSITORY_CONTAINER_ROOT: ${LOCAL_REPOSITORY_CONTAINER_ROOT:-/local-repositories}
@@ -78,7 +85,7 @@ services:
       - ${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-.}:${LOCAL_REPOSITORY_GIT_COMMON_ROOT:-/local-git-common}:ro
       - ${LOCAL_DOCUMENT_HOST_ROOT:-.}:${LOCAL_DOCUMENT_CONTAINER_ROOT:-/local-documents}:ro
     ports:
-      - "${FOUNDATION_PORT:-8180}:8080"
+      - "${FOUNDATION_PORT:-8180}:${DOCKER_FOUNDATION_CONTAINER_PORT:-8080}"
 
   web-migrate:
     build:
@@ -92,7 +99,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["pnpm", "--filter", "ai-saas-foundation-web", "db:migrate"]
+    command: ["pnpm", "--filter", "live-docs-web", "db:migrate"]
     restart: "no"
 
   web:
@@ -141,7 +148,7 @@ services:
       web-migrate:
         condition: service_completed_successfully
     ports:
-      - "${WEB_PORT:-3100}:3000"
+      - "${WEB_PORT:-3100}:${DOCKER_WEB_CONTAINER_PORT:-3000}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(() => process.exit(0)).catch(() => process.exit(1))"]
       interval: 10s

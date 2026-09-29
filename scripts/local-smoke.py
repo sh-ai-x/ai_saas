@@ -78,7 +78,7 @@ def docker_checks(env: dict[str, str]) -> list[str]:
     if compose.returncode != 0:
         raise RuntimeError("docker compose config failed")
     build = subprocess.run(
-        ["docker", "build", "--file", "docker/dev/Dockerfile", "--tag", "ai-saas-foundation:local", "."],
+        ["docker", "build", "--file", "docker/dev/Dockerfile", "--tag", "live-docs:local", "."],
         cwd=ROOT,
         env=env,
         stdout=subprocess.DEVNULL,

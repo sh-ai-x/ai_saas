@@ -14,7 +14,7 @@ export function PublicLanding({ plans, source, billingMode, sessionControl }: { 
       </section>
       <PricingCatalog plans={plans} source={source} billingMode={billingMode} />
       <section className="landing-strip"><span>PUBLIC LANDING</span><strong>→</strong><span>USER WORKSPACE</span><strong>→</strong><span>ADMIN POLICY</span><strong>→</strong><span>PROVIDER CHECKOUT</span></section>
-      <footer className="landing-footer"><span>AI SaaS Foundation</span><span>Neon · Drizzle · adapter pattern · sandbox first</span></footer>
+      <footer className="landing-footer"><span>Live Docs Foundation</span><span>Neon · Drizzle · adapter pattern · sandbox first</span></footer>
     </main>
   );
 }

@@ -12,7 +12,7 @@ FROM base AS deps
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
-RUN pnpm install --frozen-lockfile --filter ai-saas-foundation-web...
+RUN pnpm install --frozen-lockfile --filter live-docs-web...
 
 FROM deps AS builder
 
@@ -20,7 +20,7 @@ ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
 ENV NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
 
 COPY apps/web/ ./apps/web/
-RUN pnpm --filter ai-saas-foundation-web build
+RUN pnpm --filter live-docs-web build
 
 # Local Docker uses Next dev mode so an 8 GB developer machine does not need
 # to spend several minutes producing standalone tracing output on every

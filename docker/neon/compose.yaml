@@ -1,4 +1,4 @@
-name: ai-saas-foundation-neon
+name: live-docs-neon
 
 services:
   foundation:
@@ -17,6 +17,26 @@ services:
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
       MOCK_PAYMENTS_ENABLED: ${MOCK_PAYMENTS_ENABLED:-true}
       WORKFLOW_PROVIDER: local
+      AGENT_PROVIDER_MODE: ${AGENT_PROVIDER_MODE:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      RAGAS_EVALUATOR_MODEL: ${RAGAS_EVALUATOR_MODEL:-gpt-4o-mini}
+      RAGAS_EMBEDDING_MODEL: ${RAGAS_EMBEDDING_MODEL:-text-embedding-3-small}
+      RAGAS_ANSWER_RELEVANCY_STRICTNESS: ${RAGAS_ANSWER_RELEVANCY_STRICTNESS:-3}
+      RAGAS_CACHE_ENABLED: ${RAGAS_CACHE_ENABLED:-true}
+      RAGAS_BATCH_SIZE: ${RAGAS_BATCH_SIZE:-2}
+      RAGAS_MAX_RETRIES: ${RAGAS_MAX_RETRIES:-4}
+      RAGAS_BATCH_DELAY_SECONDS: ${RAGAS_BATCH_DELAY_SECONDS:-1}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-proposal-to-verified-change}
+      LANGSMITH_CONSOLE_URL: ${LANGSMITH_CONSOLE_URL:-https://smith.langchain.com}
+      LANGSMITH_WORKSPACE_ID: ${LANGSMITH_WORKSPACE_ID:-}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-${LANGSMITH_TRACING:-}}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-${LANGSMITH_API_KEY:-}}
+      LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT:-${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-${LANGSMITH_PROJECT:-proposal-to-verified-change}}
       PAID_INFRASTRUCTURE: "false"
       AWS_WORKER_ENABLED: "false"
       RUN_QUOTA_MAX_RUNS: ${RUN_QUOTA_MAX_RUNS:-10}
@@ -30,7 +50,7 @@ services:
     volumes:
       - foundation_state:/var/lib/ai-saas
     ports:
-      - "${FOUNDATION_PORT:-8280}:8080"
+      - "${FOUNDATION_PORT:-8280}:${DOCKER_FOUNDATION_CONTAINER_PORT:-8080}"
 
   web-migrate:
     build:
@@ -40,7 +60,7 @@ services:
     environment:
       # Never use the pooled URL for Drizzle migrations.
       DATABASE_URL: ${DATABASE_URL_UNPOOLED:?set DATABASE_URL_UNPOOLED to the Neon direct URL}
-    command: ["pnpm", "--filter", "ai-saas-foundation-web", "db:migrate"]
+    command: ["pnpm", "--filter", "live-docs-web", "db:migrate"]
     restart: "no"
 
   web:
@@ -72,7 +92,7 @@ services:
       web-migrate:
         condition: service_completed_successfully
     ports:
-      - "${WEB_PORT:-3200}:3000"
+      - "${WEB_PORT:-3200}:${DOCKER_WEB_CONTAINER_PORT:-3000}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(() => process.exit(0)).catch(() => process.exit(1))"]
       interval: 10s

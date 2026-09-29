@@ -74,7 +74,7 @@ export async function settleTossSubscription(input: {
     billingKey,
     customerKey: input.customerKey,
     orderId: order.id,
-    orderName: typeof order.metadata.orderName === "string" ? order.metadata.orderName : "AI SaaS subscription",
+    orderName: typeof order.metadata.orderName === "string" ? order.metadata.orderName : "Live Docs subscription",
     amount: order.amountMinor,
     idempotencyKey: order.idempotencyKey,
   }, input.request);

@@ -23,7 +23,7 @@ describe("Toss catalog settlement", () => {
       tenantId: "tenant-test",
       option: { ...offer.option, provider: "toss", currency: "KRW" },
       idempotencyKey: `${orderId}-key`,
-      metadata: { customerKey: "customer-settlement", orderName: "AI SaaS annual subscription", interval: "year" },
+      metadata: { customerKey: "customer-settlement", orderName: "Live Docs annual subscription", interval: "year" },
     });
     const calls: string[] = [];
     const request: typeof fetch = async (url) => {

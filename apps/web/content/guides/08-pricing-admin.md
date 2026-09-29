@@ -44,7 +44,7 @@ environment must provide `APP_ENV=production` and configure the server-only
 `ADMIN_API_TOKEN` before token-based admin mutations are allowed.
 
 ```bash
-pnpm --filter ai-saas-foundation-web dev
+pnpm --filter live-docs-web dev
 open http://127.0.0.1:3000/admin/pricing
 ```
 

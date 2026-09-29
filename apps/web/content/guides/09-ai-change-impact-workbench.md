@@ -71,7 +71,7 @@ In **Proposal → Code impact**, the result first shows a color-coded change sum
 with changed, deleted, and added items. A changed item is rendered as
 `before → after` with the evidence-based reason. The generated Markdown proposal
 and its Copy Markdown action remain unchanged below that summary. The result also shows a generated Markdown proposal,
-bounded multi-line code pointers, and a sentence explaining why each range was
+bounded one-to-three-line code pointers, and a sentence explaining why each range was
 selected. Review the safety, cost, latency, observability, and provider gaps
 before using the proposal for a later change. The recommendation is evidence,
 not an automatic release.

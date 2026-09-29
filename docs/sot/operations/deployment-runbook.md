@@ -73,7 +73,7 @@ The stable internal ports are web `3000`, Foundation `8080`, and PostgreSQL
 
 | Profile | Web | Foundation | PostgreSQL |
 |---|---:|---:|---:|
-| `pnpm --filter ai-saas-foundation-web dev` (process-only) | `3000` | `8080` | `5432` |
+| `pnpm --filter live-docs-web dev` (process-only) | `3000` | `8080` | `5432` |
 | `pnpm docker:local` | `3100` | `8180` | `55433` |
 | `pnpm docker:neon` | `3200` | `8280` | — |
 
@@ -98,7 +98,7 @@ web console on host port `3200` and the API on `8280`.
 source of truth. Use this sequence for a schema change:
 
 ```bash
-pnpm run web:db:generate
+pnpm db:generate
 git diff -- apps/web/drizzle
 ```
 

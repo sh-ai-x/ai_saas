@@ -4,8 +4,8 @@ import { FaqWidget } from "@/components/faq-widget";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: "AI SaaS Foundation Console",
-  description: "Local contract-first AI SaaS foundation console",
+  title: "Live Docs Console",
+  description: "Live Docs console",
 };
 
 // Inline before paint so [data-theme="dark"] rules apply on first frame.

@@ -19,6 +19,7 @@ from services.proposal_review.review_graph import ProposalReviewGraph
 from services.proposal_review.service import ProposalReviewService, ReviewRequestError
 from services.proposal_review.workflow_adapter import LangChainReviewAdapter, SynthesisBudgetError, _fallback
 from services.observability import LangSmithClientAdapter
+from services.agent_orchestrator import FakeStructuredModel
 from services.repository_context.code_analyzer import analyze_manifest
 from services.repository_context.git_manifest import build_manifest
 from services.control_api.http import ControlApiConfig, build_runtime, create_server
@@ -165,8 +166,99 @@ def test_partial_implementation_is_normalized_and_exposed_as_a_change() -> None:
     )
 
     assert result["requirements"][0]["status"] == "partial"
+    assert result["requirements"][0]["completion_percent"] is None
+    assert result["requirements"][0]["comment"]
+    assert result["requirements"][0]["implemented_comment"]
+    assert result["requirements"][0]["not_implemented_comment"]
+    assert result["requirements"][0]["changed_comment"] == ""
     assert result["changes"][0]["type"] == "changed"
     assert "Partial implementation" in result["proposal_markdown"]
+
+
+def test_provider_requirement_details_are_kept_as_three_separate_comments() -> None:
+    class Provider:
+        def invoke(self, _context: dict) -> dict:
+            return {
+                "summary": "test",
+                "requirements": [{
+                    "requirement_id": "REQ-001",
+                    "status": "partial",
+                    "completion_percent": 60,
+                    "comment": "summary",
+                    "implemented_comment": "Trace span creation is present.",
+                    "not_implemented_comment": "Cost attributes are still missing.",
+                    "changed_comment": "The adapter uses a local span wrapper instead of the proposal SDK.",
+                    "impact": "impact",
+                    "risk": "risk",
+                }],
+            }
+
+    decision = LangChainReviewAdapter(Provider()).invoke({"requirements": [], "evidence": []})["requirements"][0]
+    assert decision["completion_percent"] == 60
+    assert decision["implemented_comment"] == "Trace span creation is present."
+    assert decision["not_implemented_comment"] == "Cost attributes are still missing."
+    assert decision["changed_comment"].startswith("The adapter uses")
+
+
+def test_placeholder_provider_comment_is_replaced_by_status_summary() -> None:
+    class Provider:
+        def invoke(self, _context: dict) -> dict:
+            return {
+                "summary": "test",
+                "requirements": [{
+                    "requirement_id": "REQ-001",
+                    "status": "partial",
+                    "comment": "No provider comment was returned.",
+                    "implemented_comment": "The trace span is present.",
+                    "not_implemented_comment": "Cost metadata is still missing.",
+                }],
+            }
+
+    decision = LangChainReviewAdapter(Provider()).invoke({"requirements": [], "evidence": []})["requirements"][0]
+    assert decision["comment"] == "The trace span is present. Cost metadata is still missing."
+
+
+def test_partial_at_100_percent_completion_is_reclassified_as_implemented() -> None:
+    """A requirement cannot be "partial" at 100% completion — that combination
+    is self-contradictory. If the provider reports it anyway (a
+    misclassification, or a borderline case it couldn't fully resolve to
+    "implemented"), the adapter must correct the status rather than surface
+    a "PARTIAL 100%" badge."""
+
+    class Provider:
+        def invoke(self, _context: dict) -> dict:
+            return {
+                "summary": "test",
+                "requirements": [
+                    {"requirement_id": "REQ-001", "status": "partial", "completion_percent": 100, "impact": "Fully covered but reported as partial.", "risk": "none"},
+                    {"requirement_id": "REQ-002", "status": "partial", "completion_percent": 60, "impact": "Auth is present; refresh-token rotation is not.", "risk": "medium"},
+                ],
+            }
+
+    result = LangChainReviewAdapter(Provider()).invoke({"requirements": [], "evidence": []})
+    by_id = {item["requirement_id"]: item for item in result["requirements"]}
+
+    assert by_id["REQ-001"]["status"] == "implemented"
+    assert by_id["REQ-001"]["completion_percent"] == 100
+    assert by_id["REQ-002"]["status"] == "partial"
+    assert by_id["REQ-002"]["completion_percent"] == 60
+
+
+def test_completion_percent_is_clamped_to_zero_to_one_hundred() -> None:
+    class Provider:
+        def invoke(self, _context: dict) -> dict:
+            return {
+                "summary": "test",
+                "requirements": [
+                    {"requirement_id": "REQ-001", "status": "missing", "completion_percent": 150, "impact": "x", "risk": "y"},
+                    {"requirement_id": "REQ-002", "status": "partial", "completion_percent": -10, "impact": "x", "risk": "y"},
+                ],
+            }
+
+    result = LangChainReviewAdapter(Provider()).invoke({"requirements": [], "evidence": []})
+    by_id = {item["requirement_id"]: item for item in result["requirements"]}
+    assert by_id["REQ-001"]["completion_percent"] == 100
+    assert by_id["REQ-002"]["completion_percent"] == 0
 
 
 def test_each_workbench_mode_includes_pros_cons_and_limitations() -> None:
@@ -216,7 +308,7 @@ def test_proposal_is_markdown_and_only_cites_justified_ranges() -> None:
     assert "explicit selection rationale" in proposal
 
 
-def test_service_drops_single_line_or_unreasoned_evidence() -> None:
+def test_service_accepts_one_to_three_line_evidence_with_rationale() -> None:
     assert ProposalReviewService._evidence(
         {
             "requirement_id": "REQ-001",
@@ -235,7 +327,38 @@ def test_service_drops_single_line_or_unreasoned_evidence() -> None:
         "score": 0,
         "rationale": "This range shows the model flow connected to the requirement.",
     }
-    assert ProposalReviewService._evidence({"requirement_id": "REQ-001", "path": "src/model.py", "line": 2, "reason": "match"}) is None
+    assert ProposalReviewService._evidence(
+        {
+            "requirement_id": "REQ-001",
+            "path": "src/model.py",
+            "start_line": 2,
+            "end_line": 2,
+            "excerpt": "return model",
+            "rationale": "This line returns the model required by the acceptance criterion.",
+        }
+    ) == {
+        "requirement_id": "REQ-001",
+        "path": "src/model.py",
+        "start_line": 2,
+        "end_line": 2,
+        "excerpt": "return model",
+        "score": 0,
+        "rationale": "This line returns the model required by the acceptance criterion.",
+    }
+    assert ProposalReviewService._evidence(
+        {"requirement_id": "REQ-001", "path": "src/model.py", "line": 2, "reason": "match"}
+    ) is None
+    with pytest.raises(ReviewRequestError, match="one to three lines"):
+        ProposalReviewService._evidence(
+            {
+                "requirement_id": "REQ-001",
+                "path": "src/model.py",
+                "start_line": 1,
+                "end_line": 4,
+                "excerpt": "too wide",
+                "rationale": "This range is wider than the deployment evidence contract.",
+            }
+        )
 
 
 def test_large_evidence_is_compacted_before_review_context_gate() -> None:
@@ -267,6 +390,55 @@ def test_large_evidence_is_compacted_before_review_context_gate() -> None:
     assert result["status"] == "complete"
     assert result["payload"]["report"]["evidence_candidates"] < len(evidence)
     assert result["payload"]["report"]["evidence_count"] > 0
+
+
+def test_select_relevant_evidence_prevents_one_requirement_from_starving_the_rest() -> None:
+    """Evidence arrives grouped by requirement_id in document order. Before
+    round-robin interleaving, one requirement with many keyword matches could
+    consume the entire MAX_EVIDENCE_ITEMS budget and leave every later
+    requirement with zero evidence — reported as "missing" regardless of what
+    the code actually contains."""
+    requirements = [{"requirement_id": f"REQ-{index:03d}"} for index in range(1, 6)]
+    evidence = [{"requirement_id": "REQ-001", "excerpt": "match", "rationale": "matches REQ-001."} for _ in range(150)]
+    for requirement_id in ("REQ-002", "REQ-003", "REQ-004", "REQ-005"):
+        evidence += [{"requirement_id": requirement_id, "excerpt": "match", "rationale": f"matches {requirement_id}."} for _ in range(2)]
+
+    bounded_without_fix = ProposalReviewService._bound_evidence(evidence)
+    starved = {item["requirement_id"] for item in bounded_without_fix}
+    assert starved == {"REQ-001"}, "positional truncation should starve every requirement after the flooded one"
+
+    selected = ProposalReviewService._select_relevant_evidence(requirements, evidence)
+    bounded = ProposalReviewService._bound_evidence(selected)
+    represented = {item["requirement_id"] for item in bounded}
+    assert represented == {"REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005"}
+
+
+def test_service_start_keeps_every_requirement_evidenced_when_one_dominates() -> None:
+    service = ProposalReviewService(ReviewArtifactStore())
+    requirements = [{"requirement_id": f"REQ-{index:03d}", "text": f"requirement {index}", "source": "markdown"} for index in range(1, 6)]
+    evidence = [
+        {"requirement_id": "REQ-001", "path": "src/model.py", "start_line": 1, "end_line": 3, "excerpt": "model flow", "rationale": "This range is connected to the requirement and is useful for review."}
+        for _ in range(150)
+    ]
+    for requirement_id in ("REQ-002", "REQ-003", "REQ-004", "REQ-005"):
+        evidence.append(
+            {"requirement_id": requirement_id, "path": f"src/{requirement_id}.py", "start_line": 1, "end_line": 3, "excerpt": requirement_id, "rationale": f"This range covers {requirement_id} and is useful for review."}
+        )
+
+    result = service.start(
+        "tenant",
+        {
+            "review_id": "review-fair-distribution",
+            "document": {"name": "proposal.md", "media_type": "text/markdown", "sha256": "doc"},
+            "repository": {"root_name": "repo", "fingerprint": "repo", "unknowns": []},
+            "requirements": requirements,
+            "evidence": evidence[:200],
+        },
+    )
+
+    stored_requirement_ids = {item.get("requirement_id") for item in result["payload"]["evidence"]}
+    for requirement_id in ("REQ-002", "REQ-003", "REQ-004", "REQ-005"):
+        assert requirement_id in stored_requirement_ids, f"{requirement_id} was starved of evidence by REQ-001's flood"
 
 
 def test_jev_filters_context_before_langchain_synthesis() -> None:
@@ -327,12 +499,22 @@ def test_review_mode_is_persisted_for_the_two_workbench_branches() -> None:
 def test_langchain_provider_adapter_wraps_context_in_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
     from langchain_core.runnables import RunnableLambda
 
+    # Capture the fully-rendered prompt into a side channel rather than
+    # returning it as `summary` — `summary` is truncated to 2_000 chars
+    # (a real limit for actual LLM output), which is unrelated to what this
+    # test verifies and would flake any time the system prompt grows.
+    captured: dict[str, str] = {}
+
     class FakeChatOpenAI:
         def __init__(self, **_: object) -> None:
             pass
 
         def with_structured_output(self, _: object) -> RunnableLambda:
-            return RunnableLambda(lambda prompt: {"summary": prompt.to_string(), "requirements": []})
+            def _capture(prompt: object) -> dict[str, object]:
+                captured["text"] = prompt.to_string()  # type: ignore[attr-defined]
+                return {"summary": "ok", "requirements": []}
+
+            return RunnableLambda(_capture)
 
     monkeypatch.setitem(sys.modules, "langchain_openai", SimpleNamespace(ChatOpenAI=FakeChatOpenAI))
     adapter = LangChainReviewAdapter.from_env({"AGENT_PROVIDER_MODE": "langchain", "OPENAI_API_KEY": "test-key"})
@@ -340,7 +522,7 @@ def test_langchain_provider_adapter_wraps_context_in_prompt(monkeypatch: pytest.
     result = adapter.invoke({"document": {}, "repository": {}, "requirements": [], "evidence": []})
 
     assert result["requirements"] == []
-    assert "bounded JSON context" in result["summary"]
+    assert "bounded JSON context" in captured["text"]
 
 
 def test_langsmith_adapter_uses_env_aliases_and_redacts_client_payload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -419,6 +601,15 @@ def test_review_graph_persists_report_and_human_decision() -> None:
     store.close()
 
 
+def test_review_request_preserves_explicit_reference_answer_for_context_recall() -> None:
+    sanitized = ProposalReviewService._requirement({
+        "requirement_id": "REQ-001",
+        "text": "The service must store sessions.",
+        "reference_answer": "The service stores user sessions in the repository.",
+    })
+    assert sanitized["reference_answer"] == "The service stores user sessions in the repository."
+
+
 def test_review_provider_budgets_reset_for_each_review() -> None:
     store = ReviewArtifactStore()
     graph = ProposalReviewGraph(store)
@@ -464,9 +655,9 @@ def test_review_api_compacts_large_document_and_repository_metadata_before_the_c
 def test_jev_is_optional_and_bounded() -> None:
     calls = []
     adapter = JEVReviewAdapter(lambda report: calls.append(report) or {"score": 0.9, "rubric": {"coverage": 1.0}})
-    assert adapter.evaluate({"requirements": []})["score"] == 0.9
+    assert adapter.filter_context({"requirements": [], "evidence": []})["score"] == 0.9
     with pytest.raises(RuntimeError, match="budget"):
-        adapter.evaluate({"requirements": []})
+        adapter.filter_context({"requirements": [], "evidence": []})
     assert len(calls) == 1
 
 
@@ -505,6 +696,19 @@ def test_control_api_exposes_catalog_review_and_human_decision() -> None:
     finally:
         server.shutdown()
         server.server_close()
+        runtime.catalog.close()
+        runtime.proposal_review.store.close()
+        runtime.store.close()
+
+
+def test_control_runtime_falls_back_to_local_model_without_openai_key() -> None:
+    runtime = build_runtime(
+        ControlApiConfig(host="127.0.0.1", port=0, database=":memory:"),
+        environment={"AGENT_PROVIDER_MODE": "langchain", "OPENAI_API_KEY": ""},
+    )
+    try:
+        assert isinstance(runtime.workflow.model, FakeStructuredModel)
+    finally:
         runtime.catalog.close()
         runtime.proposal_review.store.close()
         runtime.store.close()
