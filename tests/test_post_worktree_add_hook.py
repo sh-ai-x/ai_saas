@@ -30,9 +30,9 @@ class PostWorktreeAddHookStaticTests(unittest.TestCase):
         # whitespace. Match a representative slice.
         self.assertRegex(self.text, r"git.*worktree.*add")
 
-    def test_hook_copies_env_local_and_env_stage(self) -> None:
+    def test_hook_copies_env_local_and_env_staging(self) -> None:
         # The script must reference both files and the cp primitive.
-        for needle in (".env.local", ".env.stage", "cp -p"):
+        for needle in (".env.local", ".env.staging", "cp -p"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.text)
 
@@ -84,7 +84,7 @@ class PostWorktreeAddHookRuntimeTests(unittest.TestCase):
         self.repo.mkdir()
         self.target_worktree = Path(self.tmp) / "wt"
 
-        # Build a minimal git repo with a `.env.local` and `.env.stage` at the
+        # Build a minimal git repo with a `.env.local` and `.env.staging` at the
         # root (gitignored so the worktree won't get them automatically).
         run = subprocess.run
         for cmd in (
@@ -97,7 +97,7 @@ class PostWorktreeAddHookRuntimeTests(unittest.TestCase):
 
         (self.repo / ".gitignore").write_text(".env.*\n", encoding="utf-8")
         (self.repo / ".env.local").write_text("FOO=local\n", encoding="utf-8")
-        (self.repo / ".env.stage").write_text("BAR=stage\n", encoding="utf-8")
+        (self.repo / ".env.staging").write_text("BAR=stage\n", encoding="utf-8")
         # Sanity: the env files are gitignored.
         run(["git", "-C", str(self.repo), "add", ".gitignore"], check=True, capture_output=True)
         run(["git", "-C", str(self.repo), "commit", "-q", "-m", "gitignore"], check=True, capture_output=True)
@@ -124,7 +124,7 @@ class PostWorktreeAddHookRuntimeTests(unittest.TestCase):
         )
         # Confirm the worktree does NOT have the env files yet (gitignored).
         self.assertFalse((self.target_worktree / ".env.local").exists())
-        self.assertFalse((self.target_worktree / ".env.stage").exists())
+        self.assertFalse((self.target_worktree / ".env.staging").exists())
 
         # Fire the hook with a payload that mirrors Claude Code's.
         result = self._feed_hook(
@@ -143,12 +143,12 @@ class PostWorktreeAddHookRuntimeTests(unittest.TestCase):
             "hook did not copy .env.local into the new worktree",
         )
         self.assertTrue(
-            (self.target_worktree / ".env.stage").exists(),
-            "hook did not copy .env.stage into the new worktree",
+            (self.target_worktree / ".env.staging").exists(),
+            "hook did not copy .env.staging into the new worktree",
         )
         # Content must match the source.
         self.assertEqual((self.target_worktree / ".env.local").read_text(), "FOO=local\n")
-        self.assertEqual((self.target_worktree / ".env.stage").read_text(), "BAR=stage\n")
+        self.assertEqual((self.target_worktree / ".env.staging").read_text(), "BAR=stage\n")
 
     def test_hook_noops_on_unrelated_bash_command(self) -> None:
         result = self._feed_hook("ls -la", cwd=str(self.repo))
