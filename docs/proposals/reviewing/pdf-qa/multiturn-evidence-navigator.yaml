@@ -1,0 +1,461 @@
+title: Live PDF chat with search-to-show evidence navigation
+status: draft
+date: 2026-09-23
+tags: [pdf-qa, chat, live-viewer, search-to-show, jev, langgraph, agent-worker, user-workspace]
+
+before:
+  summary: |
+    There is no chat interface and no PDF viewer anywhere in this repository,
+    and no LangGraph code either. The user workspace at `/app` is a single
+    non-navigable console, so there is no menu structure a new feature can
+    attach to, and the one conversational surface that exists — the FAQ widget
+    — is a one-shot question box that discards its own history, not a chat.
+
+    What does exist, and what the core loop builds on, is a proven
+    structured-decision provider (Jev) that returns a bounded `choice` inside a
+    single request, plus a bounded queue-backed run path into
+    `services/agent_worker` that this proposal uses only for the secondary
+    summarization step.
+  evidence:
+    - '`grep -rli "langgraph" apps services packages` and `grep -rli "pdf" apps services packages` both return zero files; chat, viewer, and graph are all greenfield.'
+    - '`apps/web/components/faq-widget.tsx:7-13` holds a single `result` object, not a message list — asking again replaces the previous answer, so it is not a chat surface and cannot be extended into one.'
+    - '`apps/web/package.json` lists 11 runtime dependencies and contains no PDF library and no `inngest` entry; the queue path is Python-side only.'
+    - '`apps/web/lib/faq/provider.ts:3` defines the only provider port in the repo — `select(text, candidates: FaqEntry[]) => Promise<Selection | null>` — typed to the FAQ catalog and not reusable for PDF spans; `:4` sets `DEFAULT_PROVIDER_TIMEOUT_MS = 5_000`, the in-request latency budget the core loop inherits.'
+    - '`apps/web/lib/faq/jev.ts:36-68` is the hardened Jev adapter: per-closure circuit breaker and in-flight guard at `:37-38`, `redirect: ''error''` at `:51`, 16KiB `boundedJson` cap at `:60`, AbortController/timeout race at `:62-64`, 30s cooldown at `:65`.'
+    - '`apps/web/lib/faq/jev.ts:24-27` `validDistribution()` rejects any answer whose probabilities do not sum to ~1 or whose max does not match the chosen option.'
+    - '`apps/web/lib/faq/jev.ts:44` already caps a request at five candidates, the same bound the section search reuses.'
+    - '`apps/web/lib/faq/service.ts:16` is the fail-closed gate: `confidence < 0.85` or `answerable < 0.9` returns `fallback(''clarify'')` instead of an answer.'
+    - '`apps/web/app/api/faq/route.ts:5-10` is the route-handler precedent: `runtime = ''nodejs''`, `dynamic = ''force-dynamic''`, provider chosen by `process.env.FAQ_PROVIDER === ''jev''`, all Jev config env-gated.'
+    - '`apps/web/app/app/page.tsx:12-17` renders one `<nav className="user-app-nav">` and then `<FoundationConsole />`; there is no tab, route group, or menu list under `/app`.'
+    - '`apps/web/components/foundation-console.tsx:194-198` is a flat three-panel section (`01 / AGENT RUN`, `02 / BILLING`, `03 / ACTIVITY`), not a navigable menu container.'
+    - '`apps/web/app/admin/page.tsx:7-9` shows the existing menu precedent: an `admin-card-grid` of plain `<a href>` cards to sibling routes.'
+    - '`services/agent-worker/` (hyphen) holds only `README.md`; the real Python package is `services/agent_worker/` with `boundary.py`, `providers.py`, `runtime.py`, `workflow.py` and no graph module.'
+    - '`services/agent_worker/runtime.py:46-47` `BoundedWorker` "executes one run with explicit step, call, and wall-clock limits"; `services/agent_worker/workflow.py:19-25` accepts only a `run.requested` envelope carrying a `run_id`.'
+    - '`services/run_service/workflow.py:13-18` `InngestDispatcher` states the boundary directly: "the sender receives only identifiers and limits; the worker reads the immutable input from the run store", with limits capped at 32 steps / 32 model calls / 900s at `:28-31`.'
+    - '`foundation/server.py:316` (`POST /v1/runs`), `:326` (`POST /v1/runs/<id>`), and `:189` (`GET /v1/runs/<id>`) are the shipped run endpoints, reached from the browser through the proxy at `apps/web/app/api/foundation/[...path]/route.ts:20`.'
+    - '`docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml:64-65` (status `ready-for-review`, the accepted baseline) assigns `services/agent-worker/` the role: "Queue-backed LangGraph execution, checkpoints, retries, and OTel correlation; initially Inngest-backed, later extractable to FastAPI/ECS."'
+
+after:
+  summary: |
+    Add a new top-level `/app/pdf-qa` menu entry whose workspace is a
+    persistent split pane: a multi-turn chat panel on one side — message list,
+    accumulating turn history, always-present input box — and a live pdf.js
+    viewer on the other, mounted for the whole session and never hidden behind
+    a modal or an on-click reveal.
+
+    The load-bearing capability is search then show. The user asks a question
+    in the chat; a single bounded Jev `choice` call picks the relevant section
+    and a deterministic pass resolves it to exact character offsets; the chat
+    message and the viewer highlight land together in that same turn, inside
+    one request and one provider deadline. Prev and Next step the cursor across
+    the located spans and the viewer follows immediately. This loop involves no
+    queue, no background job, and no graph.
+
+    Summarization is a bonus layered on top of a span that search has already
+    found. After the located answer has rendered, the turn asynchronously
+    dispatches a LangGraph run in `services/agent_worker` that returns prose and
+    any additional supporting spans, patched into the same chat message when it
+    arrives. This is a deliberate change from an earlier framing in which the
+    graph produced the spans: the graph is now an enrichment over a result the
+    user already has, so if the worker is slow, throttled, or never returns, the
+    turn is still complete and the highlight is still correct.
+  files:
+    - path: apps/web/app/app/page.tsx
+      change: Add a menu card grid above `<FoundationConsole />` linking to `/app/pdf-qa`, mirroring the `admin-card-grid` pattern at `apps/web/app/admin/page.tsx:7-9`.
+    - path: apps/web/app/app/pdf-qa/page.tsx
+      change: New server component hosting the split-pane workspace; same `getSafeSession()` guard and `redirect("/login?next=/app/pdf-qa")` as the parent route.
+    - path: apps/web/components/pdf-qa-workspace.tsx
+      change: Client component owning the persistent two-pane layout and the shared active-span state; both panes mount together on route entry and neither is conditionally rendered.
+    - path: apps/web/components/pdf-chat-panel.tsx
+      change: Multi-turn chat surface — scrolling message list keyed by turn id, accumulating history across the session, sticky composer, per-message underlined evidence marks, Prev/Next control, and an in-place "summary pending" slot that fills when the async enrichment lands.
+    - path: apps/web/components/pdf-viewer.tsx
+      change: Always-mounted `pdfjs-dist` viewer rendering page canvases plus the text layer; exposes `scrollToSpan(page, start, end)` mapping offsets to text-layer DOM nodes via `Range.getClientRects()` and painting a highlight overlay. Driven by the workspace's active-span state, never opened or closed.
+    - path: apps/web/lib/pdf-qa/provider.ts
+      change: New port `PdfQaProvider { findSection(question, sections); locateSpan(quote, occurrences) }` with a shared confidence/answerability result shape; not a reuse of `FaqProvider`.
+    - path: apps/web/lib/pdf-qa/jev.ts
+      change: Single `createPdfQaJevProvider()` closure implementing both methods, copying the hardening of `apps/web/lib/faq/jev.ts:36-68` (one breaker, one in-flight guard, bounded response, redirect block, distribution validation) over a `choice` + `noul` question pair per method.
+    - path: apps/web/lib/pdf-qa/extract.ts
+      change: Deterministic upload-time text-layer extraction — concatenate `getTextContent().items` in order into a per-page string, band items into lines by transform y-translation, stamp an `EXTRACTOR_VERSION`. Runs once per document so the search path never re-extracts.
+    - path: apps/web/lib/pdf-qa/search.ts
+      change: The core search-to-show resolver — section candidate selection, verbatim occurrence scan over the stored page strings, and offset resolution; calls the provider only when a tie needs breaking.
+    - path: apps/web/lib/pdf-qa/spans.ts
+      change: Span contracts and verification — Zod schema for `{page, start, end, line, extractorVersion}` plus `verifySpan()` requiring the cited text to be a verbatim substring of the extracted page string.
+    - path: apps/web/app/api/pdf-qa/sessions/route.ts
+      change: New route handler (`runtime = 'nodejs'`, `dynamic = 'force-dynamic'`) creating a chat session bound to one uploaded document and returning the extracted page strings the viewer and search share, following `apps/web/app/api/faq/route.ts:5-10`.
+    - path: apps/web/app/api/pdf-qa/messages/route.ts
+      change: The search-to-show endpoint. Runs the Jev find-step plus deterministic resolution and returns the chat message with its located spans inside one request; then fires the enrichment dispatch without awaiting it.
+    - path: apps/web/app/api/pdf-qa/enrich/route.ts
+      change: Dispatches the optional LangGraph summarization by POSTing `/v1/runs` through the foundation proxy, and exposes the poll the chat panel uses to patch prose into an already-rendered message.
+    - path: apps/web/db/schema/pdf-qa.ts
+      change: New Drizzle tables `pdf_qa_documents` (id, tenant, storage key, page count, page_text jsonb, extractor_version), `pdf_qa_sessions` (id, tenant, user, document), `pdf_qa_messages` (id, session, seq, role, body, spans jsonb, summary_run_id, summary_status).
+    - path: apps/web/drizzle/0006_pdf_qa.sql
+      change: Generated migration for the three tables, following the numbering already in `apps/web/drizzle/`.
+    - path: apps/web/app/globals.css
+      change: Styles for the `/app` menu card grid, the split-pane workspace at desktop and stacked at narrow widths, the chat message list and composer, the evidence underline and active-span emphasis, and the viewer highlight overlay.
+    - path: apps/web/package.json
+      change: Add `pdfjs-dist` as the only new runtime dependency; no PDF React wrapper and no `inngest` package.
+    - path: services/agent_worker/graph.py
+      change: New LangGraph enrichment pipeline `load_located_span -> summarize -> cite_supporting_spans`, invoked through `BoundedWorker` so it inherits the step / model-call / wall-clock limits at `services/agent_worker/runtime.py:46-47`. It receives an already-resolved span; it does not perform search.
+    - path: services/agent-worker/README.md
+      change: Document the enrichment graph, its input contract (a resolved span, not a raw question), and that it is optional to a completed chat turn.
+    - path: apps/web/tests/pdf-qa-search.test.ts
+      change: Red-first coverage for the search-to-show path — single-request resolution, span verification, extractor-version mismatch rejection, and every fail-closed branch (no section, low confidence, unverifiable quote, enrichment never arriving).
+
+pros:
+  - '**[3/3] Search-to-show completes inside one request, with no queue hop.** The find-step is a single Jev call bounded by `DEFAULT_PROVIDER_TIMEOUT_MS = 5_000` (`apps/web/lib/faq/provider.ts:4`) and raced against an AbortController at `apps/web/lib/faq/jev.ts:62-64`; the highlight therefore lands on one provider deadline rather than after a `run.requested` dispatch and a poll cycle.'
+  - '**[3/3] The viewer pane is always mounted, so showing a result is a state update, not a mount.** `scrollToSpan` resolves offsets against text-layer DOM that is already in the document and paints an overlay from `Range.getClientRects()`; there is no viewer open, no PDF re-parse, and no first-paint cost on the turn that needs to feel instant.'
+  - '**[3/3] Most locate operations need no model call at all.** A quote occurring exactly once in the stored page strings resolves deterministically in `apps/web/lib/pdf-qa/search.ts`; the provider is consulted only to break a genuine tie, so the common path is bounded by a string scan rather than by network latency.'
+  - '**[3/3] The chat surface is genuinely new rather than a stretched FAQ widget.** `apps/web/components/faq-widget.tsx:7-13` stores one `result` and replaces it on each ask, so history is structurally absent; a message list keyed by turn id is the smallest honest shape for multi-turn, and it is what makes Prev/Next across an earlier answer coherent.'
+  - '**[3/3] Summarization can fail without damaging the product.** The enrichment runs over the existing bounded path — `services/run_service/workflow.py:15-18` sends identifiers only and `services/agent_worker/runtime.py:46-47` caps steps, calls, and wall-clock — and it patches an already-rendered message, so a throttled or interrupted worker degrades the turn to search-to-show rather than breaking it.'
+  - '**[3/3] The Jev hardening pattern is proven in-tree and copied wholesale.** `apps/web/lib/faq/jev.ts:51` blocks redirects, `:60` caps the response at 16KiB, `:65` opens a 30-second breaker on any failure, and `:24-27` rejects an inconsistent probability distribution.'
+  - '**[3/3] Fail-closed behavior has an exact precedent to match.** `apps/web/lib/faq/service.ts:16` rejects `confidence < 0.85` or `answerable < 0.9` into `fallback(''clarify'')`; the find and locate steps reuse that identical gate, so scrolling the live pane to a wrong location is unreachable by construction, not by convention.'
+  - '**[3/3] No new queue or background-job dependency.** `apps/web/package.json` has no `inngest` entry; Inngest is a Python injected-sender protocol (`services/run_service/workflow.py:13-22`), so `pdfjs-dist` is the only package added on the web side.'
+  - '**[3/3] Menu placement follows an existing precedent instead of inventing a tab system.** `apps/web/app/admin/page.tsx:7-9` already ships a card grid of plain links to sibling routes, and `apps/web/app/app/page.tsx:14-15` has the slot for it directly above `<FoundationConsole />`.'
+  - '**[3/3] The enrichment graph lands where the accepted baseline already assigned it.** `docs/proposals/pending/ai-saas-foundation/msa-foundation.yaml:64-65` reserves `services/agent-worker/` for "Queue-backed LangGraph execution, checkpoints, retries, and OTel correlation; initially Inngest-backed", so the secondary capability fills a reserved slot instead of opening a new service.'
+  - '**[2/3] One machine key, one human label.** The chat underline and the viewer highlight are computed from the same `{page, start, end}` offsets, so the two panes cannot disagree; the derived `line` is display-only and never used for lookup.'
+
+cons:
+  - '**[1/3] Text-layer offsets drift when the extraction code changes.** Mitigated by stamping `EXTRACTOR_VERSION` on `pdf_qa_documents` and on every span, and failing closed on mismatch — a drifted span renders as "location unavailable", never as a wrong highlight — with re-extraction available over the same bounded-run path.'
+  - '**[1/3] An always-mounted viewer cannot defer its own cost the way an on-click one could.** Accepted deliberately, because deferring it is what the "real-time" requirement rules out; mitigated by scoping the code split to the `/app/pdf-qa` route so no other page carries `pdfjs-dist`, by pinning a self-hosted worker file to the installed version with no CDN, and by rendering pages lazily within the mounted pane.'
+  - '**[1/3] An enriched message mutates after it has already rendered.** Mitigated by reserving the summary slot in the message from the start so the layout does not jump, and by a hard rule that enrichment may add prose and supporting spans but may never move the viewer or reorder the spans the user is currently stepping through.'
+  - '**[1/3] A worst-case question costs two Jev calls.** Accepted because the second fires only on a genuine multi-occurrence tie and the single-occurrence path skips it entirely; the shared in-flight guard at `apps/web/lib/faq/jev.ts:38` serializes the pair, and both sit inside the same request budget.'
+
+limitations:
+  - '**[0/3] Scanned and image-only PDFs are out of scope by design.** An empty text layer is rejected at upload with an explicit message rather than silently producing no highlights. Future-work: an OCR pre-pass writing a synthetic text layer under its own `EXTRACTOR_VERSION`.'
+  - '**[0/3] One document per session; no cross-document search.** Future-work: a corpus-level pre-filter ahead of the find-step, preserving the five-candidate bound that `apps/web/lib/faq/jev.ts:44` enforces today.'
+  - '**[0/3] The Prev/Next cursor is not persisted, so a reload returns to the first span of the last message.** It is view position, not conversation content, and persisting it would cost a write per button click. Future-work: a `?span=` parameter once deep-linking to an evidence span is requested.'
+  - '**[1/3] The circuit breaker and in-flight guard are instance-local.** `phases/jev-cs-faq-bot/README.md:45-50` already documents this for the FAQ path — multiple serverless instances multiply the budget, and an ingress rate limit is the stated remedy. Out-of-scope by design here; this proposal inherits the property rather than changing it.'
+  - '**[0/3] No highlight persistence, annotation, or export.** Future-work: a `pdf_qa_bookmarks` table reusing the same `{page, start, end, extractorVersion}` span shape, so no contract change is needed to add it.'
+
+pcl:
+  pros: 32
+  cons: 4
+  limitations: 1
+  iterations: 3
+  passed: true
+
+sections:
+  - title: What the user sees
+    body: |
+      The workspace is one route, `/app/pdf-qa`, and one persistent layout. Both
+      halves are mounted from the moment the route loads and neither is ever
+      unmounted, collapsed behind a modal, or revealed by a click.
+
+      ### Left — the chat panel
+
+      A scrolling message list that accumulates for the life of the session. Each
+      exchange appends a user message and an assistant message; earlier exchanges
+      stay on screen and stay interactive, so the user can return to the third
+      answer, press Next, and watch the right pane follow. A sticky composer sits
+      at the bottom. This is an ordinary chat surface, not a question box that
+      replaces its own output — which is exactly what
+      `apps/web/components/faq-widget.tsx:7-13` does today and why that component
+      cannot be stretched into this one.
+
+      ### Right — the live PDF
+
+      The document renders continuously beside the conversation. It is the same
+      pdf.js instance for the whole session, so every highlight is a scroll and
+      an overlay repaint rather than a load. At narrow widths the panes stack
+      with the viewer pinned above the composer; it is never dropped.
+
+      ### The bond between them
+
+      Exactly one span is active at a time, held in the workspace component and
+      read by both panes. The chat emphasizes the underlined mark; the viewer
+      scrolls to it and highlights it. One piece of state, two renderings — which
+      is why they cannot drift apart.
+
+  - title: The core loop — search then show
+    body: |
+      This is the load-bearing feature and it is deliberately short. Everything
+      in this section happens within one HTTP request and one turn of the chat.
+
+      ### 1. The user asks
+
+      A message is appended to the list immediately, optimistically. The question
+      goes to `POST /api/pdf-qa/messages`.
+
+      ### 2. Search
+
+      The document's page strings were extracted once at upload and stored, so
+      nothing is re-parsed here. The server narrows to at most five candidate
+      sections and issues one Jev call: a `choice` over those candidate ids plus
+      `none`, and a `noul` guard asking whether one candidate genuinely contains
+      the answer. The five-candidate ceiling is the bound
+      `apps/web/lib/faq/jev.ts:44` already enforces. The reply carries `choice`,
+      `confidence`, and `probabilities` — a classification, not prose.
+
+      ### 3. Resolve to offsets
+
+      Within the chosen section the server scans for the passages that match the
+      question terms and converts each to a `{page, start, end}` range over the
+      stored page string. A passage occurring once resolves with no model call.
+      Several plausible occurrences trigger one more bounded `choice` call to
+      pick the right one. Zero matches is an immediate, explicit failure.
+
+      ### 4. Show
+
+      The response returns the assistant message with its located spans. The chat
+      renders the located passage with its underline and the viewer scrolls and
+      highlights in the same commit. The user asked and the document moved; no
+      spinner in between, no job to wait on.
+
+      ### 5. Step
+
+      Prev and Next advance the active-span cursor in document order. Each press
+      re-emphasizes the mark and moves the right pane. Unresolved spans remain
+      listed, labelled "location unavailable", and are skipped by the cursor.
+
+      ### Why this is not behind the queue
+
+      An earlier framing of this feature had the LangGraph pipeline produce the
+      evidence spans, which put a queue dispatch and a poll cycle between the
+      question and the highlight. That is recorded here as a deliberate change,
+      not a silent one: search now owns the span, and the request budget is the
+      provider deadline at `apps/web/lib/faq/provider.ts:4` rather than a worker
+      round-trip.
+
+  - title: The bonus — summarization as enrichment
+    body: |
+      Summarization is in scope and it is secondary. It never gates the loop
+      above.
+
+      Once the located message has already rendered, the turn dispatches a run
+      over the shipped path: `POST /v1/runs` at `foundation/server.py:316`
+      through the proxy at `apps/web/app/api/foundation/[...path]/route.ts:20`,
+      then `InngestDispatcher.dispatch` at `services/run_service/workflow.py:37`,
+      then `BoundedInngestWorkflow.handle` at
+      `services/agent_worker/workflow.py:19-25`. The dispatcher sends identifiers
+      and limits only, and the worker reads its input from the run store, as
+      `services/run_service/workflow.py:15-18` states.
+
+      The graph at `services/agent_worker/graph.py` receives a span that search
+      has already resolved. Its nodes are `load_located_span`, `summarize`, and
+      `cite_supporting_spans`. It writes prose and any additional supporting
+      quotes back to the message row; the chat panel polls
+      `GET /v1/runs/<id>` (`foundation/server.py:189`) and patches them into the
+      message in place.
+
+      Three rules keep the bonus from damaging the core. The summary slot is
+      reserved in the message from first render, so nothing reflows when it
+      lands. Enrichment may add spans but may never reorder or remove the ones
+      the cursor is currently walking. And enrichment may never move the viewer —
+      only a user action does that. If the run is throttled, interrupted, or
+      never returns, the message keeps its located answer and its working
+      highlight, and the slot simply shows that no summary is available.
+
+  - title: Decision — session and message state
+    body: |
+      State is persisted server-side in PostgreSQL through Drizzle, across
+      `pdf_qa_documents`, `pdf_qa_sessions`, and `pdf_qa_messages`.
+
+      A chat that accumulates history needs a message table by definition — that
+      is the first reason. The second is the enrichment: it completes out of band
+      and must patch a row that already exists, which the
+      identifiers-only dispatch contract at
+      `services/run_service/workflow.py:15-18` makes unavoidable.
+
+      `pdf_qa_documents` also stores the extracted per-page text as `jsonb`
+      alongside `extractor_version`. That is what makes search-to-show a string
+      scan instead of a re-parse, and it is what lets the server resolve offsets
+      that the client viewer will agree with, because both read the same
+      extraction.
+
+      Spans live on the message row rather than in their own table, so an answer
+      and its evidence are written atomically and a partially enriched message
+      can never render with another message's spans.
+
+      The one deliberate exception is the Prev/Next cursor, which stays in React
+      state. It is a view position, not conversation content; persisting it would
+      mean a write per button press for something a reload can correctly reset.
+
+  - title: Decision — evidence span representation
+    body: |
+      A span is `{page, start, end, line, extractorVersion}`. `start` and `end`
+      are zero-based character offsets into the normalized text-layer string for
+      that page; `line` is a derived one-based label; `extractorVersion` is the
+      validity key.
+
+      ### Why offsets are the key
+
+      A PDF has no line numbers, no character offsets, and no intrinsic logical
+      reading order — a page is a set of positioned glyph-run operators. Any line
+      number a reader sees is manufactured by an extraction pass, and this
+      proposal says so plainly rather than implying the file carries one. The
+      extraction concatenates `getTextContent().items` in their returned order
+      into one page string, and buckets those same items into lines by the
+      y-translation component of each item's transform matrix within a tolerance
+      band. The concatenation yields the offsets; the banding yields the line.
+
+      Offsets are the lookup key because they are exact and because they map in
+      both directions: the same range identifies the substring to underline in
+      the chat and, through the text-layer DOM nodes, the `Range` whose client
+      rects become the viewer highlight. The derived `line` is shown to the user
+      and never used to locate anything.
+
+      ### Rejected — bounding-box rectangles
+
+      Rectangles survive re-extraction, but they cannot be mapped back into the
+      chat text to produce the underline, and one logical span crossing a line
+      break becomes a rectangle list. Rects are still produced, just at render
+      time from the offset range, so the highlight is obtained without storing
+      geometry that could disagree with the text.
+
+      ### Rejected — page plus line index alone
+
+      Too coarse. A line routinely carries both the cited clause and unrelated
+      text, so an underline at line granularity would over-claim.
+
+      ### Honest handling of drift
+
+      Offsets are stable only under a fixed extraction. `EXTRACTOR_VERSION` is
+      stamped on the document row and on every span; a mismatch marks the
+      document's spans unresolvable and requires re-extraction. This converts a
+      silent wrong-highlight bug into a visible, explicit refusal.
+
+  - title: Decision — client-side PDF rendering
+    body: |
+      The viewer uses `pdfjs-dist` directly rather than `react-pdf` or any other
+      React wrapper, and it is mounted for the whole session.
+
+      The feature needs the rendered text-layer DOM for offset-to-rect mapping
+      and the raw `getTextContent()` items for the extraction pass. A wrapper
+      sits on top of the same `pdfjs-dist` and would have to be pierced for both,
+      so it adds a dependency without adding capability — and
+      `apps/web/package.json` keeps a deliberately small 11-package runtime set.
+
+      Two mechanics matter for review. The pdf.js worker
+      (`pdfjs-dist/build/pdf.worker.min.mjs`) is served as a pinned local static
+      asset matching the installed version exactly, with no CDN reference. And
+      `scrollToSpan` works by locating the text-layer nodes covering the offset
+      range, building a DOM `Range` over them, reading `getClientRects()`,
+      scrolling the container to the first rect, and painting one absolutely
+      positioned overlay div per rect above the page canvas. The overlay is
+      purely visual; it never mutates the text layer.
+
+      Because the pane is persistent, the code split is at the route rather than
+      at the interaction: `/app/pdf-qa` loads the viewer chunk on entry, and no
+      other route in the app carries `pdfjs-dist` at all. Pages inside the
+      mounted viewer still render lazily as they scroll into view.
+
+  - title: Decision — one port, two methods
+    body: |
+      Both Jev call sites share a single new port, `PdfQaProvider`, with
+      `findSection()` and `locateSpan()`, implemented by one closure.
+
+      The decisive reason is shared failure state. In
+      `apps/web/lib/faq/jev.ts:37-38`, `openUntil` and `inFlight` are captured
+      per provider instance. Two separate ports would mean two closures and two
+      independent circuit breakers: a Jev outage would have to be rediscovered by
+      the second call site, and the thirty-second cooldown at `:65` would protect
+      only whichever method tripped it. One closure means one breaker and one
+      in-flight guard covering both halves of a single request.
+
+      The two calls are also the same shape — a bounded candidate list, one
+      `choice` question, one `noul` guard, one confidence gate — so a single port
+      is an honest abstraction rather than a convenience bundle.
+
+      Reusing `FaqProvider` was rejected outright: its signature at
+      `apps/web/lib/faq/provider.ts:3` is
+      `select(text, candidates: FaqEntry[]) => Promise<Selection | null>`, typed
+      to the FAQ catalog. Widening it would couple two unrelated features through
+      one interface.
+
+  - title: Decision — fail-closed behavior
+    body: |
+      The governing rule is that the live pane never moves to a guess. Four
+      failure classes, four explicit refusals.
+
+      ### Search cannot decide
+
+      `choice === 'none'`, or confidence below the gate, produces "I could not
+      find a section that answers this" as the assistant message, with no spans
+      and no viewer movement. The gate is the one shipped at
+      `apps/web/lib/faq/service.ts:16`: confidence at least 0.85 and
+      answerability at least 0.9.
+
+      ### A quote is not verbatim in the document
+
+      If cited text is not a verbatim substring of the extracted page strings the
+      span is dropped rather than approximated. Fuzzy matching is deliberately
+      excluded, because a near-match highlight is a confident-looking wrong
+      citation. This applies equally to spans arriving from enrichment.
+
+      ### Locate cannot resolve a tie
+
+      The span renders as "location unavailable", the cursor skips it, and the
+      viewer stays where it is.
+
+      ### Extractor version mismatch
+
+      Every span for that document is marked unresolvable until re-extraction.
+
+      ### Data sent to the provider
+
+      The question is redacted and normalized before it leaves the process, as
+      `apps/web/lib/faq/jev.ts:53` already does via `redact()` and `normalize()`.
+      Document text is the user's own upload and is sent only as bounded
+      candidate excerpts, at most five, never the whole document. Session,
+      history, headers, and database context are not sent, matching the property
+      documented at `phases/jev-cs-faq-bot/README.md:38-41`.
+
+      Absent `JEV_API_KEY` the provider is inert by construction rather than
+      erroring — the degradation `phases/jev-cs-faq-bot/README.md:82-83` records
+      for the FAQ path. In that state the chat reports that search is unavailable
+      instead of falling back to a weaker locator.
+
+  - title: MVP scope boundary
+    body: |
+      ### In scope
+
+      The persistent split-pane workspace. The multi-turn chat with accumulating
+      history. The search-to-show loop end to end, including Prev/Next
+      synchronization. One text-layer PDF per session, uploaded by the signed-in
+      user. Server-persisted sessions and messages. Both English and Korean
+      source text, since extraction is encoding-agnostic and neither Jev question
+      depends on language.
+
+      ### In scope, secondary
+
+      LangGraph summarization as asynchronous enrichment over an already-located
+      span, with the three non-interference rules above.
+
+      ### Out of scope for v1
+
+      Scanned or image-only PDFs — an empty text layer is detected at upload and
+      rejected with an explicit message; OCR is future-work, not a silent
+      degradation. Multi-document corpora and cross-document citation.
+      Annotation, bookmarking, or export of highlights. Token-streamed summaries;
+      the enrichment is polled, not streamed.
+
+      ### Interface language
+
+      New UI strings ship in English. The shipped FAQ catalog at
+      `apps/web/lib/faq/seed.ts:2-8` is already English, while
+      `apps/web/components/foundation-console.tsx:30` and `:39` still carry
+      Korean strings, so the codebase is mid-migration and new surfaces ship
+      English.
+
+  - title: Open questions for review
+    body: |
+      ### Section slicing strategy
+
+      Search narrows to at most five candidate sections. Heading-anchored slicing
+      is the default with fixed page windows as the fallback for documents
+      without detectable headings. Whether a long document needs a coarse
+      pre-filter ahead of that bound is a real question this proposal does not
+      settle, and it is the main risk to the sub-deadline feel of the core loop.
+
+      ### Document storage
+
+      The schema records a storage key for the original file; which store backs
+      it is left open. It affects neither the span contract nor any decision
+      above, because search reads the extracted page text, not the PDF bytes.
+
+      ### Line banding tolerance
+
+      The y-translation tolerance grouping text items into one line is a tunable
+      constant. It should be pinned by test fixtures over representative
+      documents rather than guessed, and it is part of `EXTRACTOR_VERSION`, so
+      changing it correctly invalidates existing spans.
