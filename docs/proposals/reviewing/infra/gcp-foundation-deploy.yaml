@@ -1,0 +1,233 @@
+title: GCE e2-micro + Cloudflare Tunnel — foundation smoke-test deploy
+status: design-discussion
+date: 2026-09-27
+tags:
+  - gce
+  - foundation
+  - smoke-test
+  - deployment
+  - cloudflare-tunnel
+  - cost-control
+
+sections:
+  - title: Executive decision
+    body: |
+      Land a parallel deploy method for the foundation service on Google Compute Engine `e2-micro`, fronted by a Cloudflare Tunnel, so the staging smoke-test workload runs **always-on at $0/mo** instead of the current Fly.io deploy's $1.94/mo always-on bill or its cold-start latency under `auto-stop`. The Fly.io artifacts remain on `main`; this proposal only adds the GCE path, with the Fly method preserved on the `archive/flyio-foundation-deploy` branch as the rollback target.
+
+  - title: Why now (existing policy + cost numbers)
+    body: |
+      The foundation service was already documented as a smoke-test, not a prod target: `cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags`. That commit frames the deploy as cost-sensitive; the deciding number is monthly cost vs always-on availability.
+
+      | | Fly (current) | GCE e2-micro + CF Tunnel |
+      |---|---|---|
+      | Monthly cost | $0 with auto-stop, ~$1.94/mo always-on | $0 always-free (within egress cap) |
+      | Region | nrt (Tokyo, ~5ms to KR) | us-west1 (~150ms to KR) |
+      | Cold deploy | ~30s | ~3 min (image push + SSH restart) |
+      | State persistence | Fly volume | 30GB pd-standard (always-free) |
+      | TLS | Built-in (`force_https`) | Cloudflare Tunnel (free, off-VM) |
+      | Egress ceiling | Generous | **1 GB/mo free**, then $0.12/GB |
+      | Always-on availability | yes (with $) / cold (free) | yes (free) |
+      | Multi-instance HA | Possible (paid) | No — always-free quota = 1 instance |
+
+      For a smoke-test workload that needs always-reachable + $0, GCE wins. nrt latency doesn't matter for staging traffic. The 1 GB/mo egress cap is fine for smoke-test usage; prod traffic stays on whatever else runs the prod deploy.
+
+  - title: Architecture
+    body: |
+      ```
+      internet ──► Cloudflare edge (TLS termination, public hostname)
+                       │
+                       ▼
+                 cloudflared tunnel daemon  ◄── token from GCP Secret Manager
+                       │                       (foundation-cloudflared-token)
+                       │ http://localhost:8080
+                       ▼
+                 foundation app container   ◄── image from Artifact Registry
+                       │                       (foundation-image Secret Manager entry)
+                       │ /var/lib/ai-saas (pd-standard 30GB disk, free)
+                       ▼
+                  Neon Postgres (existing, external)
+      ```
+
+      Two containers on the VM (`infra/gcp/foundation/docker-compose.yaml`): the foundation app (Python stdlib HTTP on `:8080`, loopback-only) and `cloudflared` (tunnel sidecar). Both pull config from GCP Secret Manager at boot via `cloud-init.yaml`. The VM has `--no-address` (no public IP; the always-free quota doesn't cover one), and a `deny-8080-ingress` firewall rule locks the app port to loopback as defence-in-depth.
+
+      CI (`/.github/workflows/foundation-gce-deploy.yml`) builds the image with Cloud Build, pushes to Artifact Registry, stamps the `foundation-image` Secret Manager version, SSHes the compose file onto the VM, restarts the stack, and smoke-tests `/healthz`.
+
+  - title: Acceptance gates
+    body: |
+      The implementation lands in PR #49 (branch `plan/gcp-foundation-deploy`). The proposal is approved when:
+
+      - VM boots from a clean image and `docker compose ps` reports both containers healthy within 3 minutes of first `cloud-init` completion.
+      - `https://foundation.<your-domain>/healthz` returns 200 via the Cloudflare Tunnel; `curl` against the VM's external IP is denied (loopback-only).
+      - `/var/lib/ai-saas` survives a VM reboot (pd-standard mounted via fstab, not tmpfs).
+      - State-store secrets (`DATABASE_URL`, `APP_SECRET_KEY`) are never written to the VM filesystem unredacted; the env file at `/etc/ai-saas/foundation.env` is mode 0600 and re-fetched on every boot.
+      - Re-running `./infra/gcp/foundation/create-vm.sh` is a no-op (idempotent).
+      - `gh workflow run foundation-gce-deploy.yml` triggers a fresh build + restart; `/healthz` returns 200 within 5 minutes.
+      - **Fail-closed**: VM CPU/memory stays within e2-micro's 1GB shared-burst budget (foundation idle RSS ~80-120 MB; cloudflared ~30 MB; ~700 MB headroom for Debian + Docker).
+
+  - title: Non-goals
+    body: |
+      - **Production traffic**. The smoke-test cap (1 GB/mo egress) is incompatible with real user load. Prod stays on whatever else runs the prod deploy. Breach response: if a reviewer asks "can this host prod?", redirect to the existing prod path.
+      - **Multi-instance HA**. The e2-micro always-free quota is one instance per project. Higher availability requires paid machine types or migration to Cloud Run. Breach response: don't add a second VM in this proposal; if HA is required, file a follow-up.
+      - **Custom domain DNS automation**. The hostname is operator-configured via a Cloudflare Tunnel; this proposal does not script the `cloudflared tunnel create` step or DNS record creation. Breach response: keep it manual; automation can come when this stops being a one-time setup.
+      - **Migrating Fly state**. SQLite at `/var/lib/ai-saas` does NOT migrate from the Fly volume — Fly volumes are managed and not portable. Treat the first GCE deploy as clean-state.
+      - **A new Dockerfile**. The same `docker/prod/foundation.Dockerfile` runs unchanged on the VM. Any container-level change to that Dockerfile is out of scope.
+
+  - title: Phase plan (steps for the implementation PR)
+    body: |
+      PR #49 lands all five files in one commit:
+
+      1. `infra/gcp/foundation/create-vm.sh` — one-time VM provisioning (idempotent; VM + 30GB pd-standard disk + deny-8080-ingress firewall rule, `--no-address`).
+      2. `infra/gcp/foundation/cloud-init.yaml` — Debian 12 first-boot: apt-install docker, format + mount the data disk, fetch secrets from GCP Secret Manager, `docker compose up -d`.
+      3. `infra/gcp/foundation/docker-compose.yaml` — app + cloudflared sidecar; app port bound to loopback only.
+      4. `infra/gcp/foundation/README.md` — one-time setup runbook, deploy flow, Fly migration path, deletion steps.
+      5. `.github/workflows/foundation-gce-deploy.yml` — build (Cloud Build) → push to Artifact Registry → stamp `foundation-image` Secret Manager version → SSH restart the compose stack → smoke-test `/healthz`.
+
+      Future steps (post-merge, operator-driven):
+      - Merge PR #49 with `gh pr merge 49 --squash --delete-branch`.
+      - Operator runs `./infra/gcp/foundation/create-vm.sh <PROJECT_ID>`.
+      - Operator creates the Cloudflare Tunnel + writes the token to Secret Manager.
+      - Operator writes the env file (`gcp-smoke.env`) to Secret Manager.
+      - Push to `main` triggers the workflow.
+
+  - title: Open questions
+    body: |
+      - **WIF vs SA-key for GitHub Actions auth.** The proposal writes a JSON service account key as a GitHub secret (`GCP_SA_KEY`); this is simpler to set up but a worse security posture than Workload Identity Federation. The full guide defaults to the JSON key for setup-time simplicity; a follow-up can swap to WIF without changing the deploy workflow contract (`google-github-actions/auth@v2` accepts both).
+      - **Egress alarm.** The 1 GB/mo ceiling is invisible until crossed (then $0.12/GB). A Cloud Monitoring alert on `egress_bytes` for the VM would prevent surprise billing; not implemented in this proposal.
+      - **US-region only.** `e2-micro` always-free is restricted to `us-west1`, `us-central1`, `us-east1`. Operators in other regions would have to fall back to a paid machine type or a different always-free product.
+
+  - title: Evidence and risk controls
+    body: |
+      The GCE always-free tier (e2-micro, 30GB pd-standard, 1GB/mo egress to most regions, free external IP for first instance per project) is documented at the GCP free tier page; the static-IP-when-attached caveat is documented at the external IP pricing page. Cloudflare Tunnel's free tier (no ingress bandwidth limit; per-tunnel token authentication; HTTPS termination) is documented at the Cloudflare Zero Trust docs. [src:https://cloud.google.com/free;ts:2026-09-27;type:primary] [src:https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/;ts:2026-09-27;type:primary]
+
+      Risk controls:
+      - Loopback-only app port + deny-8080-ingress firewall: even if the tunnel daemon misconfigures, the app is unreachable from the public internet without going through Cloudflare's authenticated tunnel.
+      - `/etc/ai-saas/foundation.env` is mode 0600, fetched at every boot; secrets are not baked into the image.
+      - `cloudflared` token lives only in Secret Manager and `/etc/ai-saas/cloudflared.env` (also 0600); rotation requires deleting the Secret Manager version and rebooting the VM.
+      - VM has `--no-address`; the only ingress path is the cloudflared tunnel egress (which Cloudflare terminates at the edge).
+      - State disk (`/var/lib/ai-saas`) is auto-delete=no at create time; survives instance recreation.
+
+  - title: Setup guide (operator-runbook)
+    body: |
+      Assumes the implementation PR (#49) has been merged into `main`. Estimated time: 30–45 min for a fresh setup.
+
+      **Step 1 — Merge PR #49**
+
+      ```
+      gh pr merge 49 --squash --delete-branch
+      cd /Users/sanghee/dev/ai_saas
+      git pull
+      ```
+
+      **Step 2 — One-shot GCP setup script.** Save this as `infra/gcp/foundation/setup.sh`, `chmod +x`, and run it. Idempotent — re-runs are no-ops where the resources already exist.
+
+      ```bash
+      #!/usr/bin/env bash
+      # infra/gcp/foundation/setup.sh — one-shot GCP setup. Idempotent.
+      set -euo pipefail
+      PROJECT_ID="${1:-ai-template-509103}"
+      SA_NAME="ghae-foundation-deploy"
+      SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+      gcloud config set project $PROJECT_ID
+
+      # APIs
+      gcloud services enable compute.googleapis.com \
+        secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+
+      # Docker auth + Artifact Registry
+      gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
+      gcloud artifacts repositories create foundation \
+        --repository-format=docker --location=us-west1 2>/dev/null || true
+
+      # Service Account + roles
+      gcloud iam service-accounts create $SA_NAME \
+        --display-name="GitHub Actions: foundation GCE deploy" 2>/dev/null || true
+      for ROLE in roles/artifactregistry.writer \
+       roles/secretmanager.secretVersionAdder \
+                  roles/compute.instanceAdmin.v1; do
+        gcloud projects add-iam-policy-binding $PROJECT_ID \
+          --member="serviceAccount:${SA_EMAIL}" --role="$ROLE" --quiet
+      done
+
+      # VM (this is create-vm.sh from the implementation PR)
+      ./infra/gcp/foundation/create-vm.sh $PROJECT_ID
+
+      # Output the SA key (paste contents into GitHub secret GCP_SA_KEY)
+      mkdir -p /tmp/gcp-deploy
+      gcloud iam service-accounts keys create /tmp/gcp-deploy/sa-key.json \
+        --iam-account=$SA_EMAIL
+      echo "SA key at /tmp/gcp-deploy/sa-key.json"
+      ```
+
+      **Step 3 — Cloudflare Tunnel (manual, browser).** Cloudflare Zero Trust → Networks → Tunnels → Create a tunnel. Type: Cloudflared. Name: `foundation`. Public hostname: `foundation.<your-domain>` → service type `HTTP` → URL `localhost:8080`. Copy the tunnel token.
+
+      ```bash
+      echo -n "PASTE_TUNNEL_TOKEN_HERE" \
+        | gcloud secrets create foundation-cloudflared-token --data-file=-
+      ```
+
+      **Step 4 — Env file.** Copy `config/profiles/free-portfolio.example.env` to a working path, then override three values for the GCE smoke-test:
+
+      ```
+      APP_BASE_URL=https://foundation.<your-domain>
+      DATABASE_URL=<your Neon staging URL>
+      APP_SECRET_KEY=<openssl rand -hex 32>
+      AUTH_PROVIDER=local-mock
+      ```
+
+      Other defaults (`CONTRACT_VERSION=v1`, `OTEL_*`, etc.) are fine as-is.
+
+      ```bash
+      gcloud secrets create foundation-env --data-file=/path/to/gcp-smoke.env
+      ```
+
+      **Step 5 — Initial image.**
+
+      ```bash
+      gcloud builds submit --tag us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial
+      echo -n "us-west1-docker.pkg.dev/$PROJECT_ID/foundation/app:initial" \
+        | gcloud secrets create foundation-image --data-file=-
+      ```
+
+      **Step 6 — GitHub repo secrets + variables.** https://github.com/sh-ai-x/ai_saas/settings/secrets/actions
+
+      | Kind | Name | Value |
+      |---|---|---|
+      | Secret | `GCP_SA_KEY` | paste `/tmp/gcp-deploy/sa-key.json` contents |
+      | Variable | `GCP_PROJECT_ID` | `ai-template-509103` (or your project) |
+      | Variable | `GCP_ZONE` | `us-west1-a` |
+      | Variable | `GCP_VM_NAME` | `foundation` |
+      | Variable | `CLOUDFLARE_TUNNEL_HOSTNAME` | `foundation.<your-domain>` |
+
+      **Step 7 — Trigger + verify.**
+
+      ```bash
+      # First deploy — workflow_dispatch
+      gh workflow run foundation-gce-deploy.yml --ref main
+
+      # Watch
+      gh run watch  # pick the foundation-gce-deploy run
+
+      # After the smoke-test step reports /healthz OK
+      curl -fsS https://foundation.<your-domain>/healthz
+      ```
+
+      **Deleting the deployment** (when you're done with staging):
+
+      ```bash
+      gcloud compute instances delete foundation --zone=us-west1-a
+      gcloud compute disks delete foundation-state --zone=us-west1-a
+      gcloud compute firewall-rules delete deny-8080-ingress
+      gcloud secrets delete foundation-env foundation-cloudflared-token foundation-image
+      gcloud artifacts repositories delete foundation --location=us-west1
+      gcloud iam service-accounts delete ghae-foundation-deploy@$PROJECT_ID.iam.gserviceaccount.com
+      # Cloudflare: Zero Trust dashboard → Networks → Tunnels → delete "foundation"
+      ```
+
+  - title: References
+    body: |
+      - `cd95833 docs(ops): mark foundation deploy as staging smoke-test; fix 5 doc flags` — the existing commit that frames this as cost-sensitive.
+      - `cd1bd70 docs(ops): document Fly.io foundation deploy (one-time setup + workflow)` — the Fly method this proposal parallels.
+      - `f1b8778 fix(fly): resolve maintenance review blockers — 3 criticals + 4 follow-ups` — recent Fly deploy fixes that this GCE path should not regress.
+      - `archive/flyio-foundation-deploy` — the preserved Fly branch (snapshot of `main @ 9e71658`); rollback target if GCE fails or cost expectations change.
+      - PR #49 — the implementation branch (`plan/gcp-foundation-deploy`); lands all five files in one squash-mergeable commit.
