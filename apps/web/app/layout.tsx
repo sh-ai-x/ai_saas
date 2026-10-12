@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 // Inline before paint so [data-theme="dark"] rules apply on first frame.
-const themeBootstrap = `(function(){try{var t=localStorage.getItem('ai-saas-theme');if(t==='dark'||(t==null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.dataset.theme='dark';}catch(e){}})();`;
+const themeBootstrap = `(function(){try{var t=localStorage.getItem('ai-saas-theme');if(t==='dark'||(t==null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.dataset.theme='dark';}catch(_e){/* localStorage or matchMedia unavailable — keep default theme */}})();`;
 
 export default function RootLayout({
   children,
@@ -17,7 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    {/* suppressHydrationWarning: themeBootstrap sets <html data-theme=...> before React hydrates. */}
+    <html lang="ko" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
